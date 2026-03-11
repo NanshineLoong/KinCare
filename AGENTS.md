@@ -20,23 +20,38 @@ HomeVital 是私有部署的家庭健康管理助手。核心文档：
 ## 构建与运行
 
 ```bash
-# 开发环境启动（待定具体命令，占位）
-docker compose up -d
+# 当前推荐的本地开发方式
+# 后端
+cd backend
+UV_CACHE_DIR=/tmp/homevital-uv-cache uv venv .venv
+UV_CACHE_DIR=/tmp/homevital-uv-cache uv pip install --python .venv/bin/python -r requirements.txt
+HOMEVITAL_DB_PATH=./data/homevital.db HOMEVITAL_JWT_SECRET=dev-secret .venv/bin/uvicorn app.main:app --reload
 
-# 查看日志
+# 前端（另一个终端）
+cd frontend
+npm ci
+VITE_API_BASE_URL=http://localhost:8000 npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+```bash
+# Docker Compose 骨架
+docker compose up --build
 docker compose logs -f
 ```
+
+> 说明：当前 Phase 1 后端认证与成员管理实现使用本地 SQLite 文件（`HOMEVITAL_DB_PATH`）。`docker-compose.yml` 仍保留 PostgreSQL 目标编排骨架，后续阶段会与实际实现对齐。
 
 ## 测试
 
 ```bash
-# 运行全部测试（待定具体命令，占位）
 # 后端测试
+cd backend && .venv/bin/pytest
+
 # 前端测试
-# E2E 测试
+cd frontend && npm test
 ```
 
-> 测试命令将随技术栈确定后补充。所有 PR 必须通过全部测试。
+> 当前仓库尚未提供 E2E 测试。所有 PR 必须至少通过后端和前端测试。
 
 ---
 
@@ -58,7 +73,10 @@ HomeVital/
 │   ├── architecture/          # 架构文档与数据模型
 │   └── adr/                   # 架构决策记录（MADR 格式）
 ├── stitch-screens/            # UI 设计原型（只读参考，不要修改）
-└── <src>/                     # 源码（目录结构随技术栈确定后建立）
+├── backend/                   # FastAPI 后端
+├── frontend/                  # React + Vite 前端
+├── mcp-server/                # MCP Server 占位骨架
+└── docker-compose.yml         # 本地编排入口
 ```
 
 - `stitch-screens/` 是设计参考，**禁止修改**，仅用于对照实现

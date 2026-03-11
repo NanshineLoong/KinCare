@@ -83,7 +83,7 @@
 - 成员健康档案详情
 - AI 对话界面（文字 + 语音）
 - 文件上传与抽取结果确认
-- 技术栈：待定（参考设计原型使用 Tailwind CSS 风格）
+- 技术栈：React 18 + Vite + TypeScript + Tailwind CSS（见 ADR-0005）
 
 ### API Server（后端）
 
@@ -92,7 +92,7 @@
 - 健康事实层数据管理（基于 FHIR 风格模型）
 - 文件上传接收与处理流程
 - 对接 AI Service 层
-- 技术栈：待定
+- 技术栈：Python + FastAPI（见 ADR-0006）
 
 ### AI Service（AI 服务层）
 
@@ -108,7 +108,8 @@
 - 存储用户账号、家庭成员信息
 - 存储标准化的健康事实层数据（详见 [数据模型](./data-model.md)）
 - 存储对话历史
-- 类型：关系型数据库（具体选型见 ADR）
+- 目标数据库：PostgreSQL（见 ADR-0007）
+- 当前状态：Phase 1 的认证与成员管理实现暂以内置 SQLite 文件落地，后续阶段再与目标数据库方案收敛
 
 ### File Storage（文件存储）
 
@@ -182,15 +183,14 @@ docker compose up
 
 所有服务通过 Docker Compose 编排，数据通过 Docker Volume 持久化到宿主机。
 
+> 注：当前 `docker-compose.yml` 仍是面向目标架构的编排骨架；Phase 1 已验证的本地运行方式是分别启动 FastAPI 后端与 Vite 前端。
+
 ---
 
 ## 待决事项
 
-以下事项将通过 ADR 逐步确定：
+以下事项仍待后续阶段确定或落地：
 
-- [ ] 前端技术栈选型
-- [ ] 后端技术栈选型
-- [ ] 数据库选型
 - [ ] LLM 提供商接入策略（云端 API vs 本地 Ollama）
-- [ ] 认证方案（JWT / Session / OAuth）
 - [ ] AI Service 部署方式（内嵌 vs 独立服务）
+- [ ] 目标 PostgreSQL 方案与当前 Phase 1 SQLite 落地的收敛路径
