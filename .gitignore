@@ -64,6 +64,7 @@ build/
 .vscode/
 .cursor/
 .codex/
+.worktrees/
 *.swp
 *.swo
 *~

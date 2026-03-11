@@ -1,15 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Quicksand:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color: #1c1917;
-  background-color: #fafaf9;
+  --warm-cream: #fcf9f5;
+  --soft-sage: #e8f0e6;
+  --gentle-blue: #ebf2f7;
+  --warm-gray: #7d746d;
+  --apple-blue: #007aff;
+
+  color: #2d2926;
+  background-color: var(--warm-cream);
   font-family: "Quicksand", "Noto Sans SC", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--warm-cream);
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
 }
 
 #root {
