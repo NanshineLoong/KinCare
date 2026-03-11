@@ -39,7 +39,7 @@ docker compose up --build
 docker compose logs -f
 ```
 
-> 说明：当前 Phase 1 后端认证与成员管理实现使用本地 SQLite 文件（`HOMEVITAL_DB_PATH`）。`docker-compose.yml` 仍保留 PostgreSQL 目标编排骨架，后续阶段会与实际实现对齐。
+> 说明：当前 Phase 1-2 后端实现使用本地 SQLite 文件（`HOMEVITAL_DB_PATH`），已覆盖认证、成员管理、健康事实层资源 CRUD、趋势查询和 Dashboard 聚合。`docker-compose.yml` 仍保留 PostgreSQL 目标编排骨架，后续阶段会与实际实现对齐。
 
 ## 测试
 

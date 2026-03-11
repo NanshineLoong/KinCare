@@ -228,6 +228,20 @@ FamilyMember (家庭成员)
 | ChatSession | 对话会话：id, user_id, title, created_at |
 | ChatMessage | 单条消息：id, session_id, role(user/assistant), content, created_at |
 
+### MemberAccessGrant（成员级授权）
+
+用于表达普通用户对其他家庭成员健康数据的显式访问授权。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID | 主键 |
+| member_id | UUID | 被访问成员，FK → FamilyMember |
+| user_account_id | UUID | 获权用户，FK → UserAccount |
+| can_write | boolean | 是否允许写入；`false` 表示仅可读 |
+| created_at | timestamp | 授权创建时间 |
+
+> 当前实现中：管理员天然拥有所有成员的读写权限；普通用户默认仅可访问与自己绑定的成员档案，访问其他成员健康数据需要显式授权。
+
 ---
 
 ## ER 关系概览
@@ -244,6 +258,7 @@ FamilySpace
                 └── 1:N → CarePlan
 
 UserAccount ──── 0..1:1 → FamilyMember （可选绑定）
+UserAccount ──── N:N → FamilyMember （通过 MemberAccessGrant 表达成员级授权）
 ```
 
 ---
