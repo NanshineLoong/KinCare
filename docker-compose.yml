@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-homevital}
+      POSTGRES_USER: ${POSTGRES_USER:-homevital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homevital} -d ${POSTGRES_DB:-homevital}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-homevital}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-homevital}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-in-production}
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+  web:
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+
+  mcp:
+    build:
+      context: ./mcp-server
+    depends_on:
+      - api
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "${MCP_PORT:-8081}:8081"
+
+volumes:
+  postgres-data:

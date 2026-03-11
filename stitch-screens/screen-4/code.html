@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --warm-cream: #FCF9F5;
+            --soft-sage: #E8F0E6;
+            --muted-rose: #F9EBEA;
+            --gentle-blue: #EBF2F7;
+            --warm-gray: #7D746D;
+            --heart-red: #E67E7E;
+            --apple-blue: #007AFF;
+        }
+        body {
+            font-family: 'Quicksand', 'Noto Sans SC', sans-serif;
+            background-color: var(--warm-cream);
+            color: var(--warm-gray);
+        }
+        .apple-shadow {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+        }
+        .action-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .action-card:hover {
+            transform: scale(1.01);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#007AFF",
+                        "warm-gray": "#7D746D",
+                        "warm-cream": "#FCF9F5",
+                        "gentle-blue": "#EBF2F7",
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>家庭健康管理助手 - 登录</title>
+</head>
+<body class="min-h-screen flex flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-[var(--gentle-blue)] px-6 py-4 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+<div class="flex items-center gap-3">
+<div class="size-8 text-[var(--apple-blue)] flex items-center justify-center bg-[var(--apple-blue)]/10 rounded-lg">
+<span class="material-symbols-outlined">health_and_safety</span>
+</div>
+<h2 class="text-[var(--warm-gray)] text-lg font-bold leading-tight tracking-tight">家庭健康管理助手</h2>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex items-center justify-center rounded-lg h-10 w-10 bg-[var(--apple-blue)]/10 text-[var(--apple-blue)] hover:bg-[var(--apple-blue)]/20 transition-colors">
+<span class="material-symbols-outlined text-[20px]">help</span>
+</button>
+</div>
+</header>
+<main class="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
+<div class="absolute inset-0 z-0 opacity-40">
+<div class="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-[var(--soft-sage)] rounded-full blur-[120px]"></div>
+<div class="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-[var(--gentle-blue)] rounded-full blur-[100px]"></div>
+</div>
+<div class="w-full max-w-[480px] bg-white rounded-xl apple-shadow border border-[var(--gentle-blue)] overflow-hidden z-10 action-card">
+<div class="w-full h-48 bg-center bg-no-repeat bg-cover relative" data-alt="A happy family exercising together" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDi8CTXj8_tmtlfvnHbJ35Oz-IeW2ipB_2r_mDwL-E3VOBXLVUKTy76LGFs-tPRmugoOuRqU7WcKMorcp4InY25CGY3RfSHcfzeLKa4BsSewIQh2XV-9_HXiEKQQgQdlnDqnQxuH0NiceijADpzpZIYTOV-rgqPAPyATupM7aLmnhl7CE4XxjbgvfiChdfkA1ee19VxC2uXg81wh1Ave3aKyx5E8DDhYKOtYgxFa48XvrIu84291qpLQW0TX6zyY4-00rLI_xwlhFY");'>
+<div class="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent"></div>
+</div>
+<div class="px-8 pb-10 pt-4">
+<div class="mb-8">
+<h1 class="text-3xl font-bold text-[var(--warm-gray)] mb-2">登录</h1>
+<p class="text-[var(--warm-gray)] opacity-80">欢迎回到您的个人健康中心</p>
+</div>
+<form class="space-y-5">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-[var(--warm-gray)]">电子邮箱</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[var(--warm-gray)] opacity-50 group-focus-within:text-[var(--apple-blue)] group-focus-within:opacity-100 transition-colors">mail</span>
+<input class="w-full pl-12 pr-4 py-3.5 rounded-lg border border-[var(--gentle-blue)] bg-[var(--warm-cream)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--apple-blue)]/50 focus:border-[var(--apple-blue)] transition-all text-[var(--warm-gray)]" placeholder="请输入您的邮箱地址" required="" type="email"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<label class="text-sm font-semibold text-[var(--warm-gray)]">密码</label>
+<a class="text-xs font-medium text-[var(--apple-blue)] hover:underline" href="#">忘记密码？</a>
+</div>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[var(--warm-gray)] opacity-50 group-focus-within:text-[var(--apple-blue)] group-focus-within:opacity-100 transition-colors">lock</span>
+<input class="w-full pl-12 pr-12 py-3.5 rounded-lg border border-[var(--gentle-blue)] bg-[var(--warm-cream)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--apple-blue)]/50 focus:border-[var(--apple-blue)] transition-all text-[var(--warm-gray)]" placeholder="请输入您的登录密码" required="" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--warm-gray)] opacity-50 hover:opacity-100" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-2 py-1">
+<input class="rounded border-[var(--gentle-blue)] text-[var(--apple-blue)] focus:ring-[var(--apple-blue)] bg-[var(--warm-cream)]" id="remember" type="checkbox"/>
+<label class="text-sm text-[var(--warm-gray)]" for="remember">记住我的登录状态</label>
+</div>
+<button class="w-full bg-[var(--apple-blue)] hover:brightness-110 text-white font-bold py-4 rounded-lg shadow-lg shadow-[var(--apple-blue)]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2" type="submit">
+<span>立即登录</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</form>
+<div class="mt-8 text-center">
+<p class="text-[var(--warm-gray)] opacity-80 text-sm">
+                    还没有账号？ 
+                    <a class="text-[var(--apple-blue)] font-bold hover:underline ml-1" href="#">免费注册</a>
+</p>
+</div>
+</div>
+</div>
+</main>
+<footer class="py-6 px-4 text-center">
+<p class="text-[var(--warm-gray)] opacity-60 text-xs">© 2024 家庭健康管理助手. 您的健康，我们的承诺.</p>
+</footer>
+
+</body></html>

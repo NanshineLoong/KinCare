@@ -1,0 +1,96 @@
+# HomeVital .gitignore — 基于项目文档与架构
+
+# === 环境与密钥（安全） ===
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# === Node.js / 前端 ===
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+.npm
+.yarn-integrity
+.pnpm-debug.log*
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# === 构建产物 ===
+dist/
+build/
+*.log
+*.log.*
+
+# === IDE / 编辑器 ===
+.idea/
+.vscode/
+.cursor/
+.codex/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# === 操作系统 ===
+.DS_Store
+Thumbs.db
+
+# === Docker / 本地数据 ===
+# 数据卷持久化目录（若存在）
+data/
+volumes/
+*.sqlite
+*.db
+
+# === 测试与临时 ===
+tmp/
+temp/
+*.tmp
+.cache/
+*.test.db
+*.spec.db
+
+# === 健康数据（敏感） ===
+# 禁止提交真实健康数据，见 AGENTS.md
+*.health-data.json
+fixtures/real-*.json
