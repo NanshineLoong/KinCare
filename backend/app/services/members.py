@@ -10,14 +10,7 @@ from app.services import repository
 
 def list_members(database: Database, current_user: CurrentUser) -> list[dict[str, object]]:
     with database.connection() as connection:
-        if current_user.role == "admin":
-            return repository.list_members_by_family_space(connection, current_user.family_space_id)
-
-        if current_user.member_id is None:
-            return []
-
-        member = repository.get_member_by_id(connection, current_user.member_id)
-        return [member] if member is not None else []
+        return repository.list_members_by_family_space(connection, current_user.family_space_id)
 
 
 def create_member(
@@ -76,8 +69,5 @@ def delete_member(member_id: str, database: Database, current_user: CurrentUser)
         if member is None or member["family_space_id"] != current_user.family_space_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found.")
         if member["user_account_id"] is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot delete a member linked to a user account.",
-            )
+            repository.delete_user(connection, member["user_account_id"])
         repository.delete_member(connection, member_id)

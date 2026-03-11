@@ -271,3 +271,11 @@ def update_member(connection: sqlite3.Connection, member_id: str, changes: dict[
 
 def delete_member(connection: sqlite3.Connection, member_id: str) -> None:
     connection.execute("DELETE FROM family_member WHERE id = ?", (member_id,))
+
+
+def delete_user(connection: sqlite3.Connection, user_id: str) -> None:
+    connection.execute("DELETE FROM user_account WHERE id = ?", (user_id,))
+
+
+def delete_family_space(connection: sqlite3.Connection, family_space_id: str) -> None:
+    connection.execute("DELETE FROM family_space WHERE id = ?", (family_space_id,))

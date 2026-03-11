@@ -179,7 +179,7 @@ def test_member_cannot_create_or_delete_other_members(client: TestClient) -> Non
     )
 
     assert members_response.status_code == 200
-    assert [item["name"] for item in members_response.json()] == ["普通成员"]
+    assert [item["name"] for item in members_response.json()] == ["管理员", "普通成员"]
 
     delete_response = client.delete(
         f"/api/members/{admin['member']['id']}",
@@ -245,3 +245,78 @@ def test_admin_can_create_update_and_delete_managed_members(client: TestClient) 
     )
 
     assert missing_response.status_code == 404
+
+
+def test_admin_can_delete_a_member_with_a_bound_user_account(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    member = register_user(
+        client,
+        email="member@example.com",
+        password="Secret123!",
+        name="普通成员",
+    )
+
+    delete_response = client.delete(
+        f"/api/members/{member['member']['id']}",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+
+    assert delete_response.status_code == 204
+
+    members_response = client.get(
+        "/api/members",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert [item["name"] for item in members_response.json()] == ["管理员"]
+
+    login_response = client.post(
+        "/api/auth/login",
+        json={"email": "member@example.com", "password": "Secret123!"},
+    )
+    assert login_response.status_code == 401
+
+
+def test_admin_can_delete_the_entire_family_space_and_reset_registration_flow(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    member = register_user(
+        client,
+        email="member@example.com",
+        password="Secret123!",
+        name="普通成员",
+    )
+
+    delete_response = client.delete(
+        "/api/family-space",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert delete_response.status_code == 204
+
+    stale_members_response = client.get(
+        "/api/members",
+        headers=auth_headers(member["tokens"]["access_token"]),
+    )
+    assert stale_members_response.status_code == 401
+
+    new_admin = register_user(
+        client,
+        email="new-owner@example.com",
+        password="Secret123!",
+        name="新管理员",
+    )
+    assert new_admin["user"]["role"] == "admin"
+
+    members_response = client.get(
+        "/api/members",
+        headers=auth_headers(new_admin["tokens"]["access_token"]),
+    )
+    assert [item["name"] for item in members_response.json()] == ["新管理员"]

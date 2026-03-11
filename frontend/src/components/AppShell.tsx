@@ -1,10 +1,13 @@
 import { Outlet } from "react-router-dom";
 import type { SVGProps } from "react";
 
-import type { AuthSession } from "../auth/session";
+import type { AuthMember, AuthSession } from "../auth/session";
 
 
 type AppShellProps = {
+  isLoadingMembers: boolean;
+  members: AuthMember[];
+  membersError: string | null;
   session: AuthSession;
   onSignOut: () => void;
 };
@@ -27,7 +30,17 @@ function LogOutIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function AppShell({ session, onSignOut }: AppShellProps) {
+function resolveMemberStatus(member: AuthMember, session: AuthSession) {
+  if (member.id === session.member.id) {
+    return session.user.role === "admin" ? "当前管理员" : "当前成员";
+  }
+
+  return member.user_account_id ? "已绑定账号" : "待完善档案";
+}
+
+export function AppShell({ isLoadingMembers, members, membersError, session, onSignOut }: AppShellProps) {
+  const visibleMembers = members.length > 0 ? members : [session.member];
+
   return (
     <div className="min-h-screen bg-warm-cream text-[#2D2926]">
       <header className="sticky top-0 z-20 border-b border-[#F2EDE7] bg-white/80 backdrop-blur-md">
@@ -55,7 +68,7 @@ export function AppShell({ session, onSignOut }: AppShellProps) {
             </div>
             <button
               className="inline-flex items-center gap-2 rounded-full border border-[#F2EDE7] bg-white px-4 py-2 text-sm font-semibold text-warm-gray shadow-soft transition hover:text-[#2D2926]"
-              onClick={onSignOut}
+              onClick={() => onSignOut()}
               type="button"
             >
               <LogOutIcon aria-hidden className="h-4 w-4" />
@@ -70,43 +83,65 @@ export function AppShell({ session, onSignOut }: AppShellProps) {
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-lg font-bold tracking-tight text-[#2D2926]">成员概览</h2>
             <span className="rounded-full border border-[#F2EDE7] bg-white px-3 py-1 text-xs font-semibold text-warm-gray shadow-soft">
-              1 位在线成员
+              {visibleMembers.length} 位成员
             </span>
           </div>
 
           <div className="space-y-4">
-            <article className="rounded-[2rem] border border-[#F2EDE7]/60 bg-white p-5 shadow-card">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F9EBEA] text-lg font-bold text-[#b86d6d]">
-                  {session.member.name.slice(0, 1)}
-                </div>
-                <div>
-                  <p className="font-bold text-[#2D2926]">{session.member.name}</p>
-                  <p className="text-xs text-[#4f8a62]">{session.user.role === "admin" ? "管理员账号" : "普通成员账号"}</p>
-                </div>
+            {membersError ? (
+              <div className="rounded-[1.6rem] border border-[#f1d6d6] bg-[#fff5f4] px-4 py-4 text-sm text-[#9a5e5e]">
+                {membersError}
               </div>
+            ) : null}
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-soft-sage px-3 py-3 text-xs text-[#4d6d55]">
-                  <p className="font-semibold uppercase tracking-[0.2em] text-[#6c8b73]">身份</p>
-                  <p className="mt-2 text-sm font-bold text-[#3E5C3A]">
-                    {session.user.role === "admin" ? "家庭管理员" : "家庭成员"}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-[#FEF5ED] px-3 py-3 text-xs text-[#916741]">
-                  <p className="font-semibold uppercase tracking-[0.2em] text-[#af855f]">状态</p>
-                  <p className="mt-2 text-sm font-bold text-[#9a6d3b]">可继续完善</p>
-                </div>
-                <div className="rounded-2xl bg-gentle-blue px-3 py-3 text-xs text-[#4c6985]">
-                  <p className="font-semibold uppercase tracking-[0.2em] text-[#6a87a4]">成员档案</p>
-                  <p className="mt-2 text-sm font-bold text-[#41678b]">已自动创建</p>
-                </div>
-                <div className="rounded-2xl bg-[#f8f6f3] px-3 py-3 text-xs text-warm-gray/70">
-                  <p className="font-semibold uppercase tracking-[0.2em] text-warm-gray/60">下一步</p>
-                  <p className="mt-2 text-sm font-bold text-warm-gray">录入健康数据</p>
-                </div>
+            {isLoadingMembers && members.length === 0 ? (
+              <div className="rounded-[1.6rem] border border-[#F2EDE7]/60 bg-white px-4 py-4 text-sm text-warm-gray">
+                正在加载家庭成员...
               </div>
-            </article>
+            ) : null}
+
+            {visibleMembers.map((member) => (
+              <article className="rounded-[2rem] border border-[#F2EDE7]/60 bg-white p-5 shadow-card" key={member.id}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F9EBEA] text-lg font-bold text-[#b86d6d]">
+                    {member.name.slice(0, 1)}
+                  </div>
+                  <div>
+                    <p className="font-bold text-[#2D2926]">{member.name}</p>
+                    <p className="text-xs text-[#4f8a62]">{resolveMemberStatus(member, session)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-soft-sage px-3 py-3 text-xs text-[#4d6d55]">
+                    <p className="font-semibold uppercase tracking-[0.2em] text-[#6c8b73]">身份</p>
+                    <p className="mt-2 text-sm font-bold text-[#3E5C3A]">
+                      {member.id === session.member.id
+                        ? session.user.role === "admin"
+                          ? "家庭管理员"
+                          : "家庭成员"
+                        : member.user_account_id
+                          ? "已开通账号"
+                          : "家庭档案"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-[#FEF5ED] px-3 py-3 text-xs text-[#916741]">
+                    <p className="font-semibold uppercase tracking-[0.2em] text-[#af855f]">状态</p>
+                    <p className="mt-2 text-sm font-bold text-[#9a6d3b]">{member.user_account_id ? "可登录协作" : "等待管理员完善"}</p>
+                  </div>
+                  <div className="rounded-2xl bg-gentle-blue px-3 py-3 text-xs text-[#4c6985]">
+                    <p className="font-semibold uppercase tracking-[0.2em] text-[#6a87a4]">成员档案</p>
+                    <p className="mt-2 text-sm font-bold text-[#41678b]">{member.birth_date ? "已填写生日" : "基础档案就绪"}</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#f8f6f3] px-3 py-3 text-xs text-warm-gray/70">
+                    <p className="font-semibold uppercase tracking-[0.2em] text-warm-gray/60">下一步</p>
+                    <p className="mt-2 text-sm font-bold text-warm-gray">
+                      {member.id === session.member.id ? "继续录入健康数据" : "补充健康信息"}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         </aside>
 
