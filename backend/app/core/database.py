@@ -174,6 +174,53 @@ CREATE TABLE IF NOT EXISTS care_plan (
 
 CREATE INDEX IF NOT EXISTS idx_care_plan_member_id_scheduled_at
 ON care_plan(member_id, scheduled_at DESC);
+
+CREATE TABLE IF NOT EXISTS chat_session (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
+    family_space_id TEXT NOT NULL REFERENCES family_space(id) ON DELETE CASCADE,
+    member_id TEXT REFERENCES family_member(id) ON DELETE SET NULL,
+    title TEXT,
+    page_context TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_session_user_id_created_at
+ON chat_session(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS chat_message (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES chat_session(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),
+    content TEXT NOT NULL,
+    event_type TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_message_session_id_created_at
+ON chat_message(session_id, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS scheduled_task (
+    id TEXT PRIMARY KEY,
+    family_space_id TEXT NOT NULL REFERENCES family_space(id) ON DELETE CASCADE,
+    member_id TEXT REFERENCES family_member(id) ON DELETE CASCADE,
+    created_by TEXT NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
+    task_type TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    schedule_type TEXT NOT NULL CHECK (schedule_type IN ('once', 'daily', 'weekly')),
+    schedule_config TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+    next_run_at TEXT,
+    last_run_at TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_task_family_space_enabled
+ON scheduled_task(family_space_id, enabled, next_run_at);
 """
 
 

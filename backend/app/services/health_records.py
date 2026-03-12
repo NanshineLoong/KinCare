@@ -26,7 +26,7 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value)
 
 
-def _ensure_member_access(
+def ensure_member_access(
     database: Database,
     current_user: CurrentUser,
     member_id: str,
@@ -59,7 +59,7 @@ def list_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> list[dict[str, Any]]:
-    _ensure_member_access(database, current_user, member_id, require_write=False)
+    ensure_member_access(database, current_user, member_id, require_write=False)
     with database.connection() as connection:
         return health_repository.list_resources_for_member(connection, resource, member_id=member_id)
 
@@ -71,7 +71,7 @@ def create_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    _ensure_member_access(database, current_user, member_id, require_write=True)
+    ensure_member_access(database, current_user, member_id, require_write=True)
     values = dict(payload)
     if resource == "documents":
         values["uploaded_by"] = current_user.id
@@ -87,7 +87,7 @@ def get_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    _ensure_member_access(database, current_user, member_id, require_write=False)
+    ensure_member_access(database, current_user, member_id, require_write=False)
     with database.connection() as connection:
         item = health_repository.get_resource_by_id(connection, resource, resource_id)
 
@@ -107,7 +107,7 @@ def update_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    _ensure_member_access(database, current_user, member_id, require_write=True)
+    ensure_member_access(database, current_user, member_id, require_write=True)
     with database.connection() as connection:
         existing = health_repository.get_resource_by_id(connection, resource, resource_id)
         if existing is None or existing["member_id"] != member_id:
@@ -129,7 +129,7 @@ def delete_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> None:
-    _ensure_member_access(database, current_user, member_id, require_write=True)
+    ensure_member_access(database, current_user, member_id, require_write=True)
     with database.connection() as connection:
         existing = health_repository.get_resource_by_id(connection, resource, resource_id)
         if existing is None or existing["member_id"] != member_id:
@@ -149,7 +149,7 @@ def get_observation_trend(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    _ensure_member_access(database, current_user, member_id, require_write=False)
+    ensure_member_access(database, current_user, member_id, require_write=False)
     with database.connection() as connection:
         items = health_repository.list_observation_trend(
             connection,

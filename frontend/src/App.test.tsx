@@ -73,6 +73,16 @@ function emptyResponse(status = 204) {
   return new Response(null, { status });
 }
 
+function sseResponse(events: Array<{ event: string; data: unknown }>) {
+  const body = events
+    .map((item) => `event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`)
+    .join("");
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
 function createDashboard(memberName = "管理员") {
   return {
     members: [
@@ -256,7 +266,7 @@ function createEncounter(overrides: Record<string, unknown> = {}) {
 }
 
 function mockApi(
-  handler: (request: { method: string; pathname: string; search: string; bodyText: string }) => Promise<Response> | Response,
+  handler: (request: { method: string; pathname: string; search: string; bodyText: string; request: Request }) => Promise<Response> | Response,
 ) {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const request = new Request(input, init);
@@ -265,6 +275,7 @@ function mockApi(
       pathname: new URL(request.url).pathname,
       search: new URL(request.url).search,
       bodyText: request.method === "GET" ? "" : await request.text(),
+      request,
     });
   });
 }
@@ -468,13 +479,106 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "注销整个家庭空间" })).not.toBeInTheDocument();
   });
 
-  it("opens the ai chat overlay from the dashboard composer", async () => {
+  it("opens the ai chat overlay from the dashboard composer and streams real chat events", async () => {
+    window.localStorage.setItem(
+      "homevital.session",
+      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
+    );
+
+    mockApi(({ bodyText, method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([
+          createMember("member-1", "管理员", "user-1"),
+          createMember("member-2", "张妈妈", "user-2"),
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard("管理员"));
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        return jsonResponse({
+          id: "chat-session-1",
+          user_id: "user-1",
+          family_space_id: "family-1",
+          member_id: null,
+          title: null,
+          page_context: "home",
+          created_at: "2026-03-12T10:00:00+08:00",
+          updated_at: "2026-03-12T10:00:00+08:00",
+        }, 201);
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-session-1/messages") {
+        expect(JSON.parse(bodyText)).toMatchObject({
+          content: "张妈妈今天胃口不错，心情也很好。",
+          page_context: "home",
+        });
+        return sseResponse([
+          { event: "session.started", data: { session_id: "chat-session-1", member_id: null } },
+          { event: "tool.started", data: { tool_name: "read_member_summary" } },
+          { event: "tool.result", data: { tool_name: "read_member_summary", content: "张妈妈：最新指标 血压平稳", requires_confirmation: false, meta: {} } },
+          { event: "message.delta", data: { content: "我已经帮你整理好张妈妈今天的状态。" } },
+          { event: "message.completed", data: { content: "我已经帮你整理好张妈妈今天的状态。" } },
+        ]);
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("说说今天家人的健康情况..."), {
+      target: { value: "张妈妈今天胃口不错，心情也很好。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送 AI 消息" }));
+
+    expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
+    expect(screen.getByText("张妈妈：最新指标 血压平稳")).toBeInTheDocument();
+    expect(screen.getByText("张妈妈今天胃口不错，心情也很好。")).toBeInTheDocument();
+    expect(screen.getByText("我已经帮你整理好张妈妈今天的状态。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭 AI 对话" }));
+    expect(screen.queryByRole("dialog", { name: "AI 健康助手" })).not.toBeInTheDocument();
+  });
+
+  it("transcribes uploaded audio into the chat draft", async () => {
     window.localStorage.setItem(
       "homevital.session",
       JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
     );
 
     mockApi(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([createMember("member-1", "管理员", "user-1")]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard("管理员"));
+      }
+      if (method === "POST" && pathname === "/api/chat/transcriptions") {
+        return jsonResponse({ text: "奶奶今天胃口不错" });
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "打开 AI 助手" }));
+    expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
+
+    const audioInput = screen.getByLabelText("上传语音") as HTMLInputElement;
+    const file = new File(["audio"], "voice.wav", { type: "audio/wav" });
+    fireEvent.change(audioInput, { target: { files: [file] } });
+
+    expect(await screen.findByDisplayValue("奶奶今天胃口不错")).toBeInTheDocument();
+  });
+
+  it("requires selecting a member before uploading a chat attachment", async () => {
+    window.localStorage.setItem(
+      "homevital.session",
+      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
+    );
+
+    const fetchMock = mockApi(({ method, pathname }) => {
       if (method === "GET" && pathname === "/api/members") {
         return jsonResponse([
           createMember("member-1", "管理员", "user-1"),
@@ -490,17 +594,214 @@ describe("App", () => {
     renderApp("/app");
 
     expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText("说说今天家人的健康情况..."), {
-      target: { value: "张妈妈今天胃口不错，心情也很好。" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "发送 AI 消息" }));
-
+    fireEvent.click(screen.getByRole("button", { name: "打开 AI 助手" }));
     expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
-    expect(screen.getByText("您好，我是您的 Clarity Assistant。")).toBeInTheDocument();
-    expect(screen.getByText("张妈妈今天胃口不错，心情也很好。")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "关闭 AI 对话" }));
-    expect(screen.queryByRole("dialog", { name: "AI 健康助手" })).not.toBeInTheDocument();
+    const attachmentInput = screen.getByLabelText("上传附件") as HTMLInputElement;
+    const file = new File(["{}"], "report.json", { type: "application/json" });
+    fireEvent.change(attachmentInput, { target: { files: [file] } });
+
+    expect(await screen.findByText("请先选择成员再上传附件。")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("uploads and confirms extracted documents from the member profile", async () => {
+    window.localStorage.setItem(
+      "homevital.session",
+      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
+    );
+
+    let observations = [createObservation()];
+    let carePlans = [
+      {
+        id: "plan-1",
+        member_id: "member-2",
+        category: "daily-tip",
+        title: "旧提醒",
+        description: "旧描述",
+        status: "active",
+        scheduled_at: "2026-03-11T20:15:00+08:00",
+        completed_at: null,
+        generated_by: "manual",
+        created_at: "2026-03-10T20:00:00+08:00",
+        updated_at: "2026-03-10T20:00:00+08:00",
+      },
+    ];
+
+    mockApi(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([
+          createMember("member-1", "管理员", "user-1"),
+          createMember("member-2", "张妈妈", "user-2"),
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2") {
+        return jsonResponse({
+          ...createMember("member-2", "张妈妈", "user-2"),
+          gender: "female",
+          birth_date: "1961-03-08",
+          blood_type: "A+",
+          allergies: ["青霉素"],
+          medical_history: ["高血压"],
+        });
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/observations") {
+        return jsonResponse(observations);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/conditions") {
+        return jsonResponse([]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/medications") {
+        return jsonResponse([]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/encounters") {
+        return jsonResponse([]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/care-plans") {
+        return jsonResponse(carePlans);
+      }
+      if (method === "POST" && pathname === "/api/members/member-2/documents/upload") {
+        return jsonResponse({
+          id: "doc-1",
+          member_id: "member-2",
+          uploaded_by: "user-1",
+          doc_type: "checkup-report",
+          file_path: "uploads/member-2/report.json",
+          file_name: "report.json",
+          mime_type: "application/json",
+          extraction_status: "completed",
+          extracted_at: "2026-03-12T10:00:00+08:00",
+          raw_extraction: {
+            summary: "体检报告显示血压略高。",
+            observations: [
+              {
+                category: "vital-signs",
+                code: "bp-systolic",
+                display_name: "收缩压",
+                value: 132,
+                value_string: null,
+                unit: "mmHg",
+                effective_at: "2026-03-12T08:00:00+08:00",
+                notes: null,
+                encounter_id: null,
+              },
+            ],
+            conditions: [],
+            medications: [],
+            encounters: [],
+            care_plans: [
+              {
+                category: "followup-reminder",
+                title: "继续监测血压",
+                description: "未来 3 天持续记录晨间血压",
+                status: "active",
+                scheduled_at: "2026-03-13T08:00:00+08:00",
+                completed_at: null,
+                generated_by: "ai",
+              },
+            ],
+          },
+          created_at: "2026-03-12T10:00:00+08:00",
+          updated_at: "2026-03-12T10:00:00+08:00",
+        }, 201);
+      }
+      if (method === "GET" && pathname === "/api/documents/doc-1/extraction") {
+        return jsonResponse({
+          id: "doc-1",
+          member_id: "member-2",
+          file_name: "report.json",
+          doc_type: "checkup-report",
+          extraction_status: "completed",
+          extracted_at: "2026-03-12T10:00:00+08:00",
+          raw_extraction: {
+            summary: "体检报告显示血压略高。",
+            observations: [
+              {
+                category: "vital-signs",
+                code: "bp-systolic",
+                display_name: "收缩压",
+                value: 132,
+                value_string: null,
+                unit: "mmHg",
+                effective_at: "2026-03-12T08:00:00+08:00",
+                notes: null,
+                encounter_id: null,
+              },
+            ],
+            conditions: [],
+            medications: [],
+            encounters: [],
+            care_plans: [
+              {
+                category: "followup-reminder",
+                title: "继续监测血压",
+                description: "未来 3 天持续记录晨间血压",
+                status: "active",
+                scheduled_at: "2026-03-13T08:00:00+08:00",
+                completed_at: null,
+                generated_by: "ai",
+              },
+            ],
+          },
+        });
+      }
+      if (method === "POST" && pathname === "/api/documents/doc-1/confirm") {
+        observations = [
+          createObservation({
+            id: "obs-new",
+            value: 132,
+            effective_at: "2026-03-12T08:00:00+08:00",
+            source: "document-extract",
+            source_ref: "doc-1",
+          }),
+          ...observations,
+        ];
+        carePlans = [
+          {
+            id: "plan-new",
+            member_id: "member-2",
+            category: "followup-reminder",
+            title: "继续监测血压",
+            description: "未来 3 天持续记录晨间血压",
+            status: "active",
+            scheduled_at: "2026-03-13T08:00:00+08:00",
+            completed_at: null,
+            generated_by: "ai",
+            created_at: "2026-03-12T10:00:00+08:00",
+            updated_at: "2026-03-12T10:00:00+08:00",
+          },
+          ...carePlans,
+        ];
+        return jsonResponse({
+          document_id: "doc-1",
+          created_counts: {
+            observations: 1,
+            conditions: 0,
+            medications: 0,
+            encounters: 0,
+            care_plans: 1,
+          },
+        });
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app/members/member-2");
+
+    expect(await screen.findByRole("heading", { name: "张妈妈" })).toBeInTheDocument();
+
+    const uploadInput = screen.getByLabelText("上传健康文档") as HTMLInputElement;
+    fireEvent.change(uploadInput, {
+      target: {
+        files: [new File(["{}"], "report.json", { type: "application/json" })],
+      },
+    });
+
+    expect(await screen.findByText("体检报告显示血压略高。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认抽取并入库" }));
+
+    expect(await screen.findByText("已写入 1 条指标和 1 条提醒。")).toBeInTheDocument();
+    expect(await screen.findByText("继续监测血压")).toBeInTheDocument();
   });
 
   it("renders the member profile and records a new observation", async () => {

@@ -2,16 +2,20 @@ import { useEffect, useMemo, useState, type FormEvent, type SVGProps } from "rea
 import { Link, useParams } from "react-router-dom";
 
 import {
+  confirmDocumentExtraction,
   createEncounter,
   createMedication,
   createObservation,
+  getDocumentExtraction,
   listCarePlans,
   listConditions,
   listEncounters,
   listMedications,
   listObservations,
+  uploadMemberDocument,
   type CarePlanRecord,
   type ConditionRecord,
+  type DocumentExtractionRecord,
   type EncounterRecord,
   type MedicationRecord,
   type ObservationRecord,
@@ -100,6 +104,15 @@ function SectionIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M10 19V5" />
       <path d="M16 19v-8" />
       <path d="M22 19v-5" />
+    </svg>
+  );
+}
+
+function SparkIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="m11.3 3.7 1.2 3.6a1 1 0 0 0 .6.6l3.6 1.2-3.6 1.2a1 1 0 0 0-.6.6l-1.2 3.6-1.2-3.6a1 1 0 0 0-.6-.6L6.9 9.1l3.6-1.2a1 1 0 0 0 .6-.6l1.2-3.6Z" />
+      <path d="m17.5 13.5.7 2a.9.9 0 0 0 .5.5l2 .7-2 .7a.9.9 0 0 0-.5.5l-.7 2-.7-2a.9.9 0 0 0-.5-.5l-2-.7 2-.7a.9.9 0 0 0 .5-.5l.7-2Z" />
     </svg>
   );
 }
@@ -207,6 +220,9 @@ export function MemberProfilePage({ members, session }: MemberProfilePageProps) 
   const [error, setError] = useState<string | null>(null);
   const [accessLimited, setAccessLimited] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [documentNotice, setDocumentNotice] = useState<string | null>(null);
+  const [pendingExtraction, setPendingExtraction] = useState<DocumentExtractionRecord | null>(null);
+  const [profileVersion, setProfileVersion] = useState(0);
   const [observationForm, setObservationForm] = useState<ObservationFormState>(emptyObservationForm);
   const [medicationForm, setMedicationForm] = useState<MedicationFormState>(emptyMedicationForm);
   const [encounterForm, setEncounterForm] = useState<EncounterFormState>(emptyEncounterForm);
@@ -284,7 +300,7 @@ export function MemberProfilePage({ members, session }: MemberProfilePageProps) 
     return () => {
       isCancelled = true;
     };
-  }, [memberId, members, session]);
+  }, [memberId, members, profileVersion, session]);
 
   const age = useMemo(() => calculateAge(member?.birth_date ?? null), [member?.birth_date]);
   const latestWeight = latestObservationByCode(profile.observations, "body-weight");
@@ -365,6 +381,43 @@ export function MemberProfilePage({ members, session }: MemberProfilePageProps) 
       setEncounterForm(emptyEncounterForm);
     } catch (submitError) {
       setActionError(submitError instanceof Error ? submitError.message : "新增就医记录失败，请重试。");
+    }
+  }
+
+  async function handleDocumentUpload(file: File) {
+    setActionError(null);
+    setDocumentNotice(null);
+
+    try {
+      const uploaded = await uploadMemberDocument(session, memberId, {
+        docType: "other",
+        file,
+      });
+      const extraction = await getDocumentExtraction(session, uploaded.id);
+      setPendingExtraction(extraction);
+    } catch (submitError) {
+      setActionError(submitError instanceof Error ? submitError.message : "上传文档失败，请重试。");
+    }
+  }
+
+  async function handleConfirmExtraction() {
+    if (!pendingExtraction?.raw_extraction) {
+      return;
+    }
+
+    setActionError(null);
+
+    try {
+      const result = await confirmDocumentExtraction(
+        session,
+        pendingExtraction.id,
+        pendingExtraction.raw_extraction,
+      );
+      setPendingExtraction(null);
+      setDocumentNotice(`已写入 ${result.created_counts.observations ?? 0} 条指标和 ${result.created_counts.care_plans ?? 0} 条提醒。`);
+      setProfileVersion((current) => current + 1);
+    } catch (submitError) {
+      setActionError(submitError instanceof Error ? submitError.message : "确认抽取失败，请重试。");
     }
   }
 
@@ -614,6 +667,77 @@ export function MemberProfilePage({ members, session }: MemberProfilePageProps) 
                 ))
               )}
             </div>
+          </section>
+
+          <section className="rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-6 py-7 shadow-card sm:px-8">
+            <div className="flex items-center justify-between gap-4">
+              <h3 className="flex items-center gap-2 text-xl font-bold text-[#2D2926]">
+                <SparkIcon aria-hidden className="h-5 w-5 text-[#4879D5]" />
+                AI 提醒与计划
+              </h3>
+              <span className="text-sm font-semibold text-warm-gray">{profile.carePlans.length} 条</span>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {profile.carePlans.length === 0 ? (
+                <p className="text-sm text-warm-gray">暂时还没有 AI 生成的提醒。</p>
+              ) : (
+                profile.carePlans.map((item) => (
+                  <article className="rounded-[1.8rem] border border-[#F2EDE7] px-5 py-5" key={item.id}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-lg font-bold text-[#2D2926]">{item.title}</p>
+                      <span className="rounded-full bg-[#EEF5FF] px-3 py-1 text-xs font-semibold text-[#4879D5]">{item.status}</span>
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-warm-gray">{item.description}</p>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-6 py-7 shadow-card sm:px-8">
+            <div className="flex items-center gap-2">
+              <SparkIcon aria-hidden className="h-5 w-5 text-[#4879D5]" />
+              <h3 className="text-xl font-bold text-[#2D2926]">文档抽取</h3>
+            </div>
+            <p className="mt-2 text-sm leading-7 text-warm-gray">上传报告、处方或检验单后，系统会先生成草稿，再由你确认是否入库。</p>
+
+            <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#2D2926] px-5 py-3 text-sm font-semibold text-white">
+              上传文档并抽取
+              <input
+                aria-label="上传健康文档"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    void handleDocumentUpload(file);
+                  }
+                  event.target.value = "";
+                }}
+                type="file"
+                accept="application/pdf,image/*,application/json,text/plain"
+              />
+            </label>
+
+            {documentNotice ? (
+              <div className="mt-5 rounded-[1.6rem] border border-[#DAE8F7] bg-[#F2F7FF] px-4 py-4 text-sm text-[#41678B]">
+                {documentNotice}
+              </div>
+            ) : null}
+
+            {pendingExtraction ? (
+              <div className="mt-5 rounded-[1.8rem] border border-[#F2EDE7] bg-[#FAF8F5] px-5 py-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-warm-gray">待确认草稿</p>
+                <p className="mt-3 text-sm leading-7 text-[#2D2926]">{pendingExtraction.raw_extraction?.summary ?? "已完成抽取，等待确认。"}</p>
+                <button
+                  className="mt-4 inline-flex rounded-full bg-[#2D2926] px-5 py-3 text-sm font-semibold text-white"
+                  onClick={() => void handleConfirmExtraction()}
+                  type="button"
+                >
+                  确认抽取并入库
+                </button>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-6 py-7 shadow-card sm:px-8">
