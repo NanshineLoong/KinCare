@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -62,6 +62,213 @@ function createMember(id: string, name: string, linkedUserId: string | null = nu
   };
 }
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function emptyResponse(status = 204) {
+  return new Response(null, { status });
+}
+
+function createDashboard(memberName = "管理员") {
+  return {
+    members: [
+      {
+        member: {
+          id: "member-1",
+          name: memberName,
+          gender: "unknown",
+          avatar_url: null,
+          blood_type: "O+",
+        },
+        latest_observations: {
+          "body-weight": {
+            code: "body-weight",
+            display_name: "体重",
+            value: 61.5,
+            value_string: null,
+            unit: "kg",
+            effective_at: "2026-03-11T07:30:00+08:00",
+          },
+        },
+        active_conditions: [],
+        active_medications_count: 0,
+        latest_encounter: null,
+      },
+      {
+        member: {
+          id: "member-2",
+          name: "张妈妈",
+          gender: "female",
+          avatar_url: null,
+          blood_type: "A+",
+        },
+        latest_observations: {
+          "bp-systolic": {
+            code: "bp-systolic",
+            display_name: "收缩压",
+            value: 126,
+            value_string: null,
+            unit: "mmHg",
+            effective_at: "2026-03-11T08:00:00+08:00",
+          },
+          "step-count": {
+            code: "step-count",
+            display_name: "步数",
+            value: 4800,
+            value_string: null,
+            unit: "steps",
+            effective_at: "2026-03-11T11:20:00+08:00",
+          },
+          "blood-oxygen": {
+            code: "blood-oxygen",
+            display_name: "血氧",
+            value: 97,
+            value_string: null,
+            unit: "%",
+            effective_at: "2026-03-11T09:10:00+08:00",
+          },
+        },
+        active_conditions: ["高血压"],
+        active_medications_count: 1,
+        latest_encounter: {
+          id: "enc-1",
+          member_id: "member-2",
+          type: "outpatient",
+          facility: "社区医院",
+          department: "心内科",
+          date: "2026-03-08",
+          summary: "复诊并调整降压药",
+          source: "manual",
+          source_ref: null,
+          created_at: "2026-03-08T10:00:00+08:00",
+          updated_at: "2026-03-08T10:00:00+08:00",
+        },
+      },
+    ],
+    today_reminders: [
+      {
+        id: "plan-1",
+        member_id: "member-2",
+        member_name: "张妈妈",
+        category: "medication-reminder",
+        title: "早餐后服药",
+        description: "08:30 服用降压药",
+        status: "active",
+        scheduled_at: "2026-03-11T08:30:00+08:00",
+        completed_at: null,
+        generated_by: "manual",
+        created_at: "2026-03-10T20:00:00+08:00",
+        updated_at: "2026-03-10T20:00:00+08:00",
+      },
+      {
+        id: "plan-2",
+        member_id: "member-2",
+        member_name: "张妈妈",
+        category: "followup-reminder",
+        title: "午后复诊",
+        description: "14:30 前往社区医院",
+        status: "active",
+        scheduled_at: "2026-03-11T14:30:00+08:00",
+        completed_at: null,
+        generated_by: "manual",
+        created_at: "2026-03-10T20:00:00+08:00",
+        updated_at: "2026-03-10T20:00:00+08:00",
+      },
+      {
+        id: "plan-3",
+        member_id: "member-1",
+        member_name: memberName,
+        category: "daily-tip",
+        title: "晚间散步",
+        description: "饭后散步 20 分钟",
+        status: "active",
+        scheduled_at: "2026-03-11T20:15:00+08:00",
+        completed_at: null,
+        generated_by: "manual",
+        created_at: "2026-03-10T20:00:00+08:00",
+        updated_at: "2026-03-10T20:00:00+08:00",
+      },
+    ],
+  };
+}
+
+function createObservation(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "obs-default",
+    member_id: "member-2",
+    category: "vital-signs",
+    code: "bp-systolic",
+    display_name: "收缩压",
+    value: 126,
+    value_string: null,
+    unit: "mmHg",
+    effective_at: "2026-03-11T08:00:00+08:00",
+    source: "manual",
+    source_ref: null,
+    notes: "早餐后测量",
+    encounter_id: null,
+    created_at: "2026-03-11T08:00:00+08:00",
+    updated_at: "2026-03-11T08:00:00+08:00",
+    ...overrides,
+  };
+}
+
+function createMedication(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "med-default",
+    member_id: "member-2",
+    medication_name: "缬沙坦",
+    dosage: "每日一次，每次 1 片",
+    status: "active",
+    start_date: "2026-03-01",
+    end_date: null,
+    reason: "高血压",
+    prescribed_by: "社区医院",
+    source: "manual",
+    source_ref: null,
+    notes: "早餐后服用",
+    encounter_id: null,
+    created_at: "2026-03-01T08:00:00+08:00",
+    updated_at: "2026-03-01T08:00:00+08:00",
+    ...overrides,
+  };
+}
+
+function createEncounter(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "enc-default",
+    member_id: "member-2",
+    type: "outpatient",
+    facility: "社区医院",
+    department: "心内科",
+    date: "2026-03-08",
+    summary: "复诊并调整降压药",
+    source: "manual",
+    source_ref: null,
+    created_at: "2026-03-08T14:30:00+08:00",
+    updated_at: "2026-03-08T14:30:00+08:00",
+    ...overrides,
+  };
+}
+
+function mockApi(
+  handler: (request: { method: string; pathname: string; search: string; bodyText: string }) => Promise<Response> | Response,
+) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const request = new Request(input, init);
+    return handler({
+      method: request.method,
+      pathname: new URL(request.url).pathname,
+      search: new URL(request.url).search,
+      bodyText: request.method === "GET" ? "" : await request.text(),
+    });
+  });
+}
+
 
 describe("App", () => {
   beforeEach(() => {
@@ -102,6 +309,9 @@ describe("App", () => {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(createDashboard("王医生")),
       );
 
     renderApp("/login");
@@ -115,8 +325,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "立即登录" }));
 
     expect(await screen.findByRole("heading", { name: "家庭健康管理" })).toBeInTheDocument();
-    expect(screen.getByText("成员概览")).toBeInTheDocument();
-    expect(screen.getByText("成员管理台")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    expect(screen.getByText("清晨的叮嘱")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8000/api/auth/login",
       expect.objectContaining({
@@ -139,6 +349,9 @@ describe("App", () => {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(createDashboard("李阿姨")),
       );
 
     renderApp("/register");
@@ -157,47 +370,52 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "创建账号" }));
 
-    expect(await screen.findByText("欢迎回来，李阿姨")).toBeInTheDocument();
-    expect(screen.getByText("家庭空间概览")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    expect(screen.getByText("早餐后服药")).toBeInTheDocument();
   });
 
-  it("shows all family members to admins and allows management actions", async () => {
+  it("renders the phase 3 dashboard and keeps admin management actions available", async () => {
     window.localStorage.setItem(
       "homevital.session",
       JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
     );
 
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify([
-            createMember("member-1", "管理员", "user-1"),
-            createMember("member-2", "普通成员", "user-2"),
-          ]),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(createMember("member-3", "奶奶")), {
-          status: 201,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
-
+    let deleteMemberCount = 0;
+    const fetchMock = mockApi(({ bodyText, method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([
+          createMember("member-1", "管理员", "user-1"),
+          createMember("member-2", "张妈妈", "user-2"),
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard("管理员"));
+      }
+      if (method === "POST" && pathname === "/api/members") {
+        const payload = JSON.parse(bodyText) as { name: string };
+        return jsonResponse(createMember("member-3", payload.name), 201);
+      }
+      if (method === "DELETE" && pathname === "/api/members/member-2") {
+        deleteMemberCount += 1;
+        return emptyResponse();
+      }
+      if (method === "DELETE" && pathname === "/api/family-space") {
+        return emptyResponse();
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     renderApp("/app");
 
-    expect((await screen.findAllByText("普通成员")).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    expect(screen.getByText("清晨的叮嘱")).toBeInTheDocument();
+    expect(screen.getByText("午后的守候")).toBeInTheDocument();
+    expect(screen.getByText("晚间小结")).toBeInTheDocument();
+    expect(screen.getByText("张妈妈")).toBeInTheDocument();
     expect(screen.getByText("2 位成员")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "添加成员" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "删除 普通成员" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "删除 张妈妈" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "注销整个家庭空间" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("新成员姓名"), {
@@ -206,8 +424,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "添加成员" }));
     expect((await screen.findAllByText("奶奶")).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "删除 普通成员" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除 张妈妈" }));
     expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(deleteMemberCount).toBe(1);
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "注销整个家庭空间" }));
     expect(await screen.findByRole("heading", { name: "注册" })).toBeInTheDocument();
@@ -225,25 +446,194 @@ describe("App", () => {
       JSON.stringify(createAuthResponse("普通成员", "member@example.com", "member", "member-2", "user-2")),
     );
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(
-        JSON.stringify([
+    mockApi(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([
           createMember("member-1", "管理员", "user-1"),
           createMember("member-2", "普通成员", "user-2"),
-        ]),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard("普通成员"));
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
 
     renderApp("/app");
 
     expect((await screen.findAllByText("管理员")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("普通成员").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "添加成员" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "注销整个家庭空间" })).not.toBeInTheDocument();
+  });
+
+  it("opens the ai chat overlay from the dashboard composer", async () => {
+    window.localStorage.setItem(
+      "homevital.session",
+      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
+    );
+
+    mockApi(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([
+          createMember("member-1", "管理员", "user-1"),
+          createMember("member-2", "张妈妈", "user-2"),
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard("管理员"));
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("说说今天家人的健康情况..."), {
+      target: { value: "张妈妈今天胃口不错，心情也很好。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送 AI 消息" }));
+
+    expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
+    expect(screen.getByText("您好，我是您的 Clarity Assistant。")).toBeInTheDocument();
+    expect(screen.getByText("张妈妈今天胃口不错，心情也很好。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭 AI 对话" }));
+    expect(screen.queryByRole("dialog", { name: "AI 健康助手" })).not.toBeInTheDocument();
+  });
+
+  it("renders the member profile and records a new observation", async () => {
+    window.localStorage.setItem(
+      "homevital.session",
+      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
+    );
+
+    let lastObservationPayload: Record<string, unknown> | null = null;
+    mockApi(({ bodyText, method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([
+          createMember("member-1", "管理员", "user-1"),
+          createMember("member-2", "张妈妈", "user-2"),
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2") {
+        return jsonResponse({
+          ...createMember("member-2", "张妈妈", "user-2"),
+          gender: "female",
+          birth_date: "1961-03-08",
+          blood_type: "A+",
+          allergies: ["青霉素"],
+          medical_history: ["高血压"],
+        });
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/observations") {
+        return jsonResponse([
+          createObservation(),
+          createObservation({
+            id: "obs-weight",
+            code: "body-weight",
+            display_name: "体重",
+            value: 58.2,
+            unit: "kg",
+            effective_at: "2026-03-10T07:20:00+08:00",
+            notes: "晨起测量",
+          }),
+          createObservation({
+            id: "obs-step",
+            category: "activity",
+            code: "step-count",
+            display_name: "步数",
+            value: 6200,
+            unit: "steps",
+            effective_at: "2026-03-10T20:00:00+08:00",
+            notes: "全天活动",
+          }),
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/conditions") {
+        return jsonResponse([
+          {
+            id: "cond-1",
+            member_id: "member-2",
+            category: "chronic",
+            code: "hypertension",
+            display_name: "高血压",
+            clinical_status: "active",
+            onset_date: "2020-05-01",
+            abatement_date: null,
+            severity: "moderate",
+            source: "manual",
+            source_ref: null,
+            notes: "定期复诊",
+            encounter_id: null,
+            created_at: "2026-03-01T08:00:00+08:00",
+            updated_at: "2026-03-01T08:00:00+08:00",
+          },
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/medications") {
+        return jsonResponse([createMedication()]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/encounters") {
+        return jsonResponse([createEncounter()]);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/care-plans") {
+        return jsonResponse([]);
+      }
+      if (method === "POST" && pathname === "/api/members/member-2/observations") {
+        lastObservationPayload = JSON.parse(bodyText) as Record<string, unknown>;
+        return jsonResponse(
+          createObservation({
+            id: "obs-new",
+            code: lastObservationPayload.code,
+            display_name: lastObservationPayload.display_name,
+            value: lastObservationPayload.value,
+            unit: lastObservationPayload.unit,
+            effective_at: lastObservationPayload.effective_at,
+            notes: lastObservationPayload.notes,
+          }),
+          201,
+        );
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app/members/member-2");
+
+    expect(await screen.findByRole("heading", { name: "张妈妈" })).toBeInTheDocument();
+    expect(screen.getByText("当前用药")).toBeInTheDocument();
+    expect(screen.getByText("就医时间线")).toBeInTheDocument();
+    expect(screen.getByText("手动录入")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("指标编码"), {
+      target: { value: "heart-rate" },
+    });
+    fireEvent.change(screen.getByLabelText("指标名称"), {
+      target: { value: "心率" },
+    });
+    fireEvent.change(screen.getByLabelText("数值"), {
+      target: { value: "72" },
+    });
+    fireEvent.change(screen.getByLabelText("单位"), {
+      target: { value: "bpm" },
+    });
+    fireEvent.change(screen.getByLabelText("测量时间"), {
+      target: { value: "2026-03-11T19:15" },
+    });
+    fireEvent.change(screen.getByLabelText("备注"), {
+      target: { value: "晚饭后补录" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "记录指标" }));
+
+    expect(await screen.findByText("晚饭后补录")).toBeInTheDocument();
+    expect(lastObservationPayload).toMatchObject({
+      code: "heart-rate",
+      display_name: "心率",
+      value: 72,
+      unit: "bpm",
+      notes: "晚饭后补录",
+    });
   });
 
   it("returns to the login page after signing out", async () => {
@@ -252,12 +642,15 @@ describe("App", () => {
       JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
     );
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify([createMember("member-1", "管理员", "user-1")]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    mockApi(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([createMember("member-1", "管理员", "user-1")]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard("管理员"));
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
 
     renderApp("/app");
 
