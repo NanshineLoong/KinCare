@@ -81,3 +81,17 @@ export async function deleteAuthorized(path: string, session: AuthSession): Prom
 
   await parseResponse<void>(response);
 }
+
+export async function sendAuthorizedFormData<TResponse>(
+  path: string,
+  session: AuthSession,
+  formData: FormData,
+): Promise<TResponse> {
+  const response = await fetch(buildApiUrl(path), {
+    method: "POST",
+    headers: createAuthHeaders(session),
+    body: formData,
+  });
+
+  return parseResponse<TResponse>(response);
+}

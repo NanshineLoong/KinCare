@@ -1,13 +1,19 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.orchestrator import ChatOrchestrator
+from app.ai.scheduler import HomeVitalScheduler
 from app.api.routes.auth import router as auth_router
+from app.api.routes.chat import router as chat_router
 from app.api.routes.family_space import router as family_space_router
 from app.api.routes.health import router as health_router
 from app.api.routes.health_records import (
     care_plans_router,
     conditions_router,
     dashboard_router,
+    document_workflow_router,
     documents_router,
     encounters_router,
     medications_router,
@@ -22,10 +28,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
     database = Database(resolved_settings.database_path)
     database.initialize()
+    scheduler = HomeVitalScheduler(database, timezone=resolved_settings.scheduler_timezone)
+    orchestrator = ChatOrchestrator(
+        database=database,
+        settings=resolved_settings,
+        scheduler=scheduler,
+    )
 
-    app = FastAPI(title="HomeVital API")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if resolved_settings.scheduler_enabled:
+            scheduler.start()
+        try:
+            yield
+        finally:
+            scheduler.shutdown()
+
+    app = FastAPI(title="HomeVital API", lifespan=lifespan)
     app.state.settings = resolved_settings
     app.state.database = database
+    app.state.scheduler = scheduler
+    app.state.chat_orchestrator = orchestrator
+    database.app = app  # type: ignore[attr-defined]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(resolved_settings.cors_origins),
@@ -35,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(chat_router)
     app.include_router(family_space_router)
     app.include_router(members_router)
     app.include_router(dashboard_router)
@@ -43,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(medications_router)
     app.include_router(encounters_router)
     app.include_router(documents_router)
+    app.include_router(document_workflow_router)
     app.include_router(care_plans_router)
     return app
 

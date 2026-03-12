@@ -2,15 +2,26 @@ import { startTransition, useEffect, useState, type ChangeEvent, type FormEvent,
 import { Link, useNavigate } from "react-router-dom";
 
 import {
+  confirmChatDraft,
+  createChatSession,
+  streamChatMessage,
+  transcribeAudio,
+  type ChatSession,
+  type ChatToolResult,
+} from "../api/chat";
+import {
+  confirmDocumentExtraction,
   getDashboard,
+  getDocumentExtraction,
   type DashboardMemberSummary,
   type DashboardReminder,
   type DashboardResponse,
+  uploadMemberDocument,
 } from "../api/health";
 import { deleteFamilySpace } from "../api/familySpace";
 import { createMember, deleteMember } from "../api/members";
 import type { AuthMember, AuthSession } from "../auth/session";
-import { ChatOverlay, type ChatMessage } from "../components/ChatOverlay";
+import { ChatOverlay, type ChatMessage, type ChatToolCard } from "../components/ChatOverlay";
 
 
 type HomePageProps = {
@@ -40,12 +51,7 @@ const initialAssistantMessages: ChatMessage[] = [
   {
     id: "assistant-intro",
     role: "assistant",
-    content: "您好，我是您的 Clarity Assistant。",
-  },
-  {
-    id: "assistant-context",
-    role: "assistant",
-    content: "我已经整理好今天需要优先关注的家人状态。您今天想为家人记录哪些新数据？",
+    content: "您好，我是您的 HomeVital 助手。请先选择成员，或者直接描述今天的健康情况。",
   },
 ];
 
@@ -119,13 +125,6 @@ function readHourFromIso(value: string | null) {
   }
   const match = value.match(/T(\d{2}):/);
   return match ? Number(match[1]) : 12;
-}
-
-function buildAssistantReply(input: string) {
-  if (input.includes("心情") || input.includes("胃口")) {
-    return "听起来今天整体状态不错。建议顺手补一条心率或血压记录，这样晚间回顾会更完整。";
-  }
-  return "收到。我已经把这段描述记在对话上下文里，接下来可以继续补充症状、指标或提醒安排。";
 }
 
 function summarizeCondition(summary: DashboardMemberSummary | undefined): SummaryChip {
@@ -268,19 +267,6 @@ function formatReminderTime(value: string | null) {
   return match ? match[1] : value;
 }
 
-function mergeChatMessages(messages: ChatMessage[], input: string): ChatMessage[] {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return messages;
-  }
-
-  return [
-    ...messages,
-    { id: `user-${Date.now()}`, role: "user", content: trimmed },
-    { id: `assistant-${Date.now()}`, role: "assistant", content: buildAssistantReply(trimmed) },
-  ];
-}
-
 export function HomePage({
   isLoadingMembers,
   members,
@@ -302,41 +288,44 @@ export function HomePage({
   const [chatDraft, setChatDraft] = useState("");
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialAssistantMessages);
+  const [chatToolCards, setChatToolCards] = useState<ChatToolCard[]>([]);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [isChatBusy, setIsChatBusy] = useState(false);
+  const [selectedChatMemberId, setSelectedChatMemberId] = useState("");
+  const [chatSession, setChatSession] = useState<ChatSession | null>(null);
+  const [queuedMessage, setQueuedMessage] = useState<string | null>(null);
+  const [attachedDocumentIds, setAttachedDocumentIds] = useState<string[]>([]);
   const isAdmin = session.user.role === "admin";
   const visibleMembers = members.length > 0 ? members : [session.member];
   const memberSummaries = new Map((dashboard?.members ?? []).map((item) => [item.member.id, item]));
   const reminderGroups = groupReminders(dashboard?.today_reminders ?? []);
 
-  useEffect(() => {
-    let isCancelled = false;
+  async function loadDashboardData() {
+    setIsLoadingDashboard(true);
+    setDashboardError(null);
 
-    async function loadDashboard() {
-      setIsLoadingDashboard(true);
-      setDashboardError(null);
-
-      try {
-        const nextDashboard = await getDashboard(session);
-        if (!isCancelled) {
-          setDashboard(nextDashboard);
-        }
-      } catch (error) {
-        if (!isCancelled) {
-          setDashboard(null);
-          setDashboardError(error instanceof Error ? error.message : "首页聚合数据加载失败，请重试。");
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoadingDashboard(false);
-        }
-      }
+    try {
+      const nextDashboard = await getDashboard(session);
+      setDashboard(nextDashboard);
+    } catch (error) {
+      setDashboard(null);
+      setDashboardError(error instanceof Error ? error.message : "首页聚合数据加载失败，请重试。");
+    } finally {
+      setIsLoadingDashboard(false);
     }
+  }
 
-    void loadDashboard();
-
-    return () => {
-      isCancelled = true;
-    };
+  useEffect(() => {
+    void loadDashboardData();
   }, [session]);
+
+  useEffect(() => {
+    if (!isChatOpen || !queuedMessage) {
+      return;
+    }
+    void sendChatMessage(queuedMessage);
+    setQueuedMessage(null);
+  }, [isChatOpen, queuedMessage]);
 
   function updateNewMemberName(event: ChangeEvent<HTMLInputElement>) {
     setNewMemberName(event.target.value);
@@ -405,32 +394,188 @@ export function HomePage({
     }
   }
 
+  function resetChatState() {
+    setChatMessages(initialAssistantMessages);
+    setChatToolCards([]);
+    setChatDraft("");
+    setChatError(null);
+    setChatSession(null);
+    setAttachedDocumentIds([]);
+    setSelectedChatMemberId(visibleMembers.length === 1 ? visibleMembers[0].id : "");
+  }
+
   function handleOpenChat() {
     setIsChatOpen(true);
-    setChatMessages(initialAssistantMessages);
-    setChatDraft("");
+    resetChatState();
   }
 
   function handleSendHomeMessage() {
     const trimmed = composerValue.trim();
     setIsChatOpen(true);
+    resetChatState();
 
     if (!trimmed) {
-      setChatMessages(initialAssistantMessages);
       return;
     }
 
-    setChatMessages(mergeChatMessages(initialAssistantMessages, trimmed));
+    setQueuedMessage(trimmed);
     setComposerValue("");
   }
 
-  function handleSendChatMessage() {
+  async function ensureChatSession() {
+    if (chatSession) {
+      return chatSession;
+    }
+    const created = await createChatSession(session, {
+      member_id: selectedChatMemberId || null,
+      page_context: "home",
+    });
+    setChatSession(created);
+    return created;
+  }
+
+  async function sendChatMessage(rawContent: string) {
+    const trimmed = rawContent.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    setChatError(null);
+    setIsChatBusy(true);
+    setChatMessages((current) => [...current, { id: `user-${Date.now()}`, role: "user", content: trimmed }]);
+
+    try {
+      const nextSession = await ensureChatSession();
+      const events = await streamChatMessage(session, nextSession.id, {
+        content: trimmed,
+        member_id: selectedChatMemberId || null,
+        document_ids: attachedDocumentIds,
+        page_context: "home",
+      });
+
+      let assistantText = "";
+      events.forEach((event) => {
+        if (event.event === "tool.result") {
+          setChatToolCards((current) => [
+            ...current,
+            {
+              id: `tool-${Date.now()}-${current.length}`,
+              result: event.data,
+            },
+          ]);
+        }
+        if (event.event === "message.delta" || event.event === "message.completed") {
+          assistantText = event.data.content;
+        }
+      });
+
+      if (assistantText) {
+        setChatMessages((current) => [...current, { id: `assistant-${Date.now()}`, role: "assistant", content: assistantText }]);
+      }
+      setAttachedDocumentIds([]);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "AI 对话发送失败，请重试。");
+    } finally {
+      setIsChatBusy(false);
+    }
+  }
+
+  async function handleSendChatMessage() {
     const trimmed = chatDraft.trim();
     if (!trimmed) {
       return;
     }
-    setChatMessages((current) => mergeChatMessages(current, trimmed));
     setChatDraft("");
+    await sendChatMessage(trimmed);
+  }
+
+  async function handleAudioUpload(file: File) {
+    setChatError(null);
+    try {
+      const result = await transcribeAudio(session, file);
+      setChatDraft(result.text);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "语音转写失败，请重试。");
+    }
+  }
+
+  async function handleAttachmentUpload(file: File) {
+    if (!selectedChatMemberId) {
+      setChatError("请先选择成员再上传附件。");
+      return;
+    }
+
+    setChatError(null);
+    setIsChatBusy(true);
+
+    try {
+      const document = await uploadMemberDocument(session, selectedChatMemberId, {
+        docType: "other",
+        file,
+      });
+      const extraction = await getDocumentExtraction(session, document.id);
+      setAttachedDocumentIds((current) => [...current, document.id]);
+      setChatToolCards((current) => [
+        ...current,
+        {
+          id: `tool-document-${document.id}`,
+          result: {
+            tool_name: "document_extraction",
+            content: extraction.raw_extraction?.summary ?? `${document.file_name} 已完成抽取。`,
+            requires_confirmation: true,
+            draft: extraction.raw_extraction,
+            meta: {
+              document_id: document.id,
+              member_id: selectedChatMemberId,
+            },
+          },
+        },
+      ]);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "附件上传失败，请重试。");
+    } finally {
+      setIsChatBusy(false);
+    }
+  }
+
+  async function handleConfirmToolDraft(toolCard: ChatToolCard) {
+    if (!toolCard.result.draft) {
+      return;
+    }
+
+    setChatError(null);
+    setIsChatBusy(true);
+
+    try {
+      const documentId = typeof toolCard.result.meta.document_id === "string" ? toolCard.result.meta.document_id : null;
+      let createdCounts: Record<string, number>;
+      if (documentId) {
+        const result = await confirmDocumentExtraction(session, documentId, toolCard.result.draft);
+        createdCounts = result.created_counts;
+      } else {
+        const memberId = selectedChatMemberId || session.member.id;
+        const result = await confirmChatDraft(session, {
+          member_id: memberId,
+          draft: toolCard.result.draft,
+        });
+        createdCounts = result.created_counts;
+      }
+
+      setChatToolCards((current) => current.filter((item) => item.id !== toolCard.id));
+      setChatMessages((current) => [
+        ...current,
+        {
+          id: `assistant-confirm-${Date.now()}`,
+          role: "assistant",
+          content: `已写入 ${createdCounts.observations ?? 0} 条指标和 ${createdCounts.care_plans ?? 0} 条提醒。`,
+        },
+      ]);
+      await loadDashboardData();
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "确认写入失败，请重试。");
+    } finally {
+      setIsChatBusy(false);
+    }
   }
 
   return (
@@ -699,10 +844,19 @@ export function HomePage({
       {isChatOpen ? (
         <ChatOverlay
           draft={chatDraft}
+          error={chatError}
+          isBusy={isChatBusy}
+          memberOptions={visibleMembers.map((member) => ({ id: member.id, name: member.name }))}
           messages={chatMessages}
+          onAttachmentUpload={handleAttachmentUpload}
+          onAudioUpload={handleAudioUpload}
           onClose={() => setIsChatOpen(false)}
+          onConfirmToolDraft={handleConfirmToolDraft}
           onDraftChange={setChatDraft}
+          onMemberChange={setSelectedChatMemberId}
           onSend={handleSendChatMessage}
+          selectedMemberId={selectedChatMemberId}
+          toolCards={chatToolCards}
         />
       ) : null}
     </>

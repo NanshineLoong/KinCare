@@ -1,6 +1,6 @@
 import type { AuthSession } from "../auth/session";
 
-import { getAuthorized, sendAuthorized } from "./http";
+import { getAuthorized, sendAuthorized, sendAuthorizedFormData } from "./http";
 
 
 export type DashboardObservationSnapshot = {
@@ -52,6 +52,31 @@ export type CarePlanRecord = {
   generated_by: string;
   created_at: string;
   updated_at: string;
+};
+
+export type DocumentRecord = {
+  id: string;
+  member_id: string;
+  uploaded_by: string;
+  doc_type: string;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  extraction_status: string;
+  extracted_at: string | null;
+  raw_extraction: import("./chat").DocumentExtractionDraft | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentExtractionRecord = {
+  id: string;
+  member_id: string;
+  file_name: string;
+  doc_type: string;
+  extraction_status: string;
+  extracted_at: string | null;
+  raw_extraction: import("./chat").DocumentExtractionDraft | null;
 };
 
 export type DashboardReminder = CarePlanRecord & {
@@ -204,6 +229,36 @@ export function createMedication(session: AuthSession, memberId: string, payload
 export function createEncounter(session: AuthSession, memberId: string, payload: EncounterCreatePayload) {
   return sendAuthorized<EncounterRecord, EncounterCreatePayload>(
     `/api/members/${memberId}/encounters`,
+    session,
+    {
+      method: "POST",
+      payload,
+    },
+  );
+}
+
+export async function uploadMemberDocument(
+  session: AuthSession,
+  memberId: string,
+  payload: { docType: string; file: File },
+) {
+  const formData = new FormData();
+  formData.append("doc_type", payload.docType);
+  formData.append("file", payload.file);
+  return sendAuthorizedFormData<DocumentRecord>(`/api/members/${memberId}/documents/upload`, session, formData);
+}
+
+export function getDocumentExtraction(session: AuthSession, documentId: string) {
+  return getAuthorized<DocumentExtractionRecord>(`/api/documents/${documentId}/extraction`, session);
+}
+
+export function confirmDocumentExtraction(
+  session: AuthSession,
+  documentId: string,
+  payload: import("./chat").DocumentExtractionDraft,
+) {
+  return sendAuthorized<{ document_id: string; created_counts: Record<string, number> }, import("./chat").DocumentExtractionDraft>(
+    `/api/documents/${documentId}/confirm`,
     session,
     {
       method: "POST",
