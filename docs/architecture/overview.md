@@ -109,7 +109,7 @@
 - 存储标准化的健康事实层数据（详见 [数据模型](./data-model.md)）
 - 存储对话历史
 - 目标数据库：PostgreSQL（见 ADR-0007）
-- 当前状态：Phase 1-2 的认证、成员管理、健康事实层资源 CRUD、趋势查询与 Dashboard 聚合已以内置 SQLite 文件落地，后续阶段再与目标 PostgreSQL 方案收敛
+- 当前状态：Phase 1-3 的认证、成员管理、健康事实层资源 CRUD、趋势查询与 Dashboard 聚合已以内置 SQLite 文件落地，前端首页看板与成员档案页也已接入该实现；后续阶段再与目标 PostgreSQL 方案收敛
 
 ### File Storage（文件存储）
 
@@ -183,7 +183,7 @@ docker compose up
 
 所有服务通过 Docker Compose 编排，数据通过 Docker Volume 持久化到宿主机。
 
-> 注：当前 `docker-compose.yml` 仍是面向目标架构的编排骨架；Phase 1-2 已验证的本地运行方式是分别启动 FastAPI 后端与 Vite 前端。
+> 注：当前 `docker-compose.yml` 仍是面向目标架构的编排骨架；Phase 1-3 已验证的本地运行方式是分别启动 FastAPI 后端与 Vite 前端。
 
 ---
 
@@ -193,4 +193,4 @@ docker compose up
 
 - [ ] LLM 提供商接入策略（云端 API vs 本地 Ollama）
 - [ ] AI Service 部署方式（内嵌 vs 独立服务）
-- [ ] 目标 PostgreSQL 方案与当前 Phase 1-2 SQLite 落地的收敛路径
+- [ ] 目标 PostgreSQL 方案与当前 Phase 1-3 SQLite 落地的收敛路径
