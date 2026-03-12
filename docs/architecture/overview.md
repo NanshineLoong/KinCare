@@ -7,6 +7,7 @@
 3. **标准化数据层** — FHIR 风格资源模型作为核心抽象，上层功能统一基于此层
 4. **AI 提供商可替换** — 通过抽象层接入 LLM，不绑定具体供应商
 5. **可扩展** — MCP Server 接口让外部 AI 系统可以操作健康数据
+6. **AI 读写受控** — AI 通过受控工具访问健康数据，写操作复用现有业务服务层与权限校验
 
 ---
 
@@ -96,12 +97,15 @@
 
 ### AI Service（AI 服务层）
 
-- 对话编排：组装健康数据上下文 + 用户查询，调用 LLM
-- 文档结构化抽取：接收 PDF/图片，调用 LLM 解析为 FHIR 风格资源
-- 每日提醒生成：基于健康数据生成个性化提醒
-- LLM 提供商抽象层：统一接口，支持切换不同 LLM
+- 对话编排：组装最小上下文，按需调用受控工具读取或修改健康数据
+- 文档结构化抽取：对 PDF/图片先做预处理与路由，再生成 FHIR 风格草稿资源
+- 语音转写：接收音频输入并转写为统一的文本对话入口
+- 主动任务编排：基于健康数据生成提醒，并支持用户自定义时间任务
+- LLM / 多模态提供商抽象层：统一接口，支持切换云端与本地模型
 
 > AI Service 可以作为 API Server 的内部模块实现，也可以是独立服务。MVP 阶段建议内嵌以降低复杂度。
+>
+> Phase 4 建议优先采用应用内 typed tool orchestration，并通过 OpenAI-compatible provider abstraction 接入云端或本地模型。文档解析优先参考 `Docling`，复杂中文扫描件可补充 `MinerU`，通用图片理解可接入 `Qwen2.5-VL` 类 VLM，语音转写可参考 `SenseVoice` / `FunASR`，定时任务优先 `APScheduler`。涉及这些外部框架、模型和接口时，以其官方文档和当前版本说明为准。详见 [Phase 4 AI 技术设计](./phase-4-ai-design.md)。
 
 ### Database（数据库）
 
@@ -122,6 +126,7 @@
 - 基于 MCP 协议暴露健康数据能力
 - 提供的 Tool：查询成员列表、查询健康记录、查询指标趋势、新增记录等
 - 提供的 Resource：成员档案摘要、最近健康事件等
+- 复用 AI Service / API Server 已实现的读写能力与权限校验，不重复实现业务逻辑
 - 可被 OpenClaw 或其他 MCP 客户端调用
 
 ---
@@ -134,18 +139,18 @@
 用户上传 PDF/图片
   → Web App
   → API Server (接收文件, 存储到 File Storage)
-  → AI Service (调用 LLM 结构化抽取)
-  → 返回抽取结果给用户确认
+  → AI Service (预处理与路由, 再调用 LLM/VLM 结构化抽取)
+  → 返回抽取草稿给用户确认
   → 用户确认后写入 Database (健康事实层)
 ```
 
 ### 流程 2：AI 对话
 
 ```
-用户发送消息（文字/语音）
-  → Web App（语音先转文字）
-  → API Server (鉴权, 加载用户可见的健康数据上下文)
-  → AI Service (组装 prompt + 上下文, 调用 LLM)
+用户发送消息（文字/语音/附件）
+  → Web App（音频上传，语音转写为文字）
+  → API Server (鉴权, 加载最小上下文)
+  → AI Service (按需调用受控工具读取/修改健康数据, 调用 LLM/VLM)
   → 流式返回回答
   → Web App 展示
 ```
@@ -153,11 +158,11 @@
 ### 流程 3：每日提醒生成
 
 ```
-定时任务 / 用户访问首页时触发
-  → API Server (获取全家成员健康数据)
-  → AI Service (基于数据生成提醒)
-  → 存储提醒到 Database
-  → Web App 首页展示
+APScheduler / 用户定义任务触发
+  → API Server (获取目标成员与调度定义)
+  → AI Service (基于数据生成提醒或状态检查结果)
+  → 存储结果到 Database
+  → Web App 首页或成员档案页展示
 ```
 
 ### 流程 4：MCP 外部调用
@@ -191,6 +196,7 @@ docker compose up
 
 以下事项仍待后续阶段确定或落地：
 
-- [ ] LLM 提供商接入策略（云端 API vs 本地 Ollama）
-- [ ] AI Service 部署方式（内嵌 vs 独立服务）
+- [ ] 默认云端模型与本地模型组合策略
+- [ ] 文档解析、本地多模态模型与语音服务的 Docker 化方式
+- [ ] Phase 5 MCP 对外发布形态
 - [ ] 目标 PostgreSQL 方案与当前 Phase 1-3 SQLite 落地的收敛路径

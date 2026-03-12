@@ -11,6 +11,7 @@ HomeVital 是私有部署的家庭健康管理助手。核心文档：
 - 产品需求：`docs/prd/mvp-v1.md`
 - 架构总览：`docs/architecture/overview.md`
 - 数据模型：`docs/architecture/data-model.md`
+- Phase 4 AI 设计：`docs/architecture/phase-4-ai-design.md`
 - 架构决策：`docs/adr/`
 
 修改代码前，先阅读相关文档确认设计意图。
@@ -62,6 +63,13 @@ cd frontend && npm test
 - 函数/类命名使用英文，注释可用中文或英文
 - 不要在代码注释中复述代码行为，只注释非显而易见的意图、约束或权衡
 
+## AI 实现约束
+
+- Phase 4 AI 能力实现前，先阅读 `docs/architecture/phase-4-ai-design.md`
+- AI 读取或修改健康数据时，必须复用现有业务服务层与成员级权限校验；不要让 AI 直接访问数据库
+- 不要把全量或未授权的健康数据直接拼进 Prompt；优先使用最小上下文 + 受控工具调用
+- 对 AI SDK、模型服务、ASR、文档解析、MCP 等外部系统的实现，以各自官方文档和当前版本说明为准；仓库文档只定义架构方向和边界，不替代上游接口文档
+
 ---
 
 ## 目录规则
@@ -95,6 +103,7 @@ HomeVital/
 6. **不要**修改已 Accepted 的 ADR 内容
 7. **不要**在代码中存储未脱敏的真实健康数据作为测试数据
 8. **不要**跳过数据模型层直接操作数据库
+9. **不要**让 AI 绕过现有权限模型直接读取或写入家庭健康数据
 
 ---
 
