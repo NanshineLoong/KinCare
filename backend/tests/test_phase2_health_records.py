@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import sys
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -352,6 +352,14 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
     )
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
     headers = auth_headers(admin["tokens"]["access_token"])
+    today = datetime.now(UTC).date()
+    today_morning = datetime(today.year, today.month, today.day, 8, 30, tzinfo=UTC).isoformat()
+    tomorrow_morning = datetime(
+        *(today + timedelta(days=1)).timetuple()[:3],
+        9,
+        30,
+        tzinfo=UTC,
+    ).isoformat()
 
     response = client.post(
         f"/api/members/{managed_member['id']}/observations",
@@ -398,7 +406,7 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
             "title": "早餐后服药",
             "description": "08:30 服用降压药",
             "status": "active",
-            "scheduled_at": "2026-03-11T08:30:00+00:00",
+            "scheduled_at": today_morning,
             "generated_by": "manual",
         },
         {
@@ -406,7 +414,7 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
             "title": "周五复诊",
             "description": "提前准备病历",
             "status": "active",
-            "scheduled_at": "2026-03-12T09:30:00+00:00",
+            "scheduled_at": tomorrow_morning,
             "generated_by": "manual",
         },
     ]:

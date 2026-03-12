@@ -6,6 +6,7 @@ import { AppShell } from "./components/AppShell";
 import { clearSession, readSession, writeSession, type AuthMember, type AuthSession } from "./auth/session";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
+import { MemberProfilePage } from "./pages/MemberProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 
 export default function App() {
@@ -92,19 +93,7 @@ export default function App() {
         }
       />
       <Route
-        element={
-          session ? (
-            <AppShell
-              isLoadingMembers={isLoadingMembers}
-              members={members}
-              membersError={membersError}
-              onSignOut={handleSignOut}
-              session={session}
-            />
-          ) : (
-            <Navigate replace to={signedOutPath} />
-          )
-        }
+        element={session ? <AppShell onSignOut={handleSignOut} session={session} /> : <Navigate replace to={signedOutPath} />}
       >
         <Route
           path="/app"
@@ -120,6 +109,10 @@ export default function App() {
               />
             ) : null
           }
+        />
+        <Route
+          path="/app/members/:memberId"
+          element={session ? <MemberProfilePage members={members} session={session} /> : null}
         />
       </Route>
     </Routes>
