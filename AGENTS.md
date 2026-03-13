@@ -40,7 +40,7 @@ docker compose up --build
 docker compose logs -f
 ```
 
-> 说明：当前 Phase 1-3 实现使用本地 SQLite 文件（`HOMEVITAL_DB_PATH`）。后端已覆盖认证、成员管理、健康事实层资源 CRUD、趋势查询和 Dashboard 聚合，前端已落地首页看板与成员档案页。`docker-compose.yml` 仍保留 PostgreSQL 目标编排骨架，后续阶段会与实际实现对齐。
+> 说明：当前 Phase 1-4 实现继续使用本地 SQLite 文件（`HOMEVITAL_DB_PATH`）与本地上传目录。后端已覆盖认证、成员管理、健康事实层资源 CRUD、趋势查询、Dashboard 聚合，以及应用内 AI 对话/SSE、语音转写入口、文档抽取确认和定时任务提醒落库；前端已接入首页看板、成员档案页与真实 AI 对话浮层。`docker-compose.yml` 仍保留 PostgreSQL 与 MCP 的目标编排骨架，后续阶段会与实际实现对齐。
 
 ## 测试
 
@@ -65,9 +65,10 @@ cd frontend && npm test
 
 ## AI 实现约束
 
-- Phase 4 AI 能力实现前，先阅读 `docs/architecture/phase-4-ai-design.md`
+- 修改 AI 对话、抽取、转写、调度等相关实现前，先阅读 `docs/architecture/phase-4-ai-design.md`
 - AI 读取或修改健康数据时，必须复用现有业务服务层与成员级权限校验；不要让 AI 直接访问数据库
 - 不要把全量或未授权的健康数据直接拼进 Prompt；优先使用最小上下文 + 受控工具调用
+- 优先沿用 `backend/app/ai/` 下现有的 `providers/`、`orchestrator/`、`tools/`、`transcription/`、`extraction/`、`scheduler/` 职责边界，不要把 AI 逻辑散落到路由层或直接写库
 - 对 AI SDK、模型服务、ASR、文档解析、MCP 等外部系统的实现，以各自官方文档和当前版本说明为准；仓库文档只定义架构方向和边界，不替代上游接口文档
 
 ---

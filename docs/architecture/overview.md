@@ -106,6 +106,8 @@
 > AI Service 可以作为 API Server 的内部模块实现，也可以是独立服务。MVP 阶段建议内嵌以降低复杂度。
 >
 > Phase 4 建议优先采用应用内 typed tool orchestration，并通过 OpenAI-compatible provider abstraction 接入云端或本地模型。文档解析优先参考 `Docling`，复杂中文扫描件可补充 `MinerU`，通用图片理解可接入 `Qwen2.5-VL` 类 VLM，语音转写可参考 `SenseVoice` / `FunASR`，定时任务优先 `APScheduler`。涉及这些外部框架、模型和接口时，以其官方文档和当前版本说明为准。详见 [Phase 4 AI 技术设计](./phase-4-ai-design.md)。
+>
+> 当前实现：Phase 4 已以内嵌模块形式落地会话/SSE、语音转写入口、文档抽取确认与 `APScheduler` 调度，后续替换更重的 Agent、文档或 ASR 运行时，仍需保持同一组工具边界与权限模型。
 
 ### Database（数据库）
 
@@ -113,7 +115,7 @@
 - 存储标准化的健康事实层数据（详见 [数据模型](./data-model.md)）
 - 存储对话历史
 - 目标数据库：PostgreSQL（见 ADR-0007）
-- 当前状态：Phase 1-3 的认证、成员管理、健康事实层资源 CRUD、趋势查询与 Dashboard 聚合已以内置 SQLite 文件落地，前端首页看板与成员档案页也已接入该实现；后续阶段再与目标 PostgreSQL 方案收敛
+- 当前状态：Phase 1-4 的认证、成员管理、健康事实层资源 CRUD、趋势查询、Dashboard 聚合、对话历史与 `scheduled_task` 已以内置 SQLite 文件落地；Phase 5 再与目标 PostgreSQL 方案收敛
 
 ### File Storage（文件存储）
 
@@ -188,7 +190,7 @@ docker compose up
 
 所有服务通过 Docker Compose 编排，数据通过 Docker Volume 持久化到宿主机。
 
-> 注：当前 `docker-compose.yml` 仍是面向目标架构的编排骨架；Phase 1-3 已验证的本地运行方式是分别启动 FastAPI 后端与 Vite 前端。
+> 注：当前 `docker-compose.yml` 仍是面向目标架构的编排骨架；Phase 1-4 已验证的本地运行方式是分别启动 FastAPI 后端与 Vite 前端。
 
 ---
 
@@ -199,4 +201,4 @@ docker compose up
 - [ ] 默认云端模型与本地模型组合策略
 - [ ] 文档解析、本地多模态模型与语音服务的 Docker 化方式
 - [ ] Phase 5 MCP 对外发布形态
-- [ ] 目标 PostgreSQL 方案与当前 Phase 1-3 SQLite 落地的收敛路径
+- [ ] 目标 PostgreSQL 方案与当前 Phase 1-4 SQLite 落地的收敛路径

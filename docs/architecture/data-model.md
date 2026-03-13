@@ -223,10 +223,29 @@ FamilyMember (家庭成员)
 
 ### ChatSession / ChatMessage（对话记录）
 
-| 字段 | 说明 |
-|------|------|
-| ChatSession | 对话会话：id, user_id, title, created_at |
-| ChatMessage | 单条消息：id, session_id, role(user/assistant), content, created_at |
+| 模型 | 核心字段 | 说明 |
+|------|----------|------|
+| ChatSession | id, user_id, family_space_id, member_id?, title?, page_context?, created_at, updated_at | 对话会话，按用户持久化，可绑定当前焦点成员和页面上下文 |
+| ChatMessage | id, session_id, role(user/assistant/tool), content, event_type?, metadata?, created_at | 单条消息或工具事件，支撑 SSE 回复审计与后续会话扩展 |
+
+### ScheduledTask（调度定义）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID | 主键 |
+| family_space_id | UUID | 所属家庭空间 |
+| member_id | UUID? | 作用目标成员，可空 |
+| created_by | UUID | 创建任务的用户账号 |
+| task_type | string | 任务类型 |
+| prompt | string | 执行提示词/描述 |
+| schedule_type | enum | once / daily / weekly |
+| schedule_config | JSON | 调度参数（如时间、星期） |
+| enabled | boolean | 是否启用 |
+| next_run_at | timestamp? | 下次执行时间 |
+| last_run_at | timestamp? | 最近执行时间 |
+| last_error | string? | 最近一次执行错误 |
+| created_at | timestamp | 创建时间 |
+| updated_at | timestamp | 更新时间 |
 
 ### MemberAccessGrant（成员级授权）
 
@@ -250,6 +269,7 @@ FamilyMember (家庭成员)
 FamilySpace
   └── 1:N → UserAccount
   └── 1:N → FamilyMember
+  └── 1:N → ScheduledTask
                 ├── 1:N → Observation
                 ├── 1:N → Condition
                 ├── 1:N → MedicationStatement
@@ -259,6 +279,9 @@ FamilySpace
 
 UserAccount ──── 0..1:1 → FamilyMember （可选绑定）
 UserAccount ──── N:N → FamilyMember （通过 MemberAccessGrant 表达成员级授权）
+UserAccount ──── 1:N → ChatSession ──── 1:N → ChatMessage
+UserAccount ──── 1:N → ScheduledTask （created_by）
+FamilyMember ──── 0..N → ScheduledTask
 ```
 
 ---
@@ -271,3 +294,5 @@ UserAccount ──── N:N → FamilyMember （通过 MemberAccessGrant 表达
 4. **code 字段使用自定义编码** — MVP 阶段足够，后续可映射到 LOINC/SNOMED CT
 5. **extraction_status 管理抽取流程** — 支持异步处理和用户确认
 6. **CarePlan 统一管理提醒** — 不区分提醒来源，统一作为"健康计划项"管理
+7. **ChatSession / ChatMessage 记录对话与工具事件** — 支撑 AI 审计、回放与后续会话扩展
+8. **ScheduledTask 独立于 CarePlan** — 调度定义与执行输出分离，`CarePlan` 继续承载提醒结果
