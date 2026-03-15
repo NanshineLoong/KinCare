@@ -109,12 +109,13 @@ class DocumentExtractionDraft(BaseModel):
 
 
 class ChatDraftConfirmRequest(BaseModel):
-    member_id: str
-    draft: DocumentExtractionDraft
+    approvals: dict[str, bool] = Field(default_factory=dict)
+    edits: dict[str, DocumentExtractionDraft] = Field(default_factory=dict)
 
 
 class ChatDraftConfirmResult(BaseModel):
     created_counts: dict[str, int]
+    assistant_message: str
 
 
 class ChatToolResult(BaseModel):

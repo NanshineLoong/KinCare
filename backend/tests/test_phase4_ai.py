@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib
 import json
 import sys
-from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -61,6 +60,16 @@ def create_managed_member(client: TestClient, admin_access_token: str, name: str
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def create_session(client: TestClient, *, token: str, member_id: str, page_context: str) -> str:
+    response = client.post(
+        "/api/chat/sessions",
+        headers=auth_headers(token),
+        json={"member_id": member_id, "page_context": page_context},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
 
 
 def create_observation(
@@ -129,47 +138,50 @@ def parse_sse_events(response: Any) -> list[dict[str, Any]]:
     return events
 
 
-def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_events(client: TestClient) -> None:
-    admin = register_user(
-        client,
-        email="owner@example.com",
-        password="Secret123!",
-        name="管理员",
-    )
-    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
-    create_observation(
-        client,
-        token=admin["tokens"]["access_token"],
-        member_id=managed_member["id"],
-    )
-    create_care_plan(
-        client,
-        token=admin["tokens"]["access_token"],
-        member_id=managed_member["id"],
-    )
-
-    session_response = client.post(
-        "/api/chat/sessions",
-        headers=auth_headers(admin["tokens"]["access_token"]),
-        json={"member_id": managed_member["id"], "page_context": "home"},
-    )
-
-    assert session_response.status_code == 201, session_response.text
-    session_id = session_response.json()["id"]
-
+def stream_chat_message(
+    client: TestClient,
+    *,
+    token: str,
+    session_id: str,
+    member_id: str,
+    page_context: str,
+    content: str,
+) -> list[dict[str, Any]]:
     with client.stream(
         "POST",
         f"/api/chat/sessions/{session_id}/messages",
-        headers=auth_headers(admin["tokens"]["access_token"]),
+        headers=auth_headers(token),
         json={
-            "content": "请看看奶奶最近的指标和提醒",
-            "member_id": managed_member["id"],
-            "page_context": "home",
+            "content": content,
+            "member_id": member_id,
+            "page_context": page_context,
         },
     ) as response:
         assert response.status_code == 200, response.text
         assert response.headers["content-type"].startswith("text/event-stream")
-        events = parse_sse_events(response)
+        return parse_sse_events(response)
+
+
+def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_events(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    create_care_plan(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    events = stream_chat_message(
+        client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+        member_id=managed_member["id"],
+        page_context="home",
+        content="请看看奶奶最近的指标和提醒",
+    )
 
     assert [item["event"] for item in events] == [
         "session.started",
@@ -178,24 +190,14 @@ def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_even
         "message.delta",
         "message.completed",
     ]
-    assert events[2]["data"]["tool_name"] == "read_member_summary"
+    assert events[2]["data"]["tool_name"] == "get_member_summary"
     assert "收缩压" in events[2]["data"]["content"]
     assert "早餐后服药" in events[4]["data"]["content"]
 
 
 def test_chat_cannot_read_unauthorized_member_data(client: TestClient) -> None:
-    admin = register_user(
-        client,
-        email="owner@example.com",
-        password="Secret123!",
-        name="管理员",
-    )
-    member = register_user(
-        client,
-        email="viewer@example.com",
-        password="Secret123!",
-        name="普通成员",
-    )
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    member = register_user(client, email="viewer@example.com", password="Secret123!", name="普通成员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "外婆")
 
     response = client.post(
@@ -207,37 +209,31 @@ def test_chat_cannot_read_unauthorized_member_data(client: TestClient) -> None:
     assert response.status_code == 403
 
 
-def test_chat_high_risk_write_creates_draft_without_writing_observation(client: TestClient) -> None:
-    admin = register_user(
-        client,
-        email="owner@example.com",
-        password="Secret123!",
-        name="管理员",
-    )
+def test_chat_explicit_extract_emits_draft_event_without_writing_observation(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
-    session_response = client.post(
-        "/api/chat/sessions",
-        headers=auth_headers(admin["tokens"]["access_token"]),
-        json={"member_id": managed_member["id"], "page_context": "member-profile"},
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="member-profile",
     )
-    assert session_response.status_code == 201, session_response.text
 
-    with client.stream(
-        "POST",
-        f"/api/chat/sessions/{session_response.json()['id']}/messages",
-        headers=auth_headers(admin["tokens"]["access_token"]),
-        json={
-            "content": "帮我记录奶奶今天心率 72",
-            "member_id": managed_member["id"],
-            "page_context": "member-profile",
-        },
-    ) as response:
-        events = parse_sse_events(response)
+    events = stream_chat_message(
+        client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+        member_id=managed_member["id"],
+        page_context="member-profile",
+        content="帮我提取奶奶今天心率 72 到档案里",
+    )
 
-    tool_result = next(item for item in events if item["event"] == "tool.result")
-    assert tool_result["data"]["tool_name"] == "draft_health_record"
-    assert tool_result["data"]["requires_confirmation"] is True
-    assert tool_result["data"]["draft"]["observations"][0]["code"] == "heart-rate"
+    assert events[0]["event"] == "session.started"
+    draft_event = next(item for item in events if item["event"] == "tool.draft")
+    assert draft_event["data"]["tool_name"] == "draft_observations"
+    assert draft_event["data"]["requires_confirmation"] is True
+    assert draft_event["data"]["tool_call_id"]
+    assert draft_event["data"]["draft"]["observations"][0]["code"] == "heart-rate"
 
     observations_response = client.get(
         f"/api/members/{managed_member['id']}/observations",
@@ -247,71 +243,175 @@ def test_chat_high_risk_write_creates_draft_without_writing_observation(client: 
     assert observations_response.json() == []
 
 
-def test_chat_confirm_draft_writes_records(client: TestClient) -> None:
-    admin = register_user(
-        client,
-        email="owner@example.com",
-        password="Secret123!",
-        name="管理员",
-    )
+def test_chat_confirm_draft_writes_records_and_returns_assistant_message(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
-    draft = {
-        "summary": "体检报告显示血压略高，建议继续监测。",
-        "observations": [
-            {
-                "category": "chronic-vitals",
-                "code": "bp-systolic",
-                "display_name": "收缩压",
-                "value": 132.0,
-                "unit": "mmHg",
-                "effective_at": "2026-03-10T08:00:00+08:00",
-            }
-        ],
-        "conditions": [],
-        "medications": [],
-        "encounters": [],
-        "care_plans": [
-            {
-                "category": "checkup-reminder",
-                "title": "继续监测血压",
-                "description": "未来 3 天持续记录晨间血压",
-                "status": "active",
-                "scheduled_at": "2026-03-13T08:00:00+08:00",
-                "generated_by": "ai",
-            }
-        ],
-    }
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="member-profile",
+    )
+    events = stream_chat_message(
+        client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+        member_id=managed_member["id"],
+        page_context="member-profile",
+        content="帮我提取奶奶今天心率 72 到档案里",
+    )
+    draft_event = next(item for item in events if item["event"] == "tool.draft")
+    tool_call_id = draft_event["data"]["tool_call_id"]
 
     confirm_response = client.post(
-        "/api/chat/confirm",
+        f"/api/chat/{session_id}/confirm-draft",
         headers=auth_headers(admin["tokens"]["access_token"]),
-        json={"member_id": managed_member["id"], "draft": draft},
+        json={
+            "approvals": {tool_call_id: True},
+            "edits": {},
+        },
     )
+
     assert confirm_response.status_code == 200, confirm_response.text
     assert confirm_response.json()["created_counts"] == {
         "observations": 1,
         "conditions": 0,
         "medications": 0,
         "encounters": 0,
-        "care_plans": 1,
+        "care_plans": 0,
     }
+    assert "已" in confirm_response.json()["assistant_message"]
 
     observations_response = client.get(
         f"/api/members/{managed_member['id']}/observations",
         headers=auth_headers(admin["tokens"]["access_token"]),
     )
     assert observations_response.status_code == 200, observations_response.text
-    assert observations_response.json()[0]["source"] == "manual"
-    assert "source_ref" not in observations_response.json()[0]
+    assert observations_response.json()[0]["source"] == "ai-extract"
+
+
+def test_chat_analysis_emits_suggestion_without_writing_records(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="member-profile",
+    )
+
+    events = stream_chat_message(
+        client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+        member_id=managed_member["id"],
+        page_context="member-profile",
+        content="帮我分析奶奶今天心率 72 是不是正常",
+    )
+
+    event_names = [item["event"] for item in events]
+    assert "tool.suggest" in event_names
+    suggest_event = next(item for item in events if item["event"] == "tool.suggest")
+    assert suggest_event["data"]["tool_name"] == "suggest_record_update"
+    assert suggest_event["data"]["draft"]["observations"][0]["code"] == "heart-rate"
+
+    observations_response = client.get(
+        f"/api/members/{managed_member['id']}/observations",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert observations_response.status_code == 200, observations_response.text
+    assert observations_response.json() == []
+
+
+def test_chat_implicit_action_creates_care_plan(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    events = stream_chat_message(
+        client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+        member_id=managed_member["id"],
+        page_context="home",
+        content="下午三点想跑个步",
+    )
+
+    tool_result = next(item for item in events if item["event"] == "tool.result")
+    assert tool_result["data"]["tool_name"] == "create_care_plan"
+    assert "跑步" in tool_result["data"]["content"]
+
+    care_plans_response = client.get(
+        f"/api/members/{managed_member['id']}/care-plans",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert care_plans_response.status_code == 200, care_plans_response.text
+    assert any("跑步" in item["title"] for item in care_plans_response.json())
+
+
+def test_chat_loop_limit_returns_tool_error_when_model_exceeds_request_limit(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    agent_module = importlib.import_module("app.ai.agent")
+    function_models = importlib.import_module("pydantic_ai.models.function")
+    messages_module = importlib.import_module("pydantic_ai.messages")
+
+    ToolCallPart = messages_module.ToolCallPart
+    ModelResponse = messages_module.ModelResponse
+    FunctionModel = function_models.FunctionModel
+
+    async def always_call_summary(messages: list[Any], info: Any) -> Any:
+        del messages
+        return ModelResponse(parts=[ToolCallPart("get_member_summary", {})])
+
+    async def stream_always_call_summary(messages: list[Any], info: Any) -> Any:
+        response = await always_call_summary(messages, info)
+        tool_call = response.parts[0]
+        yield {
+            0: function_models.DeltaToolCall(
+                name=tool_call.tool_name,
+                json_args=tool_call.args_as_json_str(),
+                tool_call_id=tool_call.tool_call_id,
+            )
+        }
+
+    orchestrator = client.app.state.chat_orchestrator
+    original_request_limit = getattr(orchestrator, "_request_limit", None)
+    orchestrator._request_limit = 2
+
+    with orchestrator._agent.override(
+        model=FunctionModel(function=always_call_summary, stream_function=stream_always_call_summary)
+    ):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="触发一次死循环测试",
+        )
+
+    orchestrator._request_limit = original_request_limit
+
+    tool_error = next(item for item in events if item["event"] == "tool.error")
+    assert "request_limit" in tool_error["data"]["error"]
 
 
 def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: TestClient) -> None:
-    admin = register_user(
-        client,
-        email="owner@example.com",
-        password="Secret123!",
-        name="管理员",
-    )
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
 
     response = client.post(
         "/api/chat/transcriptions",
@@ -330,12 +430,7 @@ def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: Tes
 
 
 def test_scheduler_service_creates_executes_and_disables_task(client: TestClient) -> None:
-    admin = register_user(
-        client,
-        email="owner@example.com",
-        password="Secret123!",
-        name="管理员",
-    )
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
 
     _clear_app_modules()

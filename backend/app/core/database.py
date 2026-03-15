@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS observation (
     unit TEXT,
     context TEXT,
     effective_at TEXT NOT NULL,
-    source TEXT NOT NULL CHECK (source IN ('device', 'manual')),
+    source TEXT NOT NULL CHECK (source IN ('device', 'manual', 'ai-extract')),
     device_name TEXT,
     notes TEXT,
     created_at TEXT NOT NULL,
