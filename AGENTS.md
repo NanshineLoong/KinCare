@@ -78,7 +78,7 @@ cd frontend && npm test
 - 修改 AI 对话、抽取、转写、调度前，先阅读 `docs/architecture/phase-4-ai-design.md`
 - AI 读取或修改健康数据时，必须复用现有业务服务层与成员级权限校验；不要让 AI 直接访问数据库
 - 不要把全量或未授权的健康数据直接拼进 prompt；优先使用最小上下文 + 受控工具调用
-- 优先沿用 `backend/app/ai/` 下的 `deps.py`、`agent.py`、`orchestrator.py`、`tools/`、`transcription.py`、`extraction.py`、`scheduler.py` 职责边界
+- 优先沿用 `backend/app/ai/` 下的 `deps.py`、`agent.py`、`daily_generation.py`、`orchestrator.py`、`tools/`、`transcription.py`、`extraction.py`、`scheduler.py` 职责边界
 - 不要重新把旧的关键字路由 orchestrator、`providers/` 主抽象、`DocumentReference` 独立文档资源链路当作当前方案
 - 健康档案类高风险写入必须保持“生成草稿 -> 用户确认 -> 服务层写入”
 - 对 PydanticAI、模型服务、ASR、文档解析、MCP 等外部系统的实现，以各自官方文档和当前版本说明为准；仓库文档只定义边界和当前默认路线

@@ -247,19 +247,10 @@ CREATE TABLE IF NOT EXISTS scheduled_task (
 CREATE INDEX IF NOT EXISTS idx_scheduled_task_family_space_enabled
 ON scheduled_task(family_space_id, enabled, next_run_at);
 """
-
-
-def _ensure_column(connection: sqlite3.Connection, table: str, column: str, col_def: str) -> None:
-    """若表中缺少某列则添加，用于 schema 迁移。"""
-    cursor = connection.execute(f"PRAGMA table_info({table})")
-    columns = [row[1] for row in cursor.fetchall()]
-    if column not in columns:
-        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
-
-
-def _migrate_schema(connection: sqlite3.Connection) -> None:
-    """对已有数据库执行 schema 迁移，补齐新增列。"""
-    _ensure_column(connection, "family_member", "height_cm", "REAL")
+LEGACY_TABLES = (
+    "document_reference",
+    "medication_statement",
+)
 
 
 class Database:
@@ -269,8 +260,9 @@ class Database:
     def initialize(self) -> None:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.database_path) as connection:
+            for table_name in LEGACY_TABLES:
+                connection.execute(f"DROP TABLE IF EXISTS {table_name}")
             connection.executescript(SCHEMA_SQL)
-            _migrate_schema(connection)
             connection.commit()
 
     @contextmanager

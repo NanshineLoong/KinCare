@@ -7,7 +7,7 @@ HomeVital is a locally deployed family health management system. This repository
 ## Active Baseline (2026-03)
 
 - Health data model: simplified health fact layer from [ADR-0009](./docs/adr/0009-simplified-health-fact-layer.md)
-- AI runtime: in-app PydanticAI tool-calling and draft approval flow from [ADR-0010](./docs/adr/0010-pydantic-ai-tool-calling.md)
+- AI runtime: in-app PydanticAI with tool-calling conversations and draft approval flow from [ADR-0010](./docs/adr/0010-pydantic-ai-tool-calling.md)
 - UI direction: Step 6 follows the 16-screen redesign referenced by the active plan, not the early `stitch-screens/` set
 - Runtime baseline: local FastAPI + Vite + SQLite for current development; `docker-compose.yml` and `mcp-server/` remain future-facing skeletons
 

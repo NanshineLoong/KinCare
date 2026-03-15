@@ -19,9 +19,9 @@
 
 ## 核心决策
 
-### 1. 应用内采用 PydanticAI Tool-Calling
+### 1. 对话编排采用 PydanticAI Tool-Calling
 
-AI 编排由 PydanticAI 驱动，使用 `agent.iter()` 运行多轮 tool-calling 循环。一次请求可以经历“读取数据 -> 推理 -> 写入/建议 -> 继续生成文字”的多步过程。
+对话编排由 PydanticAI 驱动，使用 `agent.iter()` 运行多轮 tool-calling 循环。一次请求可以经历“读取数据 -> 推理 -> 写入/建议 -> 继续生成文字”的多步过程。Step 7 的日更能力同样基于 PydanticAI，但采用结构化输出而不是聊天式 tool-calling。
 
 ### 2. 所有数据访问都走服务层
 

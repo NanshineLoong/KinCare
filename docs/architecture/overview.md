@@ -6,7 +6,7 @@
 
 - 单实例 = 一个家庭空间
 - 前端为 React + Vite SPA，后端为 FastAPI
-- AI 在应用内运行，采用 PydanticAI tool-calling
+- AI 在应用内运行，基于 PydanticAI
 - 健康数据采用简化版健康事实层
 - 当前开发运行时继续使用 SQLite；`docker-compose.yml` 和 `mcp-server/` 仍是后续阶段骨架
 
