@@ -28,7 +28,8 @@ class Settings:
 def get_settings() -> Settings:
     backend_root = Path(__file__).resolve().parents[2]
     repo_root = backend_root.parent
-    load_dotenv(repo_root / ".env", override=False)
+    if os.getenv("HOMEVITAL_SKIP_DOTENV", "0") != "1":
+        load_dotenv(repo_root / ".env", override=False)
     default_database_path = backend_root / "data" / "homevital.db"
     cors_origins = os.getenv(
         "HOMEVITAL_CORS_ORIGINS",
