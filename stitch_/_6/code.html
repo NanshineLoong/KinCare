@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>家庭健康助手 - 首页 (编辑态)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Noto+Sans+SC:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --warm-cream: #FCF9F5;
+            --soft-sage: #E8F0E6;
+            --muted-rose: #F9EBEA;
+            --gentle-blue: #EBF2F7;
+            --warm-gray: #7D746D;
+            --elegant-blue: #4A6076;
+            --sheet-bg: #FFFFFF;
+        }
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: var(--warm-cream);
+        }
+        .apple-shadow {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .blur-bg {
+            backdrop-filter: blur(8px);
+            background-color: rgba(45, 41, 38, 0.15);
+        }
+        .edit-input {
+            @apply w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-1 focus:ring-[var(--elegant-blue)] focus:border-[var(--elegant-blue)] outline-none transition-all;
+        }
+    </style>
+</head>
+<body class="text-[#4A443F] min-h-screen flex flex-col overflow-hidden">
+<header class="bg-white/70 backdrop-blur-md sticky top-0 z-40 border-b border-[#F2EDE7]">
+<div class="max-w-[1400px] mx-auto px-8 h-20 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FF9F9F] to-[#FF7B7B] flex items-center justify-center text-white shadow-sm">
+<span class="material-symbols-outlined text-2xl">favorite</span>
+</div>
+<div>
+<h1 class="text-xl font-bold tracking-tight text-[#2D2926]">家庭健康管理</h1>
+<p class="text-[10px] text-[var(--warm-gray)] uppercase tracking-widest font-semibold">Home Care Assistant</p>
+</div>
+</div>
+<nav class="absolute left-1/2 -translate-x-1/2">
+<a class="px-6 py-2 rounded-full bg-[#F5F0EA] text-[#2D2926] font-semibold text-sm" href="#">首页</a>
+</nav>
+<div class="flex items-center gap-6">
+<button class="text-[var(--warm-gray)] hover:text-[#2D2926] transition-colors relative">
+<span class="material-symbols-outlined">forum</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+</button>
+<div class="flex items-center gap-3 pl-6 border-l border-[#F2EDE7] cursor-pointer group">
+<div class="text-right">
+<p class="text-sm font-bold text-[#2D2926]">张学礼 的家</p>
+<p class="text-[11px] text-[var(--warm-gray)]">今日温馨守护中</p>
+</div>
+<div class="relative flex items-center gap-1.5">
+<img alt="User" class="w-10 h-10 rounded-full ring-2 ring-white shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP19N7xke8v4yaidlELdtu56e6JYmF9p2aXWhkTuSf-2kXLgOiDAIia35WX6GGy7ARjyDAYknnnHxWxLTI_7iKWXbFJHnxZhNkKCjAoh36U5U0glc19xfVyivVFMJDvvkoF3n5DbTxaDQVJ4ZItkp7s6hLN-_cApE-VgFm5vR1WOUIbJxI4w4AXkzTASSgoGOzMqm8BhhQSS71jWp540WsVfUwYjc2-2MEcHc7JvUTKpSXUqns0oDKEKDpzKT6pa7f_CgbfAmc54k"/>
+<span class="material-symbols-outlined text-sm text-[var(--warm-gray)] group-hover:text-[#2D2926] transition-colors">expand_more</span>
+</div>
+</div>
+</div>
+</div>
+</header>
+<main class="flex-1 max-w-[1400px] w-full mx-auto px-8 py-8 flex gap-8 h-[calc(100vh-5rem)] overflow-hidden">
+<aside class="w-80 flex flex-col h-full opacity-40 grayscale-[0.5] pointer-events-none">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-rose-400">group</span> 家人状态
+            </h2>
+</div>
+<div class="space-y-4">
+<div class="bg-white rounded-[2rem] p-5 border border-[#F2EDE7]/50">
+<div class="flex items-center gap-3 mb-4">
+<img alt="张学礼" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCpbbnkSJcTecDX1H0SJJLV3tcEcnCvT_dl1KktpEHMOTl09vRGDXeF_lm05hx05MxhS0zYRRe27V4uEmh47Xxby0h0VAX_Z9XweQ_Vix6LB8rMcshY7jlQFzZMOWmCLh7oT6Et_uRLoIaqBKlt1N2daDa_Lumi5mme-EziT0MAWt6VTGsmTYz02K1_gsYlWXh9FDgmiZMSe-MBwInC5W5UBCXIooTH-QKrvql1s_Ovv8Foa1Zj5a8G-oZlZn3WjkZnO1NxvF67D4"/>
+<h3 class="font-bold">张学礼</h3>
+</div>
+</div>
+</div>
+</aside>
+<section class="flex-1 flex flex-col h-full opacity-40 grayscale-[0.5] pointer-events-none">
+<h2 class="text-3xl font-bold mb-6">今日贴心提醒</h2>
+<div class="bg-white rounded-[2.5rem] p-8 border border-[#F2EDE7]/30">
+<p>正在查看成员详情...</p>
+</div>
+</section>
+</main>
+<div class="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-12 overflow-hidden blur-bg">
+<div class="w-full max-w-[75vw] h-[85vh] bg-[var(--sheet-bg)] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-white/50">
+<header class="flex items-center justify-between px-10 py-6 border-b border-gray-100 shrink-0">
+<div class="flex items-center gap-5">
+<img alt="李秀兰" class="w-16 h-16 rounded-full object-cover ring-4 ring-gray-50" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBM4kA3k6iD6NYud481_lhbgoIWl12tglaoR8rfZE9qYGmkE6LCepTeZdcQkZqjIVE8nA_CxE_XKAqIXwdqW9yOidun8xUnx3sAIQ_WzzB7wefrfpK22m-le3sCR66uXo3yNwdtodzn5p9uWX-0u4cPSTro3X_vzun70I0oCWiksoGQ3acj0fFS43M51JQqWYODYV-Mi8B6ATq0_XesfzRuG6aprHBiG7nM4Z5jqt2zu2s78_kzWpnfFT2bI2lS45NeXcUWxYIx-GY"/>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<h2 class="text-2xl font-bold text-gray-800">李秀兰</h2>
+<span class="text-xs px-2.5 py-1 bg-gray-100 text-gray-500 rounded-full font-medium tracking-tight uppercase">68 岁 · 女性</span>
+</div>
+<p class="text-sm text-gray-400 font-light tracking-wide">档案最后更新：2023.10.24 14:20</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-8 py-2.5 rounded-full text-sm font-bold text-white bg-[var(--elegant-blue)] hover:bg-[#3d4f61] shadow-sm transition-all flex items-center gap-2">
+                    完成
+                </button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-all">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<nav class="w-64 border-r border-gray-100 flex flex-col py-8 px-4 bg-[#FBFBFB]">
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white text-[var(--elegant-blue)] font-bold shadow-sm border border-gray-100" href="#">
+<span class="material-symbols-outlined text-xl">grid_view</span>
+<span>概览</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-4 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-white/50 transition-all" href="#">
+<span class="material-symbols-outlined text-xl">monitoring</span>
+<span>健康数据</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-4 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-white/50 transition-all" href="#">
+<span class="material-symbols-outlined text-xl">assignment</span>
+<span>健康档案</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-4 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-white/50 transition-all" href="#">
+<span class="material-symbols-outlined text-xl">local_hospital</span>
+<span>就诊记录</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-6 py-4 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-white/50 transition-all" href="#">
+<span class="material-symbols-outlined text-xl">medication</span>
+<span>药品管理</span>
+</a>
+</li>
+</ul>
+</nav>
+<div class="flex-1 overflow-y-auto no-scrollbar bg-white px-12 py-10 space-y-12">
+<section>
+<h3 class="text-sm font-bold text-gray-800 uppercase tracking-[0.15em] mb-6 flex items-center gap-2">
+<span class="w-1 h-4 bg-[var(--elegant-blue)] rounded-full"></span>
+                        基础信息 (编辑)
+                    </h3>
+<div class="grid grid-cols-4 gap-x-8 gap-y-6">
+<div class="flex flex-col gap-2">
+<label class="text-[11px] text-gray-400 uppercase tracking-widest font-semibold">身高 (cm)</label>
+<input class="edit-input" type="text" value="162"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-[11px] text-gray-400 uppercase tracking-widest font-semibold">体重 (kg)</label>
+<input class="edit-input" type="text" value="58"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-[11px] text-gray-400 uppercase tracking-widest font-semibold">血型</label>
+<select class="edit-input appearance-none">
+<option>O 型 (Rh+)</option>
+<option>A 型</option>
+<option>B 型</option>
+<option>AB 型</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-[11px] text-gray-400 uppercase tracking-widest font-semibold">腰围 (cm)</label>
+<input class="edit-input" type="text" value="82"/>
+</div>
+<div class="col-span-4 flex flex-col gap-2">
+<label class="text-[11px] text-gray-400 uppercase tracking-widest font-semibold">过敏史</label>
+<input class="edit-input" type="text" value="青霉素、花粉"/>
+</div>
+</div>
+</section>
+<section class="opacity-60 grayscale-[0.3]">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-sm font-bold text-gray-400 uppercase tracking-[0.15em] flex items-center gap-2">
+<span class="w-1 h-4 bg-gray-300 rounded-full"></span>
+                            AI 健康摘要
+                        </h3>
+<span class="text-[10px] px-2 py-0.5 bg-gray-50 text-gray-400 rounded-md border border-gray-100 italic">AI 自动生成 · 不可编辑</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="p-5 bg-gray-50/50 rounded-2xl flex flex-col justify-between h-28 border border-gray-100/50">
+<span class="text-[11px] text-gray-400 font-bold uppercase tracking-widest">慢病管理</span>
+<p class="text-[13px] text-gray-500 flex items-start gap-2 leading-relaxed">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500/50 mt-1.5 shrink-0"></span>
+                                血压曲线保持在 125/80 左右，波动率降低 12%。
+                            </p>
+</div>
+<div class="p-5 bg-gray-50/50 rounded-2xl flex flex-col justify-between h-28 border border-gray-100/50">
+<span class="text-[11px] text-gray-400 font-bold uppercase tracking-widest">生活习惯</span>
+<p class="text-[13px] text-gray-500 flex items-start gap-2 leading-relaxed">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500/50 mt-1.5 shrink-0"></span>
+                                近三日平均睡眠不足 6 小时，建议增加午后小憩。
+                            </p>
+</div>
+</div>
+</section>
+<section>
+<h3 class="text-sm font-bold text-gray-800 uppercase tracking-[0.15em] mb-6 flex items-center gap-2">
+<span class="w-1 h-4 bg-[var(--elegant-blue)] rounded-full"></span>
+                        今日提醒
+                    </h3>
+<div class="space-y-0">
+<div class="flex items-center gap-6 py-5 border-b border-gray-100 group">
+<div class="w-5 h-5 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px] text-gray-400">check</span>
+</div>
+<div class="flex-1">
+<h4 class="text-[15px] font-medium text-gray-700">呼吸新鲜空气，早晨散步 30 分钟</h4>
+<span class="text-[11px] text-gray-400 mt-0.5 block uppercase tracking-wider">07:30</span>
+</div>
+<button class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors">
+<span class="material-symbols-outlined text-lg">close</span>
+</button>
+</div>
+<div class="flex items-center gap-6 py-5 border-b border-gray-100 group">
+<div class="w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center"></div>
+<div class="flex-1">
+<h4 class="text-[15px] font-medium text-gray-700">服用降压药物 (氨氯地平)</h4>
+<span class="text-[11px] text-gray-400 mt-0.5 block uppercase tracking-wider">08:00</span>
+</div>
+<button class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors">
+<span class="material-symbols-outlined text-lg">close</span>
+</button>
+</div>
+<div class="flex items-center gap-6 py-5 border-b border-gray-100 group">
+<div class="w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center"></div>
+<div class="flex-1">
+<h4 class="text-[15px] font-medium text-gray-700">社区医院定期复诊 (心血管内科)</h4>
+<span class="text-[11px] text-gray-400 mt-0.5 block uppercase tracking-wider">14:30</span>
+</div>
+<button class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors">
+<span class="material-symbols-outlined text-lg">close</span>
+</button>
+</div>
+</div>
+<div class="mt-6">
+<button class="text-sm font-semibold text-[var(--elegant-blue)] flex items-center gap-2 hover:underline">
+<span class="material-symbols-outlined text-lg">add</span>
+                            新建提醒
+                        </button>
+</div>
+</section>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>

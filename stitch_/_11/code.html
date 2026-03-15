@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>家庭健康助手 - 成员管理</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --warm-cream: #FCF9F5;
+            --soft-beige: #F7F3ED;
+            --soft-sage: #E8F0E6;
+            --muted-rose: #F9EBEA;
+            --gentle-blue: #007AFF;
+            --warm-gray: #7D746D;
+            --heart-red: #E67E7E;
+            --admin-blue: #0066CC;
+            --enterprise-bg: #F8FAFC;
+        }
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: var(--warm-cream);
+        }
+        .enterprise-shadow {
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .sheet-shadow {
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .permission-tag {
+            @apply px-3 py-1 rounded text-[12px] font-bold tracking-tight transition-all border;
+        }
+        .permission-tag-active {
+            @apply bg-slate-800 text-white border-slate-800 shadow-sm;
+        }
+        .permission-tag-inactive {
+            @apply bg-slate-50 text-slate-300 border-slate-100;
+        }.form-label {
+            @apply text-sm font-semibold text-slate-600 mb-1.5 block;
+        }
+        .form-input {
+            @apply w-full bg-[var(--soft-beige)] border-none rounded-xl px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-[var(--gentle-blue)] transition-all placeholder-slate-400;
+        }
+    </style>
+</head>
+<body class="text-[#4A443F] min-h-screen flex flex-col relative overflow-hidden">
+<div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] transition-opacity"></div>
+<div class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+<div class="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl sheet-shadow flex flex-col overflow-hidden border border-slate-200">
+<div class="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-white">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined text-xl">manage_accounts</span>
+</div>
+<h2 class="text-xl font-bold text-slate-900 tracking-tight">成员管理</h2>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 bg-[var(--admin-blue)] hover:bg-[#0052A3] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm active:scale-95">
+<span class="material-symbols-outlined text-lg leading-none">person_add</span>
+                    添加成员
+                </button>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto no-scrollbar bg-[var(--enterprise-bg)] p-6 space-y-4">
+<div class="space-y-3">
+<div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all group">
+<div class="flex items-center gap-6 flex-1">
+<div class="relative">
+<img alt="张学礼" class="w-12 h-12 rounded-xl object-cover shadow-sm border border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP19N7xke8v4yaidlELdtu56e6JYmF9p2aXWhkTuSf-2kXLgOiDAIia35WX6GGy7ARjyDAYknnnHxWxLTI_7iKWXbFJHnxZhNkKCjAoh36U5U0glc19xfVyivVFMJDvvkoF3n5DbTxaDQVJ4ZItkp7s6hLN-_cApE-VgFm5vR1WOUIbJxI4w4AXkzTASSgoGOzMqm8BhhQSS71jWp540WsVfUwYjc2-2MEcHc7JvUTKpSXUqns0oDKEKDpzKT6pa7f_CgbfAmc54k"/>
+<div class="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-600 border-2 border-white rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-white font-bold">check</span>
+</div>
+</div>
+<div class="grid grid-cols-12 flex-1 items-center gap-4">
+<div class="col-span-3">
+<h4 class="font-bold text-slate-900">张学礼</h4>
+<p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">Primary Administrator</p>
+</div>
+<div class="col-span-3">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-100/50">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span> 已绑定账号
+                                </span>
+</div>
+<div class="col-span-2 text-center">
+<span class="text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-md">管理员</span>
+</div>
+<div class="col-span-4 flex justify-end gap-1.5">
+<span class="permission-tag permission-tag-active">读取</span>
+<span class="permission-tag permission-tag-active">写入</span>
+<span class="permission-tag permission-tag-active">管理</span>
+</div>
+</div>
+</div>
+<button class="ml-6 p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+<div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all group">
+<div class="flex items-center gap-6 flex-1">
+<div class="relative">
+<img alt="李秀兰" class="w-12 h-12 rounded-xl object-cover shadow-sm border border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBM4kA3k6iD6NYud481_lhbgoIWl12tglaoR8rfZE9qYGmkE6LCepTeZdcQkZqjIVE8nA_CxE_XKAqIXwdqW9yOidun8xUnx3sAIQ_WzzB7wefrfpK22m-le3sCR66uXo3yNwdtodzn5p9uWX-0u4cPSTro3X_vzun70I0oCWiksoGQ3acj0fFS43M51JQqWYODYV-Mi8B6ATq0_XesfzRuG6aprHBiG7nM4Z5jqt2zu2s78_kzWpnfFT2bI2lS45NeXcUWxYIx-GY"/>
+</div>
+<div class="grid grid-cols-12 flex-1 items-center gap-4">
+<div class="col-span-3">
+<h4 class="font-bold text-slate-900">李秀兰</h4>
+<p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">Family Member</p>
+</div>
+<div class="col-span-3">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-50 text-slate-400 text-[11px] font-bold border border-slate-200">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span> 未绑定账号
+                                </span>
+</div>
+<div class="col-span-2 text-center">
+<span class="text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-md">家庭成员</span>
+</div>
+<div class="col-span-4 flex justify-end gap-1.5">
+<span class="permission-tag permission-tag-active">读取</span>
+<span class="permission-tag permission-tag-active">写入</span>
+<span class="permission-tag permission-tag-inactive">管理</span>
+</div>
+</div>
+</div>
+<button class="ml-6 p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+<div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all group">
+<div class="flex items-center gap-6 flex-1">
+<div class="relative">
+<img alt="王建国" class="w-12 h-12 rounded-xl object-cover shadow-sm border border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBt03yrB6RDGkXIQwf9eoPGvfrMXAWnp0opno-dxaFR5fsLzgClSnSgJV4CPK28CO7uzsLfMyfinhmrfBZ3wtATdMRKVUetqyUlHzWkmc-yVR65KGgOrTMjjC5WvvUGThHG_d45CHSbkBSDzXHWp3L6m0-ReOtGs8LezEWd19DxuXMJlLhxXR5-CToe0A9LkH1PJxidOE01evjqtpCbhMie7JbCEKmUZwluGHbAWF-sI5uWoKsdm_GJU3uaYWe0Rx6apCiIXRHBCCk"/>
+</div>
+<div class="grid grid-cols-12 flex-1 items-center gap-4">
+<div class="col-span-3">
+<h4 class="font-bold text-slate-900">王建国</h4>
+<p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">Family Member</p>
+</div>
+<div class="col-span-3">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-100/50">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span> 已绑定账号
+                                </span>
+</div>
+<div class="col-span-2 text-center">
+<span class="text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-md">家庭成员</span>
+</div>
+<div class="col-span-4 flex justify-end gap-1.5">
+<span class="permission-tag permission-tag-active">读取</span>
+<span class="permission-tag permission-tag-inactive">写入</span>
+<span class="permission-tag permission-tag-inactive">管理</span>
+</div>
+</div>
+</div>
+<button class="ml-6 p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+</div>
+<div class="bg-white border-2 border-[var(--gentle-blue)] border-dashed rounded-2xl p-6 shadow-sm">
+<div class="flex flex-col md:flex-row gap-8">
+<div class="flex-shrink-0 flex flex-col items-center gap-3">
+<label class="form-label">头像</label>
+<div class="w-24 h-24 rounded-2xl bg-[var(--soft-beige)] border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors group">
+<span class="material-symbols-outlined text-4xl text-slate-300 group-hover:text-[var(--gentle-blue)]">add_a_photo</span>
+<span class="text-[10px] text-slate-400 mt-1">可选上传</span>
+</div>
+<p class="text-[10px] text-slate-400 text-center">上传成员真实照片<br/>识别更方便</p>
+</div>
+<div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+<div class="space-y-1">
+<label class="form-label">成员姓名</label>
+<input class="form-input" placeholder="输入成员称呼或姓名" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="form-label">性别选择</label>
+<div class="flex gap-2">
+<button class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--soft-beige)] text-slate-600 hover:bg-[var(--gentle-blue)] hover:text-white transition-all">
+<span class="material-symbols-outlined text-xl">male</span>
+<span class="text-sm font-medium">男</span>
+</button>
+<button class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--soft-beige)] text-slate-600 hover:bg-rose-500 hover:text-white transition-all">
+<span class="material-symbols-outlined text-xl">female</span>
+<span class="text-sm font-medium">女</span>
+</button>
+</div>
+</div>
+<div class="space-y-1 col-span-1 md:col-span-2">
+<label class="form-label">出生日期</label>
+<div class="relative">
+<input class="form-input" type="date"/>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
+<button class="px-6 py-2.5 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                        取消
+                    </button>
+<button class="px-8 py-2.5 bg-[var(--gentle-blue)] hover:bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-200 transition-all active:scale-95">
+                        确认添加
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<header class="bg-white/70 backdrop-blur-md sticky top-0 z-50 border-b border-[#F2EDE7]">
+<div class="max-w-[1400px] mx-auto px-8 h-20 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FF9F9F] to-[#FF7B7B] flex items-center justify-center text-white shadow-sm">
+<span class="material-symbols-outlined text-2xl">favorite</span>
+</div>
+<div>
+<h1 class="text-xl font-bold tracking-tight text-[#2D2926]">家庭健康管理</h1>
+<p class="text-[10px] text-[var(--warm-gray)] uppercase tracking-widest font-semibold">Home Care Assistant</p>
+</div>
+</div>
+<nav class="absolute left-1/2 -translate-x-1/2">
+<a class="px-6 py-2 rounded-full bg-[#F5F0EA] text-[#2D2926] font-semibold text-sm" href="#">首页</a>
+</nav>
+<div class="flex items-center gap-6">
+<button class="text-[var(--warm-gray)] hover:text-[#2D2926] transition-colors relative">
+<span class="material-symbols-outlined">forum</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+</button>
+<div class="flex items-center gap-3 pl-6 border-l border-[#F2EDE7] cursor-pointer group relative">
+<div class="text-right">
+<p class="text-sm font-bold text-[#2D2926]">张学礼 的家</p>
+<p class="text-[11px] text-[var(--warm-gray)]">今日温馨守护中</p>
+</div>
+<div class="relative flex items-center gap-1.5">
+<img alt="User" class="w-10 h-10 rounded-full ring-2 ring-white shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP19N7xke8v4yaidlELdtu56e6JYmF9p2aXWhkTuSf-2kXLgOiDAIia35WX6GGy7ARjyDAYknnnHxWxLTI_7iKWXbFJHnxZhNkKCjAoh36U5U0glc19xfVyivVFMJDvvkoF3n5DbTxaDQVJ4ZItkp7s6hLN-_cApE-VgFm5vR1WOUIbJxI4w4AXkzTASSgoGOzMqm8BhhQSS71jWp540WsVfUwYjc2-2MEcHc7JvUTKpSXUqns0oDKEKDpzKT6pa7f_CgbfAmc54k"/>
+<span class="material-symbols-outlined text-sm text-[var(--warm-gray)] group-hover:text-[#2D2926] transition-colors">expand_more</span>
+</div>
+</div>
+</div>
+</div>
+</header>
+<main class="flex-1 max-w-[1400px] w-full mx-auto px-8 py-8 flex gap-8 h-[calc(100vh-5rem-120px)] overflow-hidden">
+<aside class="w-80 flex flex-col h-full">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+<span class="material-symbols-outlined text-rose-400">group</span>
+                家人状态
+            </h2>
+<span class="text-xs bg-white px-2 py-1 rounded-full border border-[#F2EDE7] text-[var(--warm-gray)]">3位成员</span>
+</div>
+<div class="flex-1 overflow-y-auto no-scrollbar space-y-4">
+<div class="bg-white rounded-[2rem] p-5 enterprise-shadow border border-[#F2EDE7]/50 relative group">
+<div class="flex items-center gap-3 mb-4">
+<img alt="张学礼" class="w-12 h-12 rounded-full object-cover ring-2 ring-[#F9EBEA]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCpbbnkSJcTecDX1H0SJJLV3tcEcnCvT_dl1KktpEHMOTl09vRGDXeF_lm05hx05MxhS0zYRRe27V4uEmh47Xxby0h0VAX_Z9XweQ_Vix6LB8rMcshY7jlQFzZMOWmCLh7oT6Et_uRLoIaqBKlt1N2daDa_Lumi5mme-EziT0MAWt6VTGsmTYz02K1_gsYlWXh9FDgmiZMSe-MBwInC5W5UBCXIooTH-QKrvql1s_Ovv8Foa1Zj5a8G-oZlZn3WjkZnO1NxvF67D4"/>
+<div>
+<h3 class="font-bold text-[#2D2926]">张学礼</h3>
+<p class="text-[10px] text-green-600 flex items-center gap-0.5">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> 状态很棒
+                        </p>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<section class="flex-1 flex flex-col h-full">
+<div class="flex justify-between items-end mb-6">
+<div>
+<h2 class="text-3xl font-bold text-[#2D2926]">今日贴心提醒</h2>
+<p class="text-[var(--warm-gray)] mt-1">今天有 4 项健康小任务等待完成，一起加油吧！</p>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto no-scrollbar pr-4 space-y-10 pb-20">
+<div class="relative">
+<div class="flex items-center gap-3 mb-6">
+<div class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
+<span class="material-symbols-outlined">wb_sunny</span>
+</div>
+<h3 class="text-xl font-bold text-[#2D2926]">清晨的叮嘱</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-white rounded-[2.5rem] p-6 enterprise-shadow border border-[#F2EDE7]/30 flex flex-col justify-between group">
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-[var(--soft-sage)] rounded-2xl text-[#3E5C3A]">
+<span class="material-symbols-outlined text-2xl">directions_run</span>
+</div>
+</div>
+<div>
+<p class="text-sm font-semibold text-[var(--warm-gray)] mb-1">给 李秀兰</p>
+<h4 class="text-xl font-bold text-[#2D2926] leading-tight">呼吸新鲜空气，早晨散步 30 分钟</h4>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<div class="fixed bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-[var(--warm-cream)] via-[var(--warm-cream)] to-transparent pointer-events-none">
+<div class="max-w-3xl mx-auto relative pointer-events-auto">
+<div class="bg-white rounded-full p-2 pl-6 pr-2 enterprise-shadow border border-white flex items-center gap-4">
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-lg placeholder-[#B8B0A9] px-2 h-12" placeholder="说说今天家人的健康情况..." type="text"/>
+<button class="w-12 h-12 rounded-full bg-[#2D2926] text-white hover:bg-black transition-colors flex items-center justify-center shadow-lg">
+<span class="material-symbols-outlined">arrow_upward</span>
+</button>
+</div>
+</div>
+</div>
+
+</body></html>

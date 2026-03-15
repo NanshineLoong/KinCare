@@ -2,7 +2,7 @@
 <html lang="zh-CN"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>家庭健康 - 您的暖心守护者</title>
+<title>家庭健康助手 - 首页</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
@@ -22,6 +22,9 @@
         }
         .apple-shadow {
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+        }
+        .dropdown-shadow {
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
         }
         .action-card {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -50,15 +53,52 @@
 <a class="px-6 py-2 rounded-full bg-[#F5F0EA] text-[#2D2926] font-semibold text-sm" href="#">首页</a>
 </nav>
 <div class="flex items-center gap-6">
-<button class="text-[var(--warm-gray)] hover:text-[#2D2926] transition-colors">
-<span class="material-symbols-outlined">notifications</span>
+<button class="text-[var(--warm-gray)] hover:text-[#2D2926] transition-colors relative">
+<span class="material-symbols-outlined">forum</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
 </button>
-<div class="flex items-center gap-3 pl-6 border-l border-[#F2EDE7]">
+<div class="flex items-center gap-3 pl-6 border-l border-[#F2EDE7] cursor-pointer group relative">
 <div class="text-right">
 <p class="text-sm font-bold text-[#2D2926]">张学礼 的家</p>
 <p class="text-[11px] text-[var(--warm-gray)]">今日温馨守护中</p>
 </div>
+<div class="relative flex items-center gap-1.5">
 <img alt="User" class="w-10 h-10 rounded-full ring-2 ring-white shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP19N7xke8v4yaidlELdtu56e6JYmF9p2aXWhkTuSf-2kXLgOiDAIia35WX6GGy7ARjyDAYknnnHxWxLTI_7iKWXbFJHnxZhNkKCjAoh36U5U0glc19xfVyivVFMJDvvkoF3n5DbTxaDQVJ4ZItkp7s6hLN-_cApE-VgFm5vR1WOUIbJxI4w4AXkzTASSgoGOzMqm8BhhQSS71jWp540WsVfUwYjc2-2MEcHc7JvUTKpSXUqns0oDKEKDpzKT6pa7f_CgbfAmc54k"/>
+<span class="material-symbols-outlined text-sm text-[var(--warm-gray)] group-hover:text-[#2D2926] transition-colors">expand_more</span>
+</div>
+<div class="absolute top-full right-0 mt-2 w-64 bg-white rounded-2xl dropdown-shadow border border-[#F2EDE7] py-2 z-[60] text-left opacity-100 visible">
+<div class="px-4 py-3 flex items-center gap-3">
+<img alt="User" class="w-12 h-12 rounded-full border-2 border-[var(--soft-sage)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP19N7xke8v4yaidlELdtu56e6JYmF9p2aXWhkTuSf-2kXLgOiDAIia35WX6GGy7ARjyDAYknnnHxWxLTI_7iKWXbFJHnxZhNkKCjAoh36U5U0glc19xfVyivVFMJDvvkoF3n5DbTxaDQVJ4ZItkp7s6hLN-_cApE-VgFm5vR1WOUIbJxI4w4AXkzTASSgoGOzMqm8BhhQSS71jWp540WsVfUwYjc2-2MEcHc7JvUTKpSXUqns0oDKEKDpzKT6pa7f_CgbfAmc54k"/>
+<div class="flex flex-col">
+<span class="font-bold text-[#2D2926] text-sm">张学礼</span>
+<a class="text-[10px] font-bold text-[var(--apple-blue)] bg-blue-50 px-2 py-0.5 rounded-full mt-0.5 hover:bg-blue-100 transition-colors w-fit" href="#">管理家庭</a>
+</div>
+</div>
+<div class="h-[1px] bg-[#F2EDE7] mx-4 my-1"></div>
+<div class="px-2 space-y-0.5">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#F5F0EA] transition-colors group/item" href="#">
+<div class="w-8 h-8 rounded-lg bg-[var(--soft-sage)] text-[#3E5C3A] flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">manage_accounts</span>
+</div>
+<span class="text-sm font-bold text-[#2D2926]">成员管理</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#F5F0EA] transition-colors group/item" href="#">
+<div class="w-8 h-8 rounded-lg bg-gray-50 text-[var(--warm-gray)] flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">language</span>
+</div>
+<span class="text-sm text-[var(--warm-gray)] group-hover/item:text-[#2D2926]">语言设置</span>
+</a>
+</div>
+<div class="h-[1px] bg-[#F2EDE7] mx-4 my-1"></div>
+<div class="px-2">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 transition-colors group/item" href="#">
+<div class="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">logout</span>
+</div>
+<span class="text-sm font-semibold text-red-500">退出登录</span>
+</a>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -83,7 +123,7 @@
 <h3 class="font-bold text-[#2D2926]">张学礼</h3>
 <p class="text-[10px] text-green-600 flex items-center gap-0.5">
 <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> 状态很棒
-                </p>
+                        </p>
 </div>
 </div>
 <div class="grid grid-cols-2 gap-2">
@@ -115,7 +155,7 @@
 <h3 class="font-bold text-[#2D2926]">李秀兰</h3>
 <p class="text-[10px] text-amber-600 flex items-center gap-0.5">
 <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> 需要关注
-                </p>
+                        </p>
 </div>
 </div>
 <div class="grid grid-cols-2 gap-2">
@@ -147,7 +187,7 @@
 <h3 class="font-bold text-[#2D2926]">王建国</h3>
 <p class="text-[10px] text-green-600 flex items-center gap-0.5">
 <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> 状态平稳
-                </p>
+                        </p>
 </div>
 </div>
 <div class="grid grid-cols-2 gap-2">

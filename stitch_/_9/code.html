@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>家庭健康助手 - 健康数据</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Noto+Sans+SC:wght@300;400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --warm-cream: #FDFCFB;
+            --soft-bg: #F7F7F7;
+            --forest-green: #2D4F3E;
+            --forest-green-muted: #E9F0ED;
+            --neutral-gray: #8E8E93;
+            --apple-border: #F2F2F7;
+            --accent-blue: #007AFF;
+        }
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: #F2F2F7;
+        }
+        .mono-time {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .apple-card-shadow {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        }
+        .blur-bg {
+            backdrop-filter: blur(20px);
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #E5E5EA;
+            border-radius: 10px;
+        }
+        details > summary {
+            list-style: none;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-[#1C1C1E] min-h-screen overflow-hidden">
+<div class="fixed inset-0 p-8 flex gap-8 opacity-40 grayscale pointer-events-none">
+<div class="w-80 bg-white rounded-[2rem] p-6"></div>
+<div class="flex-1 bg-white rounded-[2rem] p-6"></div>
+</div>
+<div class="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-12 blur-bg">
+<div class="w-full max-w-[75vw] h-[88vh] bg-[var(--warm-cream)] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-white/20">
+<header class="flex items-center justify-between px-10 py-7 border-b border-gray-100 shrink-0 bg-white">
+<div class="flex items-center gap-6">
+<img alt="李秀兰" class="w-16 h-16 rounded-full object-cover ring-1 ring-gray-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBM4kA3k6iD6NYud481_lhbgoIWl12tglaoR8rfZE9qYGmkE6LCepTeZdcQkZqjIVE8nA_CxE_XKAqIXwdqW9yOidun8xUnx3sAIQ_WzzB7wefrfpK22m-le3sCR66uXo3yNwdtodzn5p9uWX-0u4cPSTro3X_vzun70I0oCWiksoGQ3acj0fFS43M51JQqWYODYV-Mi8B6ATq0_XesfzRuG6aprHBiG7nM4Z5jqt2zu2s78_kzWpnfFT2bI2lS45NeXcUWxYIx-GY"/>
+<div>
+<div class="flex items-center gap-3 mb-1">
+<h2 class="text-2xl font-semibold text-gray-900">李秀兰</h2>
+<span class="text-[11px] px-2.5 py-0.5 bg-gray-100 text-gray-500 rounded-md font-medium">68 岁 · 女性</span>
+</div>
+<p class="text-xs text-gray-400 font-light tracking-wide">最后更新：<span class="mono-time">2023.10.24 14:20</span></p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-5 py-2 rounded-full text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">edit</span> 编辑
+                </button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-all">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<nav class="w-64 border-r border-gray-100 flex flex-col py-8 px-4 bg-white/50">
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 px-5 py-3.5 rounded-2xl text-gray-500 hover:text-gray-900 transition-all" href="#">
+<span class="material-symbols-outlined text-[22px]">grid_view</span>
+<span class="text-[15px] font-medium">概览</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-[var(--forest-green-muted)] text-[var(--forest-green)] font-semibold shadow-sm" href="#">
+<span class="material-symbols-outlined text-[22px]">monitoring</span>
+<span class="text-[15px]">健康数据</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-5 py-3.5 rounded-2xl text-gray-500 hover:text-gray-900 transition-all" href="#">
+<span class="material-symbols-outlined text-[22px]">assignment</span>
+<span class="text-[15px] font-medium">健康档案</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-5 py-3.5 rounded-2xl text-gray-500 hover:text-gray-900 transition-all" href="#">
+<span class="material-symbols-outlined text-[22px]">local_hospital</span>
+<span class="text-[15px] font-medium">就诊记录</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-5 py-3.5 rounded-2xl text-gray-500 hover:text-gray-900 transition-all" href="#">
+<span class="material-symbols-outlined text-[22px]">medication</span>
+<span class="text-[15px] font-medium">药品管理</span>
+</a>
+</li>
+</ul>
+</nav>
+<div class="flex-1 overflow-y-auto custom-scrollbar px-10 py-10 space-y-6">
+<details class="group bg-white rounded-3xl apple-card-shadow border border-[var(--apple-border)] transition-all" open="">
+<summary class="flex items-center justify-between px-6 py-5 cursor-pointer select-none">
+<div class="flex items-center gap-3">
+<span class="w-1.5 h-6 bg-red-400 rounded-full"></span>
+<h3 class="text-[16px] font-bold text-gray-900">慢病指标</h3>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="px-6 pb-6 pt-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-4">
+<div class="flex justify-between items-end">
+<div>
+<div class="flex items-center gap-1.5 mb-1">
+<span class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase">血压 (收缩压/舒张压)</span>
+<span class="material-symbols-outlined text-xs text-gray-300">watch</span>
+</div>
+<div class="flex items-baseline gap-1">
+<span class="text-3xl font-bold text-gray-900">118/76</span>
+<span class="text-sm text-gray-400 font-medium">mmHg</span>
+</div>
+<span class="text-[11px] mono-time text-gray-400">今天 08:30</span>
+</div>
+<div class="h-10 w-24 flex items-end gap-0.5 pb-1">
+<div class="flex-1 bg-gray-100 h-[40%] rounded-sm"></div>
+<div class="flex-1 bg-gray-100 h-[60%] rounded-sm"></div>
+<div class="flex-1 bg-gray-100 h-[55%] rounded-sm"></div>
+<div class="flex-1 bg-gray-200 h-[70%] rounded-sm"></div>
+<div class="flex-1 bg-[var(--forest-green)] h-[45%] rounded-sm"></div>
+</div>
+</div>
+<div class="h-[120px] overflow-y-auto custom-scrollbar space-y-2.5 bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50">
+<div class="flex justify-between text-[13px] border-b border-gray-100 pb-2">
+<span class="text-gray-500 mono-time">10-23 08:25</span>
+<span class="font-medium">124/82</span>
+</div>
+<div class="flex justify-between text-[13px] border-b border-gray-100 pb-2">
+<span class="text-gray-500 mono-time">10-22 09:10</span>
+<span class="font-medium">121/79</span>
+</div>
+<div class="flex justify-between text-[13px] border-b border-gray-100 pb-2">
+<span class="text-gray-500 mono-time">10-21 08:45</span>
+<span class="font-medium">119/77</span>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-end">
+<div>
+<div class="flex items-center gap-1.5 mb-1">
+<span class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase">血糖 (餐后)</span>
+<span class="material-symbols-outlined text-xs text-gray-300">edit_note</span>
+</div>
+<div class="flex items-baseline gap-1">
+<span class="text-3xl font-bold text-gray-900">6.2</span>
+<span class="text-sm text-gray-400 font-medium">mmol/L</span>
+</div>
+<span class="text-[11px] mono-time text-gray-400">昨天 19:45</span>
+</div>
+<div class="h-10 w-24 flex items-end gap-1 pb-1">
+<svg class="w-full h-6 text-amber-400 stroke-current fill-none stroke-2" viewBox="0 0 100 30">
+<path d="M0,25 Q15,10 30,20 T60,5 T100,20"></path>
+</svg>
+</div>
+</div>
+<div class="h-[120px] overflow-y-auto custom-scrollbar space-y-2.5 bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50">
+<div class="flex justify-between text-[13px] border-b border-gray-100 pb-2">
+<span class="text-gray-500 mono-time">10-23 07:10</span>
+<span class="font-medium">5.4 (空腹)</span>
+</div>
+<div class="flex justify-between text-[13px] border-b border-gray-100 pb-2">
+<span class="text-gray-500 mono-time">10-22 19:30</span>
+<span class="font-medium">6.8 (餐后)</span>
+</div>
+</div>
+</div>
+</div>
+</details>
+<details class="group bg-white rounded-3xl apple-card-shadow border border-[var(--apple-border)] transition-all" open="">
+<summary class="flex items-center justify-between px-6 py-5 cursor-pointer select-none">
+<div class="flex items-center gap-3">
+<span class="w-1.5 h-6 bg-blue-400 rounded-full"></span>
+<h3 class="text-[16px] font-bold text-gray-900">生理指标</h3>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="px-6 pb-6 pt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+<div>
+<p class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase mb-1 flex items-center gap-1">心率 <span class="material-symbols-outlined text-[10px]">watch</span></p>
+<p class="text-2xl font-bold">72 <span class="text-xs font-medium text-gray-400">bpm</span></p>
+<p class="text-[10px] mono-time text-gray-400 mt-1">10分钟前</p>
+</div>
+<div>
+<p class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase mb-1 flex items-center gap-1">血氧 <span class="material-symbols-outlined text-[10px]">watch</span></p>
+<p class="text-2xl font-bold">98 <span class="text-xs font-medium text-gray-400">%</span></p>
+<p class="text-[10px] mono-time text-gray-400 mt-1">12:00</p>
+</div>
+<div>
+<p class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase mb-1 flex items-center gap-1">体重 <span class="material-symbols-outlined text-[10px]">edit_note</span></p>
+<p class="text-2xl font-bold">58.5 <span class="text-xs font-medium text-gray-400">kg</span></p>
+<p class="text-[10px] mono-time text-gray-400 mt-1">今早 07:15</p>
+</div>
+<div>
+<p class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase mb-1 flex items-center gap-1">压力 <span class="material-symbols-outlined text-[10px]">watch</span></p>
+<p class="text-2xl font-bold">24 <span class="text-xs font-medium text-gray-400">低</span></p>
+<p class="text-[10px] mono-time text-gray-400 mt-1">1小时前</p>
+</div>
+</div>
+</details>
+<details class="group bg-white rounded-3xl apple-card-shadow border border-[var(--apple-border)] transition-all" open="">
+<summary class="flex items-center justify-between px-6 py-5 cursor-pointer select-none">
+<div class="flex items-center gap-3">
+<span class="w-1.5 h-6 bg-green-400 rounded-full"></span>
+<h3 class="text-[16px] font-bold text-gray-900">生活习惯</h3>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="px-6 pb-6 pt-2 grid grid-cols-2 gap-10">
+<div class="bg-gray-50/50 p-5 rounded-2xl flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase mb-2">步数</span>
+<span class="text-3xl font-bold text-gray-900">4,281</span>
+<span class="text-[11px] mono-time text-gray-400 mt-1">目标: 6,000</span>
+</div>
+<div class="w-14 h-14 rounded-full border-4 border-green-100 flex items-center justify-center relative">
+<div class="absolute inset-0 border-4 border-green-500 rounded-full" style="clip-path: polygon(0 0, 70% 0, 70% 100%, 0 100%);"></div>
+<span class="material-symbols-outlined text-green-500">steps</span>
+</div>
+</div>
+<div class="bg-gray-50/50 p-5 rounded-2xl flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[11px] text-gray-400 font-semibold tracking-wider uppercase mb-2">活动消耗</span>
+<span class="text-3xl font-bold text-gray-900">184 <span class="text-sm font-medium">kcal</span></span>
+<span class="text-[11px] mono-time text-gray-400 mt-1">今日实时</span>
+</div>
+<span class="material-symbols-outlined text-orange-400 text-3xl">local_fire_department</span>
+</div>
+</div>
+</details>
+<details class="group bg-white rounded-3xl apple-card-shadow border border-[var(--apple-border)] transition-all" open="">
+<summary class="flex items-center justify-between px-6 py-5 cursor-pointer select-none">
+<div class="flex items-center gap-3">
+<span class="w-1.5 h-6 bg-indigo-400 rounded-full"></span>
+<h3 class="text-[16px] font-bold text-gray-900">睡眠</h3>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="px-6 pb-6 pt-2">
+<div class="mb-4 flex items-end justify-between">
+<div>
+<p class="text-[11px] text-gray-400 font-semibold mb-1">昨晚睡眠时长</p>
+<p class="text-3xl font-bold">6h 45m</p>
+</div>
+<div class="text-right">
+<p class="text-[11px] text-gray-400 font-semibold mb-1">深睡占比</p>
+<p class="text-xl font-semibold text-indigo-600">22%</p>
+</div>
+</div>
+<div class="space-y-1">
+<div class="grid grid-cols-3 px-3 py-2 text-[11px] text-gray-400 font-bold uppercase tracking-wider bg-gray-50 rounded-lg mb-2">
+<span>日期</span>
+<span>总时长</span>
+<span class="text-right">深睡占比</span>
+</div>
+<div class="grid grid-cols-3 px-3 py-3 text-[13px] border-b border-gray-50">
+<span class="mono-time text-gray-500">2023-10-23</span>
+<span class="font-medium">7h 12m</span>
+<span class="text-right text-indigo-500 font-medium">25%</span>
+</div>
+<div class="grid grid-cols-3 px-3 py-3 text-[13px] border-b border-gray-50">
+<span class="mono-time text-gray-500">2023-10-22</span>
+<span class="font-medium">5h 50m</span>
+<span class="text-right text-amber-500 font-medium">18%</span>
+</div>
+</div>
+</div>
+</details>
+<details class="group bg-white rounded-3xl apple-card-shadow border border-[var(--apple-border)] transition-all" open="">
+<summary class="flex items-center justify-between px-6 py-5 cursor-pointer select-none">
+<div class="flex items-center gap-3">
+<span class="w-1.5 h-6 bg-orange-400 rounded-full"></span>
+<h3 class="text-[16px] font-bold text-gray-900">运动记录</h3>
+</div>
+<span class="material-symbols-outlined text-gray-400 group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<div class="px-6 pb-6 pt-2 space-y-4">
+<div class="flex items-center gap-4 bg-gray-50/70 p-4 rounded-2xl border border-gray-100">
+<div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined">directions_walk</span>
+</div>
+<div class="flex-1">
+<h4 class="text-sm font-bold text-gray-800">户外散步</h4>
+<p class="text-[11px] text-gray-400 mono-time">今天 07:30 · 30 分钟</p>
+</div>
+<div class="text-right">
+<p class="text-lg font-bold">120 <span class="text-[11px] font-medium text-gray-400">kcal</span></p>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-gray-50/70 p-4 rounded-2xl border border-gray-100">
+<div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined">self_improvement</span>
+</div>
+<div class="flex-1">
+<h4 class="text-sm font-bold text-gray-800">居家拉伸</h4>
+<p class="text-[11px] text-gray-400 mono-time">昨天 16:20 · 15 分钟</p>
+</div>
+<div class="text-right">
+<p class="text-lg font-bold">45 <span class="text-[11px] font-medium text-gray-400">kcal</span></p>
+</div>
+</div>
+</div>
+</details>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>
