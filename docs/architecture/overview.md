@@ -72,6 +72,7 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 ### AI Runtime（API Server 内部模块）
 
 - `agent.py`：PydanticAI agent 工厂与 system prompt 组装
+- `daily_generation.py`：离线结构化日更生成，供 scheduler 调用
 - `deps.py`：运行时依赖注入
 - `tools/`：读取、低风险写入、审批写入、建议工具
 - `orchestrator.py`：`agent.iter()` 循环和 SSE 事件映射
@@ -121,9 +122,8 @@ Web App
 
 ```text
 Scheduler 触发
-  → AI Runtime 读取成员健康数据
-  → 生成 / 刷新 HealthSummary
-  → 生成 / 刷新当日 CarePlan
+  → 服务层读取成员最小健康快照
+  → AI Runtime 离线生成结构化 HealthSummary / CarePlan
   → 写回 Database
   → 首页和成员档案读取最新结果
 ```
@@ -147,5 +147,6 @@ Scheduler 触发
 ## 当前状态
 
 - 文档已经提前切换到最新主线，以避免后续开发继续被旧设计污染
-- Step 6 前端页面重构、Step 7 AI 驱动功能、Step 8 测试更新仍待实现
+- Step 6 前端页面重构、Step 7 AI 驱动功能、Step 8 测试更新已经落到当前基线
+- 每日摘要与提醒由 scheduler 注册的内建日更任务驱动，默认使用本地时区的 05:00 / 06:00 执行，可通过环境变量调整
 - 因此本文是“当前目标架构 + 开发基线”，不是对所有现有代码状态的逐行复述

@@ -17,7 +17,7 @@ HomeVitalAgent = Agent[AIDeps, AgentOutput]
 
 
 def create_agent(settings: Settings) -> HomeVitalAgent | None:
-    model = _build_model(settings)
+    model = build_model(settings)
     if model is None:
         return None
 
@@ -51,7 +51,7 @@ async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
     return "\n".join(parts)
 
 
-def _build_model(settings: Settings) -> Any | None:
+def build_model(settings: Settings) -> Any | None:
     if not settings.ai_base_url or not settings.ai_api_key:
         return None
     return OpenAIChatModel(

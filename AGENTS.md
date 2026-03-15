@@ -56,7 +56,7 @@ docker compose logs -f
 
 ```bash
 # 后端测试
-cd backend && .venv/bin/pytest
+cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest
 
 # 前端测试
 cd frontend && npm test

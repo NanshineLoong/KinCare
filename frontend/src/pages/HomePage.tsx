@@ -350,7 +350,7 @@ export function HomePage({
               <div className="rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-8 py-10 shadow-card">
                 <h3 className="text-2xl font-bold text-[#2D2926]">今天还没有待办提醒</h3>
                 <p className="mt-3 max-w-xl text-sm leading-7 text-warm-gray">
-                  可以先进入成员档案补充用药、复诊和指标记录，系统会在后续 AI 阶段生成更完整的每日提醒。
+                  可以先进入成员档案补充用药、复诊和指标记录，系统会在每日刷新时同步最新 AI 提醒。
                 </p>
               </div>
             ) : null}

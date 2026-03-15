@@ -57,6 +57,7 @@ System prompt 只提供以下内容：
 
 - `backend/app/ai/deps.py`：`AIDeps` 与运行时依赖注入
 - `backend/app/ai/agent.py`：agent 工厂、system prompt、工具注册
+- `backend/app/ai/daily_generation.py`：Step 7 日更生成的结构化输出 agent
 - `backend/app/ai/tools/`：读取类、低风险写入类、审批写入类、建议类工具
 - `backend/app/ai/orchestrator.py`：`agent.iter()` 循环、SSE 事件映射、审批恢复
 - `backend/app/ai/transcription.py`：语音转写
@@ -98,7 +99,15 @@ Step 7 需要在同一套 AI 运行时上补齐两类定时任务：
 - `refresh_health_summaries`
 - `refresh_daily_care_plans`
 
-这两类任务都应通过现有服务层读取成员数据并写回 `HealthSummary` / `CarePlan`，而不是绕过业务边界直接写库。
+这两类任务通过服务层读取成员最小健康快照，再由结构化输出 agent 生成结果并写回 `HealthSummary` / `CarePlan`。
+
+当前实现约束：
+
+- scheduler 启动时注册内建 daily jobs，而不是依赖用户创建的 `ScheduledTask`
+- 默认执行时间为本地时区 05:00（摘要）与 06:00（提醒），可通过环境变量调整
+- `HealthSummary` 固定输出 3 条：`chronic-vitals / lifestyle / body-vitals`
+- `CarePlan` 每位成员每天最多保留 1 条 AI 生成提醒，手动提醒不受刷新影响
+- AI 未配置、模型输出非法或单个成员生成失败时，保留该成员当天已有数据，不回退到规则模板
 
 ## PydanticAI API 约束（已吸收自 Step 2 调研）
 
@@ -122,4 +131,4 @@ Step 7 需要在同一套 AI 运行时上补齐两类定时任务：
 
 - 文档已经切换到最新 AI 主线，为接下来的 Step 6-8 提供统一指导
 - Step 4 被视为当前开发基线的一部分
-- Step 7 的定时生成能力仍待实现，因此相关描述属于已定方案而非已完成状态
+- Step 7 的定时生成能力已经落地，当前描述同时包含实现边界与默认调度策略

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
+from datetime import UTC, datetime
 import importlib
 import json
 import sys
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -43,6 +46,28 @@ def unconfigured_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestC
     monkeypatch.delenv("HOMEVITAL_AI_API_KEY", raising=False)
     monkeypatch.setenv("HOMEVITAL_AI_MODEL", "test-model")
     monkeypatch.setenv("HOMEVITAL_SCHEDULER_ENABLED", "1")
+
+    _clear_app_modules()
+    main_module = importlib.import_module("app.main")
+
+    with TestClient(main_module.app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def custom_schedule_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
+    monkeypatch.setenv("HOMEVITAL_DB_PATH", str(tmp_path / "homevital.db"))
+    monkeypatch.setenv("HOMEVITAL_JWT_SECRET", "phase-4-test-secret")
+    monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "900")
+    monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "3600")
+    monkeypatch.setenv("HOMEVITAL_AI_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("HOMEVITAL_AI_API_KEY", "test-key")
+    monkeypatch.setenv("HOMEVITAL_AI_MODEL", "test-model")
+    monkeypatch.setenv("HOMEVITAL_SCHEDULER_ENABLED", "1")
+    monkeypatch.setenv("HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR", "4")
+    monkeypatch.setenv("HOMEVITAL_HEALTH_SUMMARY_REFRESH_MINUTE", "15")
+    monkeypatch.setenv("HOMEVITAL_CARE_PLAN_REFRESH_HOUR", "6")
+    monkeypatch.setenv("HOMEVITAL_CARE_PLAN_REFRESH_MINUTE", "45")
 
     _clear_app_modules()
     main_module = importlib.import_module("app.main")
@@ -252,6 +277,29 @@ def override_agent_model(client: TestClient, *, function: Any, stream_function: 
     return client.app.state.chat_orchestrator._agent.override(
         model=FunctionModel(function=function, stream_function=stream_function or default_stream_function),
     )
+
+
+def override_daily_generation_models(
+    client: TestClient,
+    *,
+    summary_function: Any | None = None,
+    care_plan_function: Any | None = None,
+) -> ExitStack:
+    function_models = importlib.import_module("pydantic_ai.models.function")
+    FunctionModel = function_models.FunctionModel
+
+    generator = client.app.state.scheduler._daily_generator
+    stack = ExitStack()
+    if summary_function is not None:
+        stack.enter_context(generator.summary_agent.override(model=FunctionModel(function=summary_function)))
+    if care_plan_function is not None:
+        stack.enter_context(generator.care_plan_agent.override(model=FunctionModel(function=care_plan_function)))
+    return stack
+
+
+def shanghai_today(hour: int, minute: int = 0) -> str:
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    return now.replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
 
 
 def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_events(client: TestClient) -> None:
@@ -677,7 +725,21 @@ def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: Tes
     assert empty_response.status_code == 400
 
 
-def test_scheduler_refreshes_health_summaries_and_daily_care_plans(client: TestClient) -> None:
+def test_scheduler_registers_builtin_daily_refresh_jobs(custom_schedule_client: TestClient) -> None:
+    scheduler = custom_schedule_client.app.state.scheduler
+
+    summary_job = scheduler.get_job("builtin.refresh_health_summaries")
+    care_plan_job = scheduler.get_job("builtin.refresh_daily_care_plans")
+
+    assert summary_job is not None
+    assert care_plan_job is not None
+    assert "hour='4'" in str(summary_job.trigger)
+    assert "minute='15'" in str(summary_job.trigger)
+    assert "hour='6'" in str(care_plan_job.trigger)
+    assert "minute='45'" in str(care_plan_job.trigger)
+
+
+def test_scheduler_refreshes_ai_generated_content_and_preserves_manual_care_plans(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
     headers = auth_headers(admin["tokens"]["access_token"])
@@ -686,10 +748,98 @@ def test_scheduler_refreshes_health_summaries_and_daily_care_plans(client: TestC
     create_workout_record(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
     create_care_plan(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"], title="早餐后服药")
 
+    old_summary_response = client.post(
+        f"/api/members/{managed_member['id']}/health-summaries",
+        headers=headers,
+        json={
+            "category": "chronic-vitals",
+            "label": "旧摘要",
+            "value": "旧的慢病说明",
+            "status": "warning",
+            "generated_at": "2026-03-12T08:00:00+08:00",
+        },
+    )
+    assert old_summary_response.status_code == 201, old_summary_response.text
+
+    old_ai_care_plan = client.post(
+        f"/api/members/{managed_member['id']}/care-plans",
+        headers=headers,
+        json={
+            "category": "daily-tip",
+            "title": "旧的 AI 提醒",
+            "description": "已经过期",
+            "status": "active",
+            "scheduled_at": shanghai_today(7, 30),
+            "generated_by": "ai",
+        },
+    )
+    assert old_ai_care_plan.status_code == 201, old_ai_care_plan.text
+
     scheduler = client.app.state.scheduler
 
-    summary_result = scheduler.refresh_health_summaries()
-    care_plan_result = scheduler.refresh_daily_care_plans()
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def summary_model(messages: list[Any], info: Any) -> Any:
+        del messages
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "summaries": [
+                            {
+                                "category": "chronic-vitals",
+                                "label": "慢病管理",
+                                "value": "血压整体平稳，继续按计划监测。",
+                                "status": "good",
+                            },
+                            {
+                                "category": "lifestyle",
+                                "label": "生活习惯",
+                                "value": "睡眠与运动节奏稳定，可以继续保持。",
+                                "status": "good",
+                            },
+                            {
+                                "category": "body-vitals",
+                                "label": "生理指标",
+                                "value": "心率与体征暂无明显异常。",
+                                "status": "neutral",
+                            },
+                        ]
+                    },
+                )
+            ]
+        )
+
+    async def care_plan_model(messages: list[Any], info: Any) -> Any:
+        del messages
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "care_plan": {
+                            "category": "activity-reminder",
+                            "title": "午后散步 20 分钟",
+                            "description": "午饭后安排一段轻量散步，帮助维持今天的活动量。",
+                            "time_slot": "afternoon",
+                        }
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(
+        client,
+        summary_function=summary_model,
+        care_plan_function=care_plan_model,
+    ):
+        summary_result = scheduler.refresh_health_summaries()
+        care_plan_result = scheduler.refresh_daily_care_plans()
 
     assert managed_member["id"] in summary_result["member_ids"]
     assert managed_member["id"] in care_plan_result["member_ids"]
@@ -699,15 +849,183 @@ def test_scheduler_refreshes_health_summaries_and_daily_care_plans(client: TestC
         headers=headers,
     )
     assert summaries_response.status_code == 200, summaries_response.text
-    summary_labels = {item["label"] for item in summaries_response.json()}
-    assert {"慢病管理", "生活习惯", "生理指标"} <= summary_labels
+    summaries = summaries_response.json()
+    assert {item["category"] for item in summaries} == {"chronic-vitals", "lifestyle", "body-vitals"}
+    assert {item["value"] for item in summaries} == {
+        "血压整体平稳，继续按计划监测。",
+        "睡眠与运动节奏稳定，可以继续保持。",
+        "心率与体征暂无明显异常。",
+    }
 
     care_plans_response = client.get(
         f"/api/members/{managed_member['id']}/care-plans",
         headers=headers,
     )
     assert care_plans_response.status_code == 200, care_plans_response.text
-    generated_today = [
-        item for item in care_plans_response.json() if item["generated_by"] == "ai" and item["status"] == "active"
-    ]
-    assert generated_today
+    care_plans = care_plans_response.json()
+    titles = {item["title"] for item in care_plans}
+    assert "早餐后服药" in titles
+    assert "旧的 AI 提醒" not in titles
+    assert "午后散步 20 分钟" in titles
+
+    generated_today = [item for item in care_plans if item["generated_by"] == "ai" and item["status"] == "active"]
+    assert len(generated_today) == 1
+    assert generated_today[0]["scheduled_at"].endswith("14:00:00+08:00")
+
+
+def test_scheduler_skips_unconfigured_ai_and_keeps_existing_daily_content(unconfigured_client: TestClient) -> None:
+    admin = register_user(unconfigured_client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(unconfigured_client, admin["tokens"]["access_token"], "奶奶")
+    headers = auth_headers(admin["tokens"]["access_token"])
+
+    old_summary_response = unconfigured_client.post(
+        f"/api/members/{managed_member['id']}/health-summaries",
+        headers=headers,
+        json={
+            "category": "chronic-vitals",
+            "label": "旧摘要",
+            "value": "保持原样",
+            "status": "warning",
+            "generated_at": "2026-03-12T08:00:00+08:00",
+        },
+    )
+    assert old_summary_response.status_code == 201, old_summary_response.text
+
+    old_ai_care_plan = unconfigured_client.post(
+        f"/api/members/{managed_member['id']}/care-plans",
+        headers=headers,
+        json={
+            "category": "daily-tip",
+            "title": "旧的 AI 提醒",
+            "description": "仍应保留",
+            "status": "active",
+            "scheduled_at": shanghai_today(9, 0),
+            "generated_by": "ai",
+        },
+    )
+    assert old_ai_care_plan.status_code == 201, old_ai_care_plan.text
+
+    scheduler = unconfigured_client.app.state.scheduler
+
+    summary_result = scheduler.refresh_health_summaries()
+    care_plan_result = scheduler.refresh_daily_care_plans()
+
+    assert managed_member["id"] in summary_result["failed_member_ids"]
+    assert managed_member["id"] in care_plan_result["failed_member_ids"]
+    assert managed_member["id"] not in summary_result["member_ids"]
+    assert managed_member["id"] not in care_plan_result["member_ids"]
+
+    summaries_response = unconfigured_client.get(
+        f"/api/members/{managed_member['id']}/health-summaries",
+        headers=headers,
+    )
+    assert summaries_response.status_code == 200, summaries_response.text
+    assert [item["value"] for item in summaries_response.json()] == ["保持原样"]
+
+    care_plans_response = unconfigured_client.get(
+        f"/api/members/{managed_member['id']}/care-plans",
+        headers=headers,
+    )
+    assert care_plans_response.status_code == 200, care_plans_response.text
+    assert [item["title"] for item in care_plans_response.json()] == ["旧的 AI 提醒"]
+
+
+def test_scheduler_continues_refresh_when_one_member_generation_fails(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    good_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    bad_member = create_managed_member(client, admin["tokens"]["access_token"], "外婆")
+    headers = auth_headers(admin["tokens"]["access_token"])
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=good_member["id"])
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=bad_member["id"])
+
+    old_summary_response = client.post(
+        f"/api/members/{bad_member['id']}/health-summaries",
+        headers=headers,
+        json={
+            "category": "chronic-vitals",
+            "label": "旧摘要",
+            "value": "不要被覆盖",
+            "status": "warning",
+            "generated_at": "2026-03-12T08:00:00+08:00",
+        },
+    )
+    assert old_summary_response.status_code == 201, old_summary_response.text
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def summary_model(messages: list[Any], info: Any) -> Any:
+        output_tool = info.output_tools[0]
+        if any("外婆" in str(message) for message in messages):
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        output_tool.name,
+                        {
+                            "summaries": [
+                                {
+                                    "category": "unsupported",
+                                    "label": "无效摘要",
+                                    "value": "这条结果应触发校验失败。",
+                                    "status": "warning",
+                                }
+                            ]
+                        },
+                    )
+                ]
+            )
+
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "summaries": [
+                            {
+                                "category": "chronic-vitals",
+                                "label": "慢病管理",
+                                "value": "监测计划正常。",
+                                "status": "good",
+                            },
+                            {
+                                "category": "lifestyle",
+                                "label": "生活习惯",
+                                "value": "建议保持规律作息。",
+                                "status": "neutral",
+                            },
+                            {
+                                "category": "body-vitals",
+                                "label": "生理指标",
+                                "value": "当前指标稳定。",
+                                "status": "neutral",
+                            },
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(client, summary_function=summary_model):
+        summary_result = client.app.state.scheduler.refresh_health_summaries()
+
+    assert good_member["id"] in summary_result["member_ids"]
+    assert bad_member["id"] in summary_result["failed_member_ids"]
+
+    good_summaries = client.get(
+        f"/api/members/{good_member['id']}/health-summaries",
+        headers=headers,
+    )
+    assert good_summaries.status_code == 200, good_summaries.text
+    assert {item["value"] for item in good_summaries.json()} == {
+        "监测计划正常。",
+        "建议保持规律作息。",
+        "当前指标稳定。",
+    }
+
+    bad_summaries = client.get(
+        f"/api/members/{bad_member['id']}/health-summaries",
+        headers=headers,
+    )
+    assert bad_summaries.status_code == 200, bad_summaries.text
+    assert [item["value"] for item in bad_summaries.json()] == ["不要被覆盖"]

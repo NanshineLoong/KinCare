@@ -19,6 +19,10 @@ class Settings:
     ai_model: str
     scheduler_enabled: bool
     scheduler_timezone: str
+    health_summary_refresh_hour: int
+    health_summary_refresh_minute: int
+    care_plan_refresh_hour: int
+    care_plan_refresh_minute: int
 
 
 def get_settings() -> Settings:
@@ -42,4 +46,8 @@ def get_settings() -> Settings:
         ai_model=os.getenv("HOMEVITAL_AI_MODEL", "gpt-4.1-mini"),
         scheduler_enabled=os.getenv("HOMEVITAL_SCHEDULER_ENABLED", "1") == "1",
         scheduler_timezone=os.getenv("HOMEVITAL_SCHEDULER_TIMEZONE", "Asia/Shanghai"),
+        health_summary_refresh_hour=int(os.getenv("HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR", "5")),
+        health_summary_refresh_minute=int(os.getenv("HOMEVITAL_HEALTH_SUMMARY_REFRESH_MINUTE", "0")),
+        care_plan_refresh_hour=int(os.getenv("HOMEVITAL_CARE_PLAN_REFRESH_HOUR", "6")),
+        care_plan_refresh_minute=int(os.getenv("HOMEVITAL_CARE_PLAN_REFRESH_MINUTE", "0")),
     )
