@@ -86,6 +86,5 @@ def confirm_chat_draft(
         member_id=request.member_id,
         draft=request.draft.model_dump(),
         source="manual",
-        source_ref=None,
     )
     return {"created_counts": counts}

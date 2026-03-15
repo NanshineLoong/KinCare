@@ -63,43 +63,47 @@ RESOURCE_CASES = [
     {
         "resource": "observations",
         "create_payload": {
-            "category": "vital-signs",
+            "category": "chronic-vitals",
             "code": "bp-systolic",
             "display_name": "收缩压",
             "value": 128.0,
             "unit": "mmHg",
+            "context": "postmeal-2h",
             "effective_at": "2026-03-10T08:00:00+00:00",
             "source": "manual",
+            "device_name": "Omron",
             "notes": "早餐后测量",
         },
         "update_payload": {
             "value": 122.0,
+            "context": "fasting",
             "notes": "午后复测",
         },
         "assert_created": lambda item, expected: (
             item["code"] == expected["code"]
             and item["value"] == expected["value"]
             and item["unit"] == expected["unit"]
+            and item["context"] == expected["context"]
         ),
         "assert_updated": lambda item, expected: (
-            item["value"] == expected["value"] and item["notes"] == expected["notes"]
+            item["value"] == expected["value"]
+            and item["context"] == expected["context"]
+            and item["notes"] == expected["notes"]
         ),
     },
     {
         "resource": "conditions",
         "create_payload": {
             "category": "chronic",
-            "code": "hypertension",
             "display_name": "高血压",
             "clinical_status": "active",
             "onset_date": "2023-06-01",
-            "severity": "moderate",
             "source": "manual",
             "notes": "持续监测",
         },
         "update_payload": {
-            "clinical_status": "resolved",
-            "abatement_date": "2026-03-01",
+            "category": "family-history",
+            "clinical_status": "inactive",
             "notes": "近期状态稳定",
         },
         "assert_created": lambda item, expected: (
@@ -107,28 +111,27 @@ RESOURCE_CASES = [
             and item["clinical_status"] == expected["clinical_status"]
         ),
         "assert_updated": lambda item, expected: (
-            item["clinical_status"] == expected["clinical_status"]
-            and item["abatement_date"] == expected["abatement_date"]
+            item["category"] == expected["category"]
+            and item["clinical_status"] == expected["clinical_status"]
+            and item["notes"] == expected["notes"]
         ),
     },
     {
         "resource": "medications",
         "create_payload": {
-            "medication_name": "缬沙坦",
-            "dosage": "每日一次，每次 1 片",
+            "name": "缬沙坦",
+            "dosage_description": "每日一次，每次 1 片",
             "status": "active",
             "start_date": "2026-02-01",
-            "reason": "高血压",
-            "prescribed_by": "协和医院",
+            "indication": "高血压",
             "source": "manual",
-            "notes": "早餐后服用",
         },
         "update_payload": {
-            "status": "completed",
+            "status": "stopped",
             "end_date": "2026-03-01",
         },
         "assert_created": lambda item, expected: (
-            item["medication_name"] == expected["medication_name"]
+            item["name"] == expected["name"]
             and item["status"] == expected["status"]
         ),
         "assert_updated": lambda item, expected: (
@@ -141,49 +144,104 @@ RESOURCE_CASES = [
             "type": "outpatient",
             "facility": "协和医院",
             "department": "心内科",
+            "attending_physician": "李建国 副主任医师",
             "date": "2026-02-15",
             "summary": "常规复诊",
             "source": "manual",
         },
         "update_payload": {
             "department": "老年医学科",
+            "attending_physician": "赵医生",
             "summary": "复诊并调整用药",
         },
         "assert_created": lambda item, expected: (
-            item["facility"] == expected["facility"] and item["date"] == expected["date"]
+            item["facility"] == expected["facility"]
+            and item["attending_physician"] == expected["attending_physician"]
+            and item["date"] == expected["date"]
         ),
         "assert_updated": lambda item, expected: (
-            item["department"] == expected["department"] and item["summary"] == expected["summary"]
+            item["department"] == expected["department"]
+            and item["attending_physician"] == expected["attending_physician"]
+            and item["summary"] == expected["summary"]
         ),
     },
     {
-        "resource": "documents",
+        "resource": "sleep-records",
         "create_payload": {
-            "doc_type": "lab-result",
-            "file_path": "uploads/report-1.pdf",
-            "file_name": "report-1.pdf",
-            "mime_type": "application/pdf",
-            "extraction_status": "pending",
-            "raw_extraction": {"summary": "待处理"},
+            "start_at": "2026-03-09T22:30:00+00:00",
+            "end_at": "2026-03-10T06:30:00+00:00",
+            "total_minutes": 480,
+            "deep_minutes": 85,
+            "rem_minutes": 110,
+            "light_minutes": 255,
+            "awake_minutes": 30,
+            "efficiency_score": 92.5,
+            "is_nap": False,
+            "source": "device",
+            "device_name": "Apple Watch",
         },
         "update_payload": {
-            "extraction_status": "completed",
-            "extracted_at": "2026-03-10T09:30:00+00:00",
-            "raw_extraction": {"summary": "已抽取"},
+            "efficiency_score": 94.0,
+            "is_nap": True,
         },
         "assert_created": lambda item, expected: (
-            item["file_name"] == expected["file_name"]
-            and item["extraction_status"] == expected["extraction_status"]
+            item["total_minutes"] == expected["total_minutes"]
+            and item["device_name"] == expected["device_name"]
         ),
         "assert_updated": lambda item, expected: (
-            item["extraction_status"] == expected["extraction_status"]
-            and item["raw_extraction"] == expected["raw_extraction"]
+            item["efficiency_score"] == expected["efficiency_score"]
+            and item["is_nap"] == expected["is_nap"]
+        ),
+    },
+    {
+        "resource": "workout-records",
+        "create_payload": {
+            "type": "walking",
+            "start_at": "2026-03-11T07:00:00+00:00",
+            "end_at": "2026-03-11T07:45:00+00:00",
+            "duration_minutes": 45,
+            "energy_burned": 210.5,
+            "distance_meters": 3800.0,
+            "avg_heart_rate": 108,
+            "source": "device",
+            "device_name": "Apple Watch",
+            "notes": "晨间快走",
+        },
+        "update_payload": {
+            "type": "hiking",
+            "notes": "公园徒步",
+        },
+        "assert_created": lambda item, expected: (
+            item["type"] == expected["type"] and item["duration_minutes"] == expected["duration_minutes"]
+        ),
+        "assert_updated": lambda item, expected: (
+            item["type"] == expected["type"] and item["notes"] == expected["notes"]
+        ),
+    },
+    {
+        "resource": "health-summaries",
+        "create_payload": {
+            "category": "lifestyle",
+            "label": "运动习惯",
+            "value": "本周步数稳定",
+            "status": "good",
+            "generated_at": "2026-03-11T09:00:00+00:00",
+        },
+        "update_payload": {
+            "value": "本周运动偏少",
+            "status": "warning",
+        },
+        "assert_created": lambda item, expected: (
+            item["label"] == expected["label"] and item["status"] == expected["status"]
+        ),
+        "assert_updated": lambda item, expected: (
+            item["value"] == expected["value"] and item["status"] == expected["status"]
         ),
     },
     {
         "resource": "care-plans",
         "create_payload": {
-            "category": "medication-reminder",
+            "category": "checkup-reminder",
             "title": "晚间服药",
             "description": "20:00 服用降压药",
             "status": "active",
@@ -283,7 +341,7 @@ def test_observation_trend_filters_by_code_and_time_range(client: TestClient) ->
 
     for payload in [
         {
-            "category": "vital-signs",
+            "category": "chronic-vitals",
             "code": "bp-systolic",
             "display_name": "收缩压",
             "value": 118.0,
@@ -292,7 +350,7 @@ def test_observation_trend_filters_by_code_and_time_range(client: TestClient) ->
             "source": "manual",
         },
         {
-            "category": "vital-signs",
+            "category": "chronic-vitals",
             "code": "bp-systolic",
             "display_name": "收缩压",
             "value": 121.0,
@@ -301,7 +359,7 @@ def test_observation_trend_filters_by_code_and_time_range(client: TestClient) ->
             "source": "manual",
         },
         {
-            "category": "vital-signs",
+            "category": "chronic-vitals",
             "code": "bp-systolic",
             "display_name": "收缩压",
             "value": 124.0,
@@ -310,7 +368,7 @@ def test_observation_trend_filters_by_code_and_time_range(client: TestClient) ->
             "source": "manual",
         },
         {
-            "category": "vital-signs",
+            "category": "body-vitals",
             "code": "heart-rate",
             "display_name": "心率",
             "value": 76.0,
@@ -362,39 +420,26 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
     ).isoformat()
 
     response = client.post(
-        f"/api/members/{managed_member['id']}/observations",
+        f"/api/members/{managed_member['id']}/health-summaries",
         json={
-            "category": "vital-signs",
-            "code": "bp-systolic",
-            "display_name": "收缩压",
-            "value": 126.0,
-            "unit": "mmHg",
-            "effective_at": "2026-03-11T08:00:00+00:00",
-            "source": "manual",
+            "category": "chronic-vitals",
+            "label": "血压控制",
+            "value": "稳步好转",
+            "status": "good",
+            "generated_at": "2026-03-11T08:00:00+00:00",
         },
         headers=headers,
     )
     assert response.status_code == 201, response.text
 
     response = client.post(
-        f"/api/members/{managed_member['id']}/conditions",
+        f"/api/members/{managed_member['id']}/health-summaries",
         json={
-            "category": "chronic",
-            "code": "hypertension",
-            "display_name": "高血压",
-            "clinical_status": "active",
-            "source": "manual",
-        },
-        headers=headers,
-    )
-    assert response.status_code == 201, response.text
-
-    response = client.post(
-        f"/api/members/{managed_member['id']}/medications",
-        json={
-            "medication_name": "缬沙坦",
-            "status": "active",
-            "source": "manual",
+            "category": "lifestyle",
+            "label": "运动习惯",
+            "value": "运动偏少",
+            "status": "warning",
+            "generated_at": "2026-03-11T08:05:00+00:00",
         },
         headers=headers,
     )
@@ -410,7 +455,7 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
             "generated_by": "manual",
         },
         {
-            "category": "followup-reminder",
+            "category": "checkup-reminder",
             "title": "周五复诊",
             "description": "提前准备病历",
             "status": "active",
@@ -434,12 +479,28 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
     managed_summary = next(
         item for item in payload["members"] if item["member"]["id"] == managed_member["id"]
     )
-    assert managed_summary["latest_observations"]["bp-systolic"]["value"] == 126.0
-    assert managed_summary["active_conditions"] == ["高血压"]
-    assert managed_summary["active_medications_count"] == 1
+    assert [item["label"] for item in managed_summary["health_summaries"]] == ["运动习惯", "血压控制"]
+    assert managed_summary["health_summaries"][0]["status"] == "warning"
 
     assert [item["title"] for item in payload["today_reminders"]] == ["早餐后服药"]
     assert payload["today_reminders"][0]["member_name"] == "奶奶"
+
+
+def test_document_routes_are_removed(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+
+    response = client.post(
+        f"/api/members/{managed_member['id']}/documents/upload",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+
+    assert response.status_code == 404
 
 
 def test_member_health_access_requires_self_or_grant(client: TestClient) -> None:
@@ -460,7 +521,7 @@ def test_member_health_access_requires_self_or_grant(client: TestClient) -> None
     observation_response = client.post(
         f"/api/members/{managed_member['id']}/observations",
         json={
-            "category": "vital-signs",
+            "category": "chronic-vitals",
             "code": "bp-systolic",
             "display_name": "收缩压",
             "value": 128.0,
@@ -503,7 +564,7 @@ def test_member_health_access_requires_self_or_grant(client: TestClient) -> None
     forbidden_create = client.post(
         f"/api/members/{managed_member['id']}/observations",
         json={
-            "category": "vital-signs",
+            "category": "body-vitals",
             "code": "heart-rate",
             "display_name": "心率",
             "value": 76.0,
@@ -528,7 +589,7 @@ def test_member_health_access_requires_self_or_grant(client: TestClient) -> None
     allowed_create = client.post(
         f"/api/members/{managed_member['id']}/observations",
         json={
-            "category": "vital-signs",
+            "category": "body-vitals",
             "code": "heart-rate",
             "display_name": "心率",
             "value": 76.0,
@@ -543,7 +604,7 @@ def test_member_health_access_requires_self_or_grant(client: TestClient) -> None
     self_create = client.post(
         f"/api/members/{caregiver['member']['id']}/observations",
         json={
-            "category": "vital-signs",
+            "category": "body-vitals",
             "code": "body-weight",
             "display_name": "体重",
             "value": 62.5,

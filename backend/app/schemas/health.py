@@ -1,27 +1,27 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 
-ObservationCategory = Literal["vital-signs", "laboratory", "activity", "sleep", "other"]
-ObservationSource = Literal["manual", "document-extract", "device"]
-ConditionCategory = Literal["diagnosis", "chronic", "allergy", "symptom"]
-ConditionStatus = Literal["active", "recurrence", "inactive", "resolved"]
-ConditionSeverity = Literal["mild", "moderate", "severe"]
-MedicationStatus = Literal["active", "completed", "stopped"]
+ObservationCategory = Literal["chronic-vitals", "lifestyle", "body-vitals"]
+ObservationSource = Literal["manual", "device"]
+ClinicalRecordSource = Literal["manual", "ai-extract"]
+ConditionCategory = Literal["diagnosis", "chronic", "allergy", "family-history"]
+ConditionStatus = Literal["active", "inactive", "resolved"]
+MedicationStatus = Literal["active", "stopped"]
 EncounterType = Literal["outpatient", "inpatient", "checkup", "emergency"]
-DocumentType = Literal["checkup-report", "lab-result", "prescription", "discharge-summary", "other"]
-ExtractionStatus = Literal["pending", "processing", "completed", "failed"]
 CarePlanCategory = Literal[
     "medication-reminder",
-    "followup-reminder",
+    "activity-reminder",
+    "checkup-reminder",
     "health-advice",
     "daily-tip",
 ]
 CarePlanStatus = Literal["active", "completed", "cancelled"]
 CarePlanGeneratedBy = Literal["ai", "manual"]
+HealthSummaryStatus = Literal["good", "warning", "neutral"]
 
 
 class ObservationBase(BaseModel):
@@ -31,11 +31,11 @@ class ObservationBase(BaseModel):
     value: float | None = None
     value_string: str | None = None
     unit: str | None = None
+    context: str | None = None
     effective_at: str
     source: ObservationSource
-    source_ref: str | None = None
+    device_name: str | None = None
     notes: str | None = None
-    encounter_id: str | None = None
 
     @field_validator("code", "display_name")
     @classmethod
@@ -57,11 +57,11 @@ class ObservationUpdate(BaseModel):
     value: float | None = None
     value_string: str | None = None
     unit: str | None = None
+    context: str | None = None
     effective_at: str | None = None
     source: ObservationSource | None = None
-    source_ref: str | None = None
+    device_name: str | None = None
     notes: str | None = None
-    encounter_id: str | None = None
 
     @field_validator("code", "display_name")
     @classmethod
@@ -83,18 +83,13 @@ class ObservationRead(ObservationBase):
 
 class ConditionBase(BaseModel):
     category: ConditionCategory
-    code: str
     display_name: str
     clinical_status: ConditionStatus
     onset_date: str | None = None
-    abatement_date: str | None = None
-    severity: ConditionSeverity | None = None
-    source: ObservationSource
-    source_ref: str | None = None
+    source: ClinicalRecordSource
     notes: str | None = None
-    encounter_id: str | None = None
 
-    @field_validator("code", "display_name")
+    @field_validator("display_name")
     @classmethod
     def validate_required_text(cls, value: str) -> str:
         cleaned = value.strip()
@@ -109,18 +104,13 @@ class ConditionCreate(ConditionBase):
 
 class ConditionUpdate(BaseModel):
     category: ConditionCategory | None = None
-    code: str | None = None
     display_name: str | None = None
     clinical_status: ConditionStatus | None = None
     onset_date: str | None = None
-    abatement_date: str | None = None
-    severity: ConditionSeverity | None = None
-    source: ObservationSource | None = None
-    source_ref: str | None = None
+    source: ClinicalRecordSource | None = None
     notes: str | None = None
-    encounter_id: str | None = None
 
-    @field_validator("code", "display_name")
+    @field_validator("display_name")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -139,19 +129,15 @@ class ConditionRead(ConditionBase):
 
 
 class MedicationBase(BaseModel):
-    medication_name: str
-    dosage: str | None = None
+    name: str
+    indication: str | None = None
+    dosage_description: str | None = None
     status: MedicationStatus
     start_date: str | None = None
     end_date: str | None = None
-    reason: str | None = None
-    prescribed_by: str | None = None
-    source: ObservationSource
-    source_ref: str | None = None
-    notes: str | None = None
-    encounter_id: str | None = None
+    source: ClinicalRecordSource
 
-    @field_validator("medication_name")
+    @field_validator("name")
     @classmethod
     def validate_required_text(cls, value: str) -> str:
         cleaned = value.strip()
@@ -165,19 +151,15 @@ class MedicationCreate(MedicationBase):
 
 
 class MedicationUpdate(BaseModel):
-    medication_name: str | None = None
-    dosage: str | None = None
+    name: str | None = None
+    indication: str | None = None
+    dosage_description: str | None = None
     status: MedicationStatus | None = None
     start_date: str | None = None
     end_date: str | None = None
-    reason: str | None = None
-    prescribed_by: str | None = None
-    source: ObservationSource | None = None
-    source_ref: str | None = None
-    notes: str | None = None
-    encounter_id: str | None = None
+    source: ClinicalRecordSource | None = None
 
-    @field_validator("medication_name")
+    @field_validator("name")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -199,10 +181,10 @@ class EncounterBase(BaseModel):
     type: EncounterType
     facility: str | None = None
     department: str | None = None
+    attending_physician: str | None = None
     date: str
     summary: str | None = None
-    source: ObservationSource
-    source_ref: str | None = None
+    source: ClinicalRecordSource
 
 
 class EncounterCreate(EncounterBase):
@@ -213,10 +195,10 @@ class EncounterUpdate(BaseModel):
     type: EncounterType | None = None
     facility: str | None = None
     department: str | None = None
+    attending_physician: str | None = None
     date: str | None = None
     summary: str | None = None
-    source: ObservationSource | None = None
-    source_ref: str | None = None
+    source: ClinicalRecordSource | None = None
 
 
 class EncounterRead(EncounterBase):
@@ -226,16 +208,106 @@ class EncounterRead(EncounterBase):
     updated_at: str
 
 
-class DocumentReferenceBase(BaseModel):
-    doc_type: DocumentType
-    file_path: str
-    file_name: str
-    mime_type: str
-    extraction_status: ExtractionStatus = "pending"
-    extracted_at: str | None = None
-    raw_extraction: dict[str, Any] | None = None
+class SleepRecordBase(BaseModel):
+    start_at: str
+    end_at: str
+    total_minutes: int
+    deep_minutes: int | None = None
+    rem_minutes: int | None = None
+    light_minutes: int | None = None
+    awake_minutes: int | None = None
+    efficiency_score: float | None = None
+    is_nap: bool = False
+    source: ObservationSource
+    device_name: str | None = None
 
-    @field_validator("file_path", "file_name", "mime_type")
+
+class SleepRecordCreate(SleepRecordBase):
+    pass
+
+
+class SleepRecordUpdate(BaseModel):
+    start_at: str | None = None
+    end_at: str | None = None
+    total_minutes: int | None = None
+    deep_minutes: int | None = None
+    rem_minutes: int | None = None
+    light_minutes: int | None = None
+    awake_minutes: int | None = None
+    efficiency_score: float | None = None
+    is_nap: bool | None = None
+    source: ObservationSource | None = None
+    device_name: str | None = None
+
+
+class SleepRecordRead(SleepRecordBase):
+    id: str
+    member_id: str
+    created_at: str
+
+
+class WorkoutRecordBase(BaseModel):
+    type: str
+    start_at: str
+    end_at: str
+    duration_minutes: int
+    energy_burned: float | None = None
+    distance_meters: float | None = None
+    avg_heart_rate: int | None = None
+    source: ObservationSource
+    device_name: str | None = None
+    notes: str | None = None
+
+    @field_validator("type")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Workout type is required.")
+        return cleaned
+
+
+class WorkoutRecordCreate(WorkoutRecordBase):
+    pass
+
+
+class WorkoutRecordUpdate(BaseModel):
+    type: str | None = None
+    start_at: str | None = None
+    end_at: str | None = None
+    duration_minutes: int | None = None
+    energy_burned: float | None = None
+    distance_meters: float | None = None
+    avg_heart_rate: int | None = None
+    source: ObservationSource | None = None
+    device_name: str | None = None
+    notes: str | None = None
+
+    @field_validator("type")
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Workout type is required.")
+        return cleaned
+
+
+class WorkoutRecordRead(WorkoutRecordBase):
+    id: str
+    member_id: str
+    created_at: str
+
+
+class HealthSummaryBase(BaseModel):
+    category: ObservationCategory
+    label: str
+    value: str
+    status: HealthSummaryStatus
+    generated_at: str
+
+    @field_validator("label", "value")
     @classmethod
     def validate_required_text(cls, value: str) -> str:
         cleaned = value.strip()
@@ -244,20 +316,18 @@ class DocumentReferenceBase(BaseModel):
         return cleaned
 
 
-class DocumentReferenceCreate(DocumentReferenceBase):
+class HealthSummaryCreate(HealthSummaryBase):
     pass
 
 
-class DocumentReferenceUpdate(BaseModel):
-    doc_type: DocumentType | None = None
-    file_path: str | None = None
-    file_name: str | None = None
-    mime_type: str | None = None
-    extraction_status: ExtractionStatus | None = None
-    extracted_at: str | None = None
-    raw_extraction: dict[str, Any] | None = None
+class HealthSummaryUpdate(BaseModel):
+    category: ObservationCategory | None = None
+    label: str | None = None
+    value: str | None = None
+    status: HealthSummaryStatus | None = None
+    generated_at: str | None = None
 
-    @field_validator("file_path", "file_name", "mime_type")
+    @field_validator("label", "value")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -268,12 +338,10 @@ class DocumentReferenceUpdate(BaseModel):
         return cleaned
 
 
-class DocumentReferenceRead(DocumentReferenceBase):
+class HealthSummaryRead(HealthSummaryBase):
     id: str
     member_id: str
-    uploaded_by: str
     created_at: str
-    updated_at: str
 
 
 class CarePlanBase(BaseModel):
@@ -349,21 +417,9 @@ class DashboardMember(BaseModel):
     blood_type: str | None = None
 
 
-class ObservationSnapshot(BaseModel):
-    code: str
-    display_name: str
-    value: float | None = None
-    value_string: str | None = None
-    unit: str | None = None
-    effective_at: str
-
-
 class DashboardMemberSummary(BaseModel):
     member: DashboardMember
-    latest_observations: dict[str, ObservationSnapshot] = Field(default_factory=dict)
-    active_conditions: list[str] = Field(default_factory=list)
-    active_medications_count: int = 0
-    latest_encounter: EncounterRead | None = None
+    health_summaries: list[HealthSummaryRead] = Field(default_factory=list)
 
 
 class DashboardReminder(CarePlanRead):

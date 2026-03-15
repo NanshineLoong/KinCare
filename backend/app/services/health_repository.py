@@ -14,19 +14,30 @@ class ResourceConfig:
     table: str
     order_field: str
     json_fields: tuple[str, ...] = ()
+    updated_at_field: str | None = "updated_at"
 
 
 RESOURCE_CONFIGS: dict[str, ResourceConfig] = {
     "observations": ResourceConfig(table="observation", order_field="effective_at"),
     "conditions": ResourceConfig(table="condition", order_field="created_at"),
-    "medications": ResourceConfig(table="medication_statement", order_field="created_at"),
+    "medications": ResourceConfig(table="medication", order_field="created_at"),
     "encounters": ResourceConfig(table="encounter", order_field="date"),
-    "documents": ResourceConfig(
-        table="document_reference",
-        order_field="created_at",
-        json_fields=("raw_extraction",),
-    ),
     "care-plans": ResourceConfig(table="care_plan", order_field="scheduled_at"),
+    "sleep-records": ResourceConfig(
+        table="sleep_record",
+        order_field="start_at",
+        updated_at_field=None,
+    ),
+    "workout-records": ResourceConfig(
+        table="workout_record",
+        order_field="start_at",
+        updated_at_field=None,
+    ),
+    "health-summaries": ResourceConfig(
+        table="health_summary",
+        order_field="generated_at",
+        updated_at_field=None,
+    ),
 }
 
 
@@ -106,9 +117,10 @@ def create_resource(
         "id": str(uuid.uuid4()),
         "member_id": member_id,
         **values,
-        "created_at": timestamp,
-        "updated_at": timestamp,
     }
+    record["created_at"] = timestamp
+    if config.updated_at_field is not None:
+        record[config.updated_at_field] = timestamp
     for field_name in config.json_fields:
         if field_name in record:
             record[field_name] = _serialize_json(record[field_name])
@@ -174,7 +186,8 @@ def update_resource(
         else:
             stored_changes[key] = value
 
-    stored_changes["updated_at"] = now_iso()
+    if config.updated_at_field is not None:
+        stored_changes[config.updated_at_field] = now_iso()
     stored_changes["id"] = resource_id
     assignments = ", ".join(f"{key} = :{key}" for key in stored_changes if key != "id")
     connection.execute(

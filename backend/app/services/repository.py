@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 import uuid
 from datetime import UTC, datetime
@@ -9,16 +8,6 @@ from typing import Any
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat()
-
-
-def _serialize_json_list(value: list[str] | None) -> str:
-    return json.dumps(value or [], ensure_ascii=False)
-
-
-def _parse_json_list(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return list(json.loads(value))
 
 
 def family_space_from_row(row: sqlite3.Row) -> dict[str, Any]:
@@ -49,9 +38,8 @@ def member_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "name": row["name"],
         "gender": row["gender"],
         "birth_date": row["birth_date"],
+        "height_cm": row["height_cm"],
         "blood_type": row["blood_type"],
-        "allergies": _parse_json_list(row["allergies"]),
-        "medical_history": _parse_json_list(row["medical_history"]),
         "avatar_url": row["avatar_url"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
@@ -160,9 +148,8 @@ def create_member(
     name: str,
     gender: str = "unknown",
     birth_date: str | None = None,
+    height_cm: float | None = None,
     blood_type: str | None = None,
-    allergies: list[str] | None = None,
-    medical_history: list[str] | None = None,
     avatar_url: str | None = None,
     user_account_id: str | None = None,
 ) -> dict[str, Any]:
@@ -174,9 +161,8 @@ def create_member(
         "name": name,
         "gender": gender,
         "birth_date": birth_date,
+        "height_cm": height_cm,
         "blood_type": blood_type,
-        "allergies": _serialize_json_list(allergies),
-        "medical_history": _serialize_json_list(medical_history),
         "avatar_url": avatar_url,
         "created_at": timestamp,
         "updated_at": timestamp,
@@ -190,9 +176,8 @@ def create_member(
             name,
             gender,
             birth_date,
+            height_cm,
             blood_type,
-            allergies,
-            medical_history,
             avatar_url,
             created_at,
             updated_at
@@ -204,9 +189,8 @@ def create_member(
             :name,
             :gender,
             :birth_date,
+            :height_cm,
             :blood_type,
-            :allergies,
-            :medical_history,
             :avatar_url,
             :created_at,
             :updated_at
@@ -251,13 +235,7 @@ def update_member(connection: sqlite3.Connection, member_id: str, changes: dict[
     if current is None:
         raise KeyError(member_id)
 
-    stored_changes: dict[str, Any] = {}
-    for key, value in changes.items():
-        if key in {"allergies", "medical_history"}:
-            stored_changes[key] = _serialize_json_list(value)
-        else:
-            stored_changes[key] = value
-
+    stored_changes = dict(changes)
     stored_changes["updated_at"] = now_iso()
     assignments = ", ".join(f"{key} = :{key}" for key in stored_changes)
     stored_changes["id"] = member_id

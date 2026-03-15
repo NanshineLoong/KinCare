@@ -31,9 +31,8 @@ CREATE TABLE IF NOT EXISTS family_member (
     name TEXT NOT NULL,
     gender TEXT NOT NULL DEFAULT 'unknown' CHECK (gender IN ('male', 'female', 'other', 'unknown')),
     birth_date TEXT,
+    height_cm REAL,
     blood_type TEXT,
-    allergies TEXT NOT NULL DEFAULT '[]',
-    medical_history TEXT NOT NULL DEFAULT '[]',
     avatar_url TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -60,17 +59,17 @@ ON member_access_grant(user_account_id);
 CREATE TABLE IF NOT EXISTS observation (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
-    category TEXT NOT NULL CHECK (category IN ('vital-signs', 'laboratory', 'activity', 'sleep', 'other')),
+    category TEXT NOT NULL CHECK (category IN ('chronic-vitals', 'lifestyle', 'body-vitals')),
     code TEXT NOT NULL,
     display_name TEXT NOT NULL,
     value REAL,
     value_string TEXT,
     unit TEXT,
+    context TEXT,
     effective_at TEXT NOT NULL,
-    source TEXT NOT NULL CHECK (source IN ('manual', 'document-extract', 'device')),
-    source_ref TEXT,
+    source TEXT NOT NULL CHECK (source IN ('device', 'manual')),
+    device_name TEXT,
     notes TEXT,
-    encounter_id TEXT REFERENCES encounter(id) ON DELETE SET NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -84,17 +83,12 @@ ON observation(member_id, code, effective_at DESC);
 CREATE TABLE IF NOT EXISTS condition (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
-    category TEXT NOT NULL CHECK (category IN ('diagnosis', 'chronic', 'allergy', 'symptom')),
-    code TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('chronic', 'diagnosis', 'allergy', 'family-history')),
     display_name TEXT NOT NULL,
-    clinical_status TEXT NOT NULL CHECK (clinical_status IN ('active', 'recurrence', 'inactive', 'resolved')),
+    clinical_status TEXT NOT NULL CHECK (clinical_status IN ('active', 'inactive', 'resolved')),
     onset_date TEXT,
-    abatement_date TEXT,
-    severity TEXT CHECK (severity IN ('mild', 'moderate', 'severe')),
-    source TEXT NOT NULL CHECK (source IN ('manual', 'document-extract', 'device')),
-    source_ref TEXT,
+    source TEXT NOT NULL CHECK (source IN ('manual', 'ai-extract')),
     notes TEXT,
-    encounter_id TEXT REFERENCES encounter(id) ON DELETE SET NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -102,26 +96,22 @@ CREATE TABLE IF NOT EXISTS condition (
 CREATE INDEX IF NOT EXISTS idx_condition_member_id_created_at
 ON condition(member_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS medication_statement (
+CREATE TABLE IF NOT EXISTS medication (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
-    medication_name TEXT NOT NULL,
-    dosage TEXT,
-    status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'stopped')),
+    name TEXT NOT NULL,
+    indication TEXT,
+    dosage_description TEXT,
+    status TEXT NOT NULL CHECK (status IN ('active', 'stopped')),
     start_date TEXT,
     end_date TEXT,
-    reason TEXT,
-    prescribed_by TEXT,
-    source TEXT NOT NULL CHECK (source IN ('manual', 'document-extract', 'device')),
-    source_ref TEXT,
-    notes TEXT,
-    encounter_id TEXT REFERENCES encounter(id) ON DELETE SET NULL,
+    source TEXT NOT NULL CHECK (source IN ('manual', 'ai-extract')),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_medication_statement_member_id_created_at
-ON medication_statement(member_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_medication_member_id_created_at
+ON medication(member_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS encounter (
     id TEXT PRIMARY KEY,
@@ -129,10 +119,10 @@ CREATE TABLE IF NOT EXISTS encounter (
     type TEXT NOT NULL CHECK (type IN ('outpatient', 'inpatient', 'checkup', 'emergency')),
     facility TEXT,
     department TEXT,
+    attending_physician TEXT,
     date TEXT NOT NULL,
     summary TEXT,
-    source TEXT NOT NULL CHECK (source IN ('manual', 'document-extract', 'device')),
-    source_ref TEXT,
+    source TEXT NOT NULL CHECK (source IN ('manual', 'ai-extract')),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -140,28 +130,63 @@ CREATE TABLE IF NOT EXISTS encounter (
 CREATE INDEX IF NOT EXISTS idx_encounter_member_id_date
 ON encounter(member_id, date DESC);
 
-CREATE TABLE IF NOT EXISTS document_reference (
+CREATE TABLE IF NOT EXISTS sleep_record (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
-    uploaded_by TEXT NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
-    doc_type TEXT NOT NULL CHECK (doc_type IN ('checkup-report', 'lab-result', 'prescription', 'discharge-summary', 'other')),
-    file_path TEXT NOT NULL,
-    file_name TEXT NOT NULL,
-    mime_type TEXT NOT NULL,
-    extraction_status TEXT NOT NULL CHECK (extraction_status IN ('pending', 'processing', 'completed', 'failed')),
-    extracted_at TEXT,
-    raw_extraction TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    total_minutes INTEGER NOT NULL,
+    deep_minutes INTEGER,
+    rem_minutes INTEGER,
+    light_minutes INTEGER,
+    awake_minutes INTEGER,
+    efficiency_score REAL,
+    is_nap INTEGER NOT NULL DEFAULT 0 CHECK (is_nap IN (0, 1)),
+    source TEXT NOT NULL CHECK (source IN ('device', 'manual')),
+    device_name TEXT,
+    created_at TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_document_reference_member_id_created_at
-ON document_reference(member_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sleep_record_member_id_start_at
+ON sleep_record(member_id, start_at DESC);
+
+CREATE TABLE IF NOT EXISTS workout_record (
+    id TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    duration_minutes INTEGER NOT NULL,
+    energy_burned REAL,
+    distance_meters REAL,
+    avg_heart_rate INTEGER,
+    source TEXT NOT NULL CHECK (source IN ('device', 'manual')),
+    device_name TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_workout_record_member_id_start_at
+ON workout_record(member_id, start_at DESC);
+
+CREATE TABLE IF NOT EXISTS health_summary (
+    id TEXT PRIMARY KEY,
+    member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
+    category TEXT NOT NULL CHECK (category IN ('chronic-vitals', 'lifestyle', 'body-vitals')),
+    label TEXT NOT NULL,
+    value TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('good', 'warning', 'neutral')),
+    generated_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_health_summary_member_id
+ON health_summary(member_id);
 
 CREATE TABLE IF NOT EXISTS care_plan (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
-    category TEXT NOT NULL CHECK (category IN ('medication-reminder', 'followup-reminder', 'health-advice', 'daily-tip')),
+    category TEXT NOT NULL CHECK (category IN ('medication-reminder', 'activity-reminder', 'checkup-reminder', 'health-advice', 'daily-tip')),
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'cancelled')),

@@ -14,18 +14,9 @@ from app.services.health_records import ensure_member_access
 
 OBSERVATION_PATTERNS = [
     (
-        re.compile(r"体温\s*([0-9]+(?:\.[0-9]+)?)"),
-        {
-            "category": "vital-signs",
-            "code": "body-temperature",
-            "display_name": "体温",
-            "unit": "°C",
-        },
-    ),
-    (
         re.compile(r"血压\s*([0-9]{2,3})"),
         {
-            "category": "vital-signs",
+            "category": "chronic-vitals",
             "code": "bp-systolic",
             "display_name": "收缩压",
             "unit": "mmHg",
@@ -34,7 +25,7 @@ OBSERVATION_PATTERNS = [
     (
         re.compile(r"心率\s*([0-9]{2,3})"),
         {
-            "category": "vital-signs",
+            "category": "body-vitals",
             "code": "heart-rate",
             "display_name": "心率",
             "unit": "bpm",

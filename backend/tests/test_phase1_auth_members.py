@@ -203,7 +203,7 @@ def test_admin_can_create_update_and_delete_managed_members(client: TestClient) 
             "name": "奶奶",
             "gender": "female",
             "blood_type": "A+",
-            "medical_history": ["高血压"],
+            "height_cm": 158.5,
         },
         headers=auth_headers(admin["tokens"]["access_token"]),
     )
@@ -211,7 +211,9 @@ def test_admin_can_create_update_and_delete_managed_members(client: TestClient) 
     assert create_response.status_code == 201
     created_member = create_response.json()
     assert created_member["name"] == "奶奶"
-    assert created_member["medical_history"] == ["高血压"]
+    assert created_member["height_cm"] == 158.5
+    assert "allergies" not in created_member
+    assert "medical_history" not in created_member
 
     detail_response = client.get(
         f"/api/members/{created_member['id']}",
@@ -223,14 +225,14 @@ def test_admin_can_create_update_and_delete_managed_members(client: TestClient) 
 
     update_response = client.put(
         f"/api/members/{created_member['id']}",
-        json={"name": "奶奶", "blood_type": "O+", "allergies": ["青霉素"]},
+        json={"name": "奶奶", "blood_type": "O+", "height_cm": 160.0},
         headers=auth_headers(admin["tokens"]["access_token"]),
     )
 
     assert update_response.status_code == 200
     updated_member = update_response.json()
     assert updated_member["blood_type"] == "O+"
-    assert updated_member["allergies"] == ["青霉素"]
+    assert updated_member["height_cm"] == 160.0
 
     delete_response = client.delete(
         f"/api/members/{created_member['id']}",

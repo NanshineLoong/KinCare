@@ -13,11 +13,12 @@ from app.api.routes.health_records import (
     care_plans_router,
     conditions_router,
     dashboard_router,
-    document_workflow_router,
-    documents_router,
     encounters_router,
+    health_summaries_router,
     medications_router,
     observations_router,
+    sleep_records_router,
+    workout_records_router,
 )
 from app.api.routes.members import router as members_router
 from app.core.config import Settings, get_settings
@@ -67,8 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(conditions_router)
     app.include_router(medications_router)
     app.include_router(encounters_router)
-    app.include_router(documents_router)
-    app.include_router(document_workflow_router)
+    app.include_router(sleep_records_router)
+    app.include_router(workout_records_router)
+    app.include_router(health_summaries_router)
     app.include_router(care_plans_router)
     return app
 

@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
-
-from fastapi import HTTPException, status
 
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
@@ -18,26 +14,6 @@ def normalize_extraction_draft(payload: dict[str, Any] | None) -> dict[str, Any]
     return model.model_dump()
 
 
-def extract_document(content: bytes, *, file_name: str, mime_type: str) -> dict[str, Any]:
-    if not content:
-        return normalize_extraction_draft(
-            {
-                "summary": f"{file_name} 内容为空，暂未抽取到结构化信息。",
-            }
-        )
-
-    if mime_type == "application/json" or file_name.endswith(".json"):
-        try:
-            payload = json.loads(content.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid extraction draft file.") from error
-        return normalize_extraction_draft(payload)
-
-    text = content.decode("utf-8", errors="ignore").strip()
-    summary = text or f"{Path(file_name).name} 已上传，等待进一步识别。"
-    return normalize_extraction_draft({"summary": summary})
-
-
 def apply_draft_to_member(
     *,
     database: Database,
@@ -45,7 +21,6 @@ def apply_draft_to_member(
     member_id: str,
     draft: dict[str, Any],
     source: str,
-    source_ref: str | None,
 ) -> dict[str, int]:
     ensure_member_access(database, current_user, member_id, require_write=True)
     normalized = normalize_extraction_draft(draft)
@@ -66,7 +41,6 @@ def apply_draft_to_member(
                 values={
                     **item,
                     "source": source,
-                    "source_ref": source_ref,
                 },
             )
             counts["observations"] += 1
@@ -79,7 +53,6 @@ def apply_draft_to_member(
                 values={
                     **item,
                     "source": source,
-                    "source_ref": source_ref,
                 },
             )
             counts["conditions"] += 1
@@ -92,7 +65,6 @@ def apply_draft_to_member(
                 values={
                     **item,
                     "source": source,
-                    "source_ref": source_ref,
                 },
             )
             counts["medications"] += 1
@@ -105,7 +77,6 @@ def apply_draft_to_member(
                 values={
                     **item,
                     "source": source,
-                    "source_ref": source_ref,
                 },
             )
             counts["encounters"] += 1

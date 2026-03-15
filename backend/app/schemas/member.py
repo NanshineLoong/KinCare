@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 
 
 Gender = Literal["male", "female", "other", "unknown"]
@@ -12,9 +12,8 @@ class MemberBase(BaseModel):
     name: str
     gender: Gender = "unknown"
     birth_date: str | None = None
+    height_cm: float | None = None
     blood_type: str | None = None
-    allergies: list[str] = Field(default_factory=list)
-    medical_history: list[str] = Field(default_factory=list)
     avatar_url: str | None = None
 
     @field_validator("name")
@@ -34,9 +33,8 @@ class MemberUpdate(BaseModel):
     name: str | None = None
     gender: Gender | None = None
     birth_date: str | None = None
+    height_cm: float | None = None
     blood_type: str | None = None
-    allergies: list[str] | None = None
-    medical_history: list[str] | None = None
     avatar_url: str | None = None
 
     @field_validator("name")

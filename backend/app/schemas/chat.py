@@ -9,9 +9,7 @@ from app.schemas.health import (
     CarePlanGeneratedBy,
     CarePlanStatus,
     ConditionCategory,
-    ConditionSeverity,
     ConditionStatus,
-    DocumentType,
     EncounterType,
     MedicationStatus,
     ObservationCategory,
@@ -60,39 +58,33 @@ class ExtractionObservationDraft(BaseModel):
     value: float | None = None
     value_string: str | None = None
     unit: str | None = None
+    context: str | None = None
     effective_at: str
     notes: str | None = None
-    encounter_id: str | None = None
 
 
 class ExtractionConditionDraft(BaseModel):
     category: ConditionCategory
-    code: str
     display_name: str
     clinical_status: ConditionStatus
     onset_date: str | None = None
-    abatement_date: str | None = None
-    severity: ConditionSeverity | None = None
     notes: str | None = None
-    encounter_id: str | None = None
 
 
 class ExtractionMedicationDraft(BaseModel):
-    medication_name: str
-    dosage: str | None = None
+    name: str
+    indication: str | None = None
+    dosage_description: str | None = None
     status: MedicationStatus
     start_date: str | None = None
     end_date: str | None = None
-    reason: str | None = None
-    prescribed_by: str | None = None
-    notes: str | None = None
-    encounter_id: str | None = None
 
 
 class ExtractionEncounterDraft(BaseModel):
     type: EncounterType
     facility: str | None = None
     department: str | None = None
+    attending_physician: str | None = None
     date: str
     summary: str | None = None
 
@@ -114,21 +106,6 @@ class DocumentExtractionDraft(BaseModel):
     medications: list[ExtractionMedicationDraft] = Field(default_factory=list)
     encounters: list[ExtractionEncounterDraft] = Field(default_factory=list)
     care_plans: list[ExtractionCarePlanDraft] = Field(default_factory=list)
-
-
-class DocumentExtractionRead(BaseModel):
-    id: str
-    member_id: str
-    file_name: str
-    doc_type: DocumentType
-    extraction_status: str
-    raw_extraction: DocumentExtractionDraft | None = None
-    extracted_at: str | None = None
-
-
-class DocumentConfirmResult(BaseModel):
-    document_id: str
-    created_counts: dict[str, int]
 
 
 class ChatDraftConfirmRequest(BaseModel):

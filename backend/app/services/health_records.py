@@ -15,7 +15,9 @@ READABLE_RESOURCE_NAMES = {
     "conditions": "Condition",
     "medications": "Medication",
     "encounters": "Encounter",
-    "documents": "Document",
+    "sleep-records": "Sleep record",
+    "workout-records": "Workout record",
+    "health-summaries": "Health summary",
     "care-plans": "Care plan",
 }
 
@@ -72,12 +74,8 @@ def create_resource(
     current_user: CurrentUser,
 ) -> dict[str, Any]:
     ensure_member_access(database, current_user, member_id, require_write=True)
-    values = dict(payload)
-    if resource == "documents":
-        values["uploaded_by"] = current_user.id
-
     with database.connection() as connection:
-        return health_repository.create_resource(connection, resource, member_id=member_id, values=values)
+        return health_repository.create_resource(connection, resource, member_id=member_id, values=dict(payload))
 
 
 def get_resource(
@@ -117,8 +115,6 @@ def update_resource(
             )
         if not changes:
             return existing
-        if resource == "documents" and "uploaded_by" in changes:
-            changes = {key: value for key, value in changes.items() if key != "uploaded_by"}
         return health_repository.update_resource(connection, resource, resource_id, changes)
 
 
@@ -208,48 +204,11 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
 
     with database.connection() as connection:
         for member in members:
-            observations = health_repository.list_resources_for_member(
+            health_summaries = health_repository.list_resources_for_member(
                 connection,
-                "observations",
+                "health-summaries",
                 member_id=member["id"],
             )
-            latest_observations: dict[str, dict[str, Any]] = {}
-            for observation in observations:
-                if observation["code"] in latest_observations:
-                    continue
-                latest_observations[observation["code"]] = {
-                    "code": observation["code"],
-                    "display_name": observation["display_name"],
-                    "value": observation["value"],
-                    "value_string": observation["value_string"],
-                    "unit": observation["unit"],
-                    "effective_at": observation["effective_at"],
-                }
-
-            conditions = health_repository.list_resources_for_member(
-                connection,
-                "conditions",
-                member_id=member["id"],
-            )
-            active_conditions = [
-                item["display_name"]
-                for item in conditions
-                if item["clinical_status"] in {"active", "recurrence"}
-            ]
-
-            medications = health_repository.list_resources_for_member(
-                connection,
-                "medications",
-                member_id=member["id"],
-            )
-            active_medications_count = sum(1 for item in medications if item["status"] == "active")
-
-            encounters = health_repository.list_resources_for_member(
-                connection,
-                "encounters",
-                member_id=member["id"],
-            )
-            latest_encounter = encounters[0] if encounters else None
 
             care_plans = health_repository.list_resources_for_member(
                 connection,
@@ -279,10 +238,7 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
                         "avatar_url": member["avatar_url"],
                         "blood_type": member["blood_type"],
                     },
-                    "latest_observations": latest_observations,
-                    "active_conditions": active_conditions,
-                    "active_medications_count": active_medications_count,
-                    "latest_encounter": latest_encounter,
+                    "health_summaries": health_summaries[:4],
                 }
             )
 

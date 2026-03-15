@@ -25,9 +25,8 @@ def create_member(
             name=request.name,
             gender=request.gender,
             birth_date=request.birth_date,
+            height_cm=request.height_cm,
             blood_type=request.blood_type,
-            allergies=request.allergies,
-            medical_history=request.medical_history,
             avatar_url=request.avatar_url,
         )
 

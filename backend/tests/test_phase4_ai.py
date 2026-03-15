@@ -77,7 +77,7 @@ def create_observation(
         f"/api/members/{member_id}/observations",
         headers=auth_headers(token),
         json={
-            "category": "vital-signs",
+            "category": "chronic-vitals",
             "code": code,
             "display_name": display_name,
             "value": value,
@@ -227,7 +227,7 @@ def test_chat_high_risk_write_creates_draft_without_writing_observation(client: 
         f"/api/chat/sessions/{session_response.json()['id']}/messages",
         headers=auth_headers(admin["tokens"]["access_token"]),
         json={
-            "content": "帮我记录奶奶今天体温 37.2 度",
+            "content": "帮我记录奶奶今天心率 72",
             "member_id": managed_member["id"],
             "page_context": "member-profile",
         },
@@ -237,7 +237,7 @@ def test_chat_high_risk_write_creates_draft_without_writing_observation(client: 
     tool_result = next(item for item in events if item["event"] == "tool.result")
     assert tool_result["data"]["tool_name"] == "draft_health_record"
     assert tool_result["data"]["requires_confirmation"] is True
-    assert tool_result["data"]["draft"]["observations"][0]["code"] == "body-temperature"
+    assert tool_result["data"]["draft"]["observations"][0]["code"] == "heart-rate"
 
     observations_response = client.get(
         f"/api/members/{managed_member['id']}/observations",
@@ -247,7 +247,7 @@ def test_chat_high_risk_write_creates_draft_without_writing_observation(client: 
     assert observations_response.json() == []
 
 
-def test_document_upload_extraction_and_confirm_writes_records(client: TestClient) -> None:
+def test_chat_confirm_draft_writes_records(client: TestClient) -> None:
     admin = register_user(
         client,
         email="owner@example.com",
@@ -259,7 +259,7 @@ def test_document_upload_extraction_and_confirm_writes_records(client: TestClien
         "summary": "体检报告显示血压略高，建议继续监测。",
         "observations": [
             {
-                "category": "vital-signs",
+                "category": "chronic-vitals",
                 "code": "bp-systolic",
                 "display_name": "收缩压",
                 "value": 132.0,
@@ -272,7 +272,7 @@ def test_document_upload_extraction_and_confirm_writes_records(client: TestClien
         "encounters": [],
         "care_plans": [
             {
-                "category": "followup-reminder",
+                "category": "checkup-reminder",
                 "title": "继续监测血压",
                 "description": "未来 3 天持续记录晨间血压",
                 "status": "active",
@@ -282,28 +282,10 @@ def test_document_upload_extraction_and_confirm_writes_records(client: TestClien
         ],
     }
 
-    upload_response = client.post(
-        f"/api/members/{managed_member['id']}/documents/upload",
-        headers=auth_headers(admin["tokens"]["access_token"]),
-        data={"doc_type": "checkup-report"},
-        files={"file": ("report.json", json.dumps(draft, ensure_ascii=False).encode("utf-8"), "application/json")},
-    )
-
-    assert upload_response.status_code == 201, upload_response.text
-    document_id = upload_response.json()["id"]
-    assert upload_response.json()["extraction_status"] == "completed"
-
-    extraction_response = client.get(
-        f"/api/documents/{document_id}/extraction",
-        headers=auth_headers(admin["tokens"]["access_token"]),
-    )
-    assert extraction_response.status_code == 200, extraction_response.text
-    assert extraction_response.json()["raw_extraction"]["summary"] == draft["summary"]
-
     confirm_response = client.post(
-        f"/api/documents/{document_id}/confirm",
+        "/api/chat/confirm",
         headers=auth_headers(admin["tokens"]["access_token"]),
-        json=draft,
+        json={"member_id": managed_member["id"], "draft": draft},
     )
     assert confirm_response.status_code == 200, confirm_response.text
     assert confirm_response.json()["created_counts"] == {
@@ -319,8 +301,8 @@ def test_document_upload_extraction_and_confirm_writes_records(client: TestClien
         headers=auth_headers(admin["tokens"]["access_token"]),
     )
     assert observations_response.status_code == 200, observations_response.text
-    assert observations_response.json()[0]["source"] == "document-extract"
-    assert observations_response.json()[0]["source_ref"] == document_id
+    assert observations_response.json()[0]["source"] == "manual"
+    assert "source_ref" not in observations_response.json()[0]
 
 
 def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: TestClient) -> None:
