@@ -1,7 +1,8 @@
 # 健康事实层简化设计：MVP-v1 精简版
 
-> 状态：专家建议草案（待审核）
+> 状态：已接受（见 [ADR-0009](../adr/0009-simplified-health-fact-layer.md)）
 > 日期：2026-03-13
+> 接受日期：2026-03-15
 > 关联文档：`docs/architecture/data-model.md`（当前实现）、`docs/proposals/ai-architecture-pydantic-ai.md`
 
 ---

@@ -20,3 +20,5 @@
 | [0006](./0006-backend-stack-fastapi.md) | 后端采用 Python + FastAPI | Accepted | 2026-03-11 |
 | [0007](./0007-postgresql-as-primary-database.md) | 主数据库采用 PostgreSQL | Accepted | 2026-03-11 |
 | [0008](./0008-jwt-access-refresh-auth.md) | 认证采用 JWT Access Token + Refresh Token | Accepted | 2026-03-11 |
+| [0009](./0009-simplified-health-fact-layer.md) | MVP v1 采用简化版健康事实层 | Accepted | 2026-03-15 |
+| [0010](./0010-pydantic-ai-tool-calling.md) | 应用内 AI 编排采用 PydanticAI Tool-Calling 循环 | Accepted | 2026-03-15 |

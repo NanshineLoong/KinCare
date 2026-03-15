@@ -1,7 +1,8 @@
 # AI 功能架构设计：基于 PydanticAI 的 Tool-Calling 循环
 
-> 状态：专家建议草案（待审核）
+> 状态：已接受（见 [ADR-0010](../adr/0010-pydantic-ai-tool-calling.md)）
 > 日期：2026-03-13
+> 接受日期：2026-03-15
 > 关联文档：`docs/architecture/phase-4-ai-design.md`、`docs/architecture/overview.md`
 
 ---

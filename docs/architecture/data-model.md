@@ -1,5 +1,7 @@
 # 健康事实层数据模型
 
+> 注：本文档描述的是初始 FHIR 风格数据模型。MVP-v1 简化版决策见 [ADR-0009](../adr/0009-simplified-health-fact-layer.md) 与 [健康事实层简化设计：MVP-v1 精简版](../proposals/health-fact-layer-simplified.md)。
+
 ## 设计思路
 
 HomeVital 的核心数据抽象是**健康事实层**：所有原始健康信息（手动录入、文档抽取、设备同步）在进入系统后，统一转换为标准化的"健康事实"存储。上层功能（看板展示、AI 对话、MCP 查询、提醒生成）全部基于此层工作。

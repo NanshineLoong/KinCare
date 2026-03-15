@@ -1,5 +1,7 @@
 # Phase 4 AI 技术设计
 
+> 注：本文档描述的是 Phase 4 当前实现与原始技术路线。基于 PydanticAI 的升级方案见 [ADR-0010](../adr/0010-pydantic-ai-tool-calling.md)。
+
 ## 目标与范围
 
 Phase 4 需要在当前 HomeVital 仓库基础上补齐以下后端能力：
