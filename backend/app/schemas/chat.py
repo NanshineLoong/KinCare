@@ -4,16 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.schemas.health import (
-    CarePlanCategory,
-    CarePlanGeneratedBy,
-    CarePlanStatus,
-    ConditionCategory,
-    ConditionStatus,
-    EncounterType,
-    MedicationStatus,
-    ObservationCategory,
-)
+from app.schemas.health import ConditionCategory, ConditionStatus, EncounterType, MedicationStatus, ObservationCategory
 
 
 class ChatSessionCreate(BaseModel):
@@ -35,7 +26,6 @@ class ChatSessionRead(BaseModel):
 class ChatMessageCreate(BaseModel):
     content: str
     member_id: str | None = None
-    document_ids: list[str] = Field(default_factory=list)
     page_context: str | None = None
 
     @field_validator("content")
@@ -51,7 +41,7 @@ class ChatTranscriptionRead(BaseModel):
     text: str
 
 
-class ExtractionObservationDraft(BaseModel):
+class HealthRecordObservationDraft(BaseModel):
     category: ObservationCategory
     code: str
     display_name: str
@@ -63,7 +53,7 @@ class ExtractionObservationDraft(BaseModel):
     notes: str | None = None
 
 
-class ExtractionConditionDraft(BaseModel):
+class HealthRecordConditionDraft(BaseModel):
     category: ConditionCategory
     display_name: str
     clinical_status: ConditionStatus
@@ -71,7 +61,7 @@ class ExtractionConditionDraft(BaseModel):
     notes: str | None = None
 
 
-class ExtractionMedicationDraft(BaseModel):
+class HealthRecordMedicationDraft(BaseModel):
     name: str
     indication: str | None = None
     dosage_description: str | None = None
@@ -80,7 +70,7 @@ class ExtractionMedicationDraft(BaseModel):
     end_date: str | None = None
 
 
-class ExtractionEncounterDraft(BaseModel):
+class HealthRecordEncounterDraft(BaseModel):
     type: EncounterType
     facility: str | None = None
     department: str | None = None
@@ -89,28 +79,17 @@ class ExtractionEncounterDraft(BaseModel):
     summary: str | None = None
 
 
-class ExtractionCarePlanDraft(BaseModel):
-    category: CarePlanCategory
-    title: str
-    description: str
-    status: CarePlanStatus
-    scheduled_at: str | None = None
-    completed_at: str | None = None
-    generated_by: CarePlanGeneratedBy = "ai"
-
-
-class DocumentExtractionDraft(BaseModel):
+class HealthRecordDraft(BaseModel):
     summary: str = ""
-    observations: list[ExtractionObservationDraft] = Field(default_factory=list)
-    conditions: list[ExtractionConditionDraft] = Field(default_factory=list)
-    medications: list[ExtractionMedicationDraft] = Field(default_factory=list)
-    encounters: list[ExtractionEncounterDraft] = Field(default_factory=list)
-    care_plans: list[ExtractionCarePlanDraft] = Field(default_factory=list)
+    observations: list[HealthRecordObservationDraft] = Field(default_factory=list)
+    conditions: list[HealthRecordConditionDraft] = Field(default_factory=list)
+    medications: list[HealthRecordMedicationDraft] = Field(default_factory=list)
+    encounters: list[HealthRecordEncounterDraft] = Field(default_factory=list)
 
 
 class ChatDraftConfirmRequest(BaseModel):
     approvals: dict[str, bool] = Field(default_factory=dict)
-    edits: dict[str, DocumentExtractionDraft] = Field(default_factory=dict)
+    edits: dict[str, HealthRecordDraft] = Field(default_factory=dict)
 
 
 class ChatDraftConfirmResult(BaseModel):
@@ -122,5 +101,5 @@ class ChatToolResult(BaseModel):
     tool_name: str
     content: str
     requires_confirmation: bool = False
-    draft: DocumentExtractionDraft | None = None
+    draft: HealthRecordDraft | None = None
     meta: dict[str, Any] = Field(default_factory=dict)

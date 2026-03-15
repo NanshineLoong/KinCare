@@ -6,15 +6,23 @@
 
 ## 项目背景
 
-HomeVital 是私有部署的家庭健康管理助手。核心文档：
+HomeVital 当前按最新开发主线推进。修改代码前，先阅读以下文档并确认是否与本次任务直接相关：
 
-- 产品需求：`docs/prd/mvp-v1.md`
+- 当前开发计划：`.cursor/plans/homevital_新开发计划_a2e4e028.plan.md`
 - 架构总览：`docs/architecture/overview.md`
 - 数据模型：`docs/architecture/data-model.md`
-- Phase 4 AI 设计：`docs/architecture/phase-4-ai-design.md`
-- 架构决策：`docs/adr/`
+- AI 架构：`docs/architecture/phase-4-ai-design.md`
+- 架构决策：`docs/adr/README.md`
 
-修改代码前，先阅读相关文档确认设计意图。
+与旧实现或旧文档冲突时，优先级如下：
+
+1. 当前任务的直接用户指令
+2. 当前开发计划
+3. ADR-0009 / ADR-0010
+4. 当前架构文档
+5. 旧代码和旧设计痕迹
+
+> `docs/proposals/` 中的文件仅为 Accepted ADR 保留稳定引用，不再作为活跃开发的主真相源。
 
 ---
 
@@ -35,12 +43,12 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev -- --host 0.0.0.0 --port 517
 ```
 
 ```bash
-# Docker Compose 骨架
+# 目标部署骨架（不是当前主开发路径）
 docker compose up --build
 docker compose logs -f
 ```
 
-> 说明：当前 Phase 1-4 实现继续使用本地 SQLite 文件（`HOMEVITAL_DB_PATH`）与本地上传目录。后端已覆盖认证、成员管理、健康事实层资源 CRUD、趋势查询、Dashboard 聚合，以及应用内 AI 对话/SSE、语音转写入口、文档抽取确认和定时任务提醒落库；前端已接入首页看板、成员档案页与真实 AI 对话浮层。`docker-compose.yml` 仍保留 PostgreSQL 与 MCP 的目标编排骨架，后续阶段会与实际实现对齐。
+> 当前开发基线继续使用本地 SQLite（`HOMEVITAL_DB_PATH`）和本机分别启动的 FastAPI/Vite。`docker-compose.yml` 与 `mcp-server/` 仍保留为后续阶段的目标骨架。
 
 ## 测试
 
@@ -52,44 +60,48 @@ cd backend && .venv/bin/pytest
 cd frontend && npm test
 ```
 
-> 当前仓库尚未提供 E2E 测试。所有 PR 必须至少通过后端和前端测试。
+> 当前仓库尚未提供 E2E 测试。涉及实现变更的 PR，至少要运行与改动相关的后端和前端测试；若测试仍缺失，需在结果说明中明确指出。
 
 ---
 
 ## 代码风格
 
-- 使用项目根目录的格式化/lint 配置（待建立）
-- 提交前运行 lint 和 format
-- 函数/类命名使用英文，注释可用中文或英文
-- 不要在代码注释中复述代码行为，只注释非显而易见的意图、约束或权衡
+- 使用项目根目录的格式化/lint 配置
+- 提交前运行相关 lint / format / test
+- 函数、类、字段命名使用英文
+- 注释只解释非显而易见的意图、约束或权衡
 
 ## AI 实现约束
 
-- 修改 AI 对话、抽取、转写、调度等相关实现前，先阅读 `docs/architecture/phase-4-ai-design.md`
+- 修改 AI 对话、抽取、转写、调度前，先阅读 `docs/architecture/phase-4-ai-design.md`
 - AI 读取或修改健康数据时，必须复用现有业务服务层与成员级权限校验；不要让 AI 直接访问数据库
-- 不要把全量或未授权的健康数据直接拼进 Prompt；优先使用最小上下文 + 受控工具调用
-- 优先沿用 `backend/app/ai/` 下现有的 `providers/`、`orchestrator/`、`tools/`、`transcription/`、`extraction/`、`scheduler/` 职责边界，不要把 AI 逻辑散落到路由层或直接写库
-- 对 AI SDK、模型服务、ASR、文档解析、MCP 等外部系统的实现，以各自官方文档和当前版本说明为准；仓库文档只定义架构方向和边界，不替代上游接口文档
+- 不要把全量或未授权的健康数据直接拼进 prompt；优先使用最小上下文 + 受控工具调用
+- 优先沿用 `backend/app/ai/` 下的 `deps.py`、`agent.py`、`orchestrator.py`、`tools/`、`transcription.py`、`extraction.py`、`scheduler.py` 职责边界
+- 不要重新把旧的关键字路由 orchestrator、`providers/` 主抽象、`DocumentReference` 独立文档资源链路当作当前方案
+- 健康档案类高风险写入必须保持“生成草稿 -> 用户确认 -> 服务层写入”
+- 对 PydanticAI、模型服务、ASR、文档解析、MCP 等外部系统的实现，以各自官方文档和当前版本说明为准；仓库文档只定义边界和当前默认路线
 
 ---
 
 ## 目录规则
 
-```
+```text
 HomeVital/
-├── docs/                      # 所有文档（PRD、架构、ADR）
-│   ├── prd/                   # 产品需求文档
-│   ├── architecture/          # 架构文档与数据模型
-│   └── adr/                   # 架构决策记录（MADR 格式）
-├── stitch-screens/            # UI 设计原型（只读参考，不要修改）
-├── backend/                   # FastAPI 后端
-├── frontend/                  # React + Vite 前端
-├── mcp-server/                # MCP Server 占位骨架
-└── docker-compose.yml         # 本地编排入口
+├── .cursor/plans/             # 当前开发计划
+├── docs/                      # 活跃文档与 ADR
+│   ├── prd/
+│   ├── architecture/
+│   ├── adr/
+│   └── proposals/             # 仅作 ADR 附件保留，不作主真相源
+├── stitch-screens/            # 旧 UI 参考（只读，不再是当前设计基线）
+├── backend/
+├── frontend/
+├── mcp-server/                # 占位骨架
+└── docker-compose.yml         # 目标部署骨架
 ```
 
-- `stitch-screens/` 是设计参考，**禁止修改**，仅用于对照实现
-- `docs/adr/` 中的 ADR 一旦 Accepted 则**禁止修改内容**，只能通过新 ADR 来 Supersede
+- `stitch-screens/` **禁止修改**
+- `docs/adr/` 中的 Accepted ADR **禁止修改内容**，只能通过新 ADR Supersede
 - 新增 ADR 使用递增编号：`docs/adr/NNNN-<kebab-case-title>.md`
 
 ---
@@ -98,13 +110,13 @@ HomeVital/
 
 1. **不要**在代码中硬编码密钥、密码或个人健康数据
 2. **不要**修改 `stitch-screens/` 下的文件
-3. **不要**在没有对应测试的情况下提交功能代码
+3. **不要**在没有对应验证的情况下提交功能代码
 4. **不要**引入未在依赖管理文件中声明的依赖
-5. **不要**在 PR 中混合不相关的变更（一个 PR 一个关注点）
+5. **不要**在 PR 中混合不相关的变更
 6. **不要**修改已 Accepted 的 ADR 内容
 7. **不要**在代码中存储未脱敏的真实健康数据作为测试数据
-8. **不要**跳过数据模型层直接操作数据库
-9. **不要**让 AI 绕过现有权限模型直接读取或写入家庭健康数据
+8. **不要**绕过服务层和权限模型直接操作健康数据
+9. **不要**把已被 supersede 的旧设计重新写回 README、架构文档或实现中
 
 ---
 
@@ -112,7 +124,7 @@ HomeVital/
 
 使用 [Conventional Commits](https://www.conventionalcommits.org/)：
 
-```
+```text
 <type>(<scope>): <description>
 
 [optional body]
@@ -131,27 +143,17 @@ HomeVital/
 | `test` | 测试相关 |
 | `chore` | 构建/工具/依赖变更 |
 
-**scope 示例：** `auth`, `member`, `health-record`, `ai`, `mcp`, `ui`
-
-**示例：**
-
-```
-feat(member): add family member creation API
-fix(health-record): correct FHIR Observation date parsing
-docs(adr): add ADR-0005 for AI provider abstraction
-```
+**scope 示例：** `auth`, `member`, `health-record`, `ai`, `ui`, `docs`
 
 ---
 
 ## PR 流程
 
 1. 从主分支创建功能分支：`feat/<scope>-<description>` 或 `fix/<scope>-<description>`
-2. 实现变更，确保测试通过
-3. 提交符合 Conventional Commits 规范的 commit
-4. 创建 PR，包含：
-   - 变更摘要（关联的需求/ADR）
-   - 测试计划
-5. 通过 CI 检查和代码审查后合并
+2. 实现单一关注点变更
+3. 运行与改动相关的验证命令
+4. 提交符合 Conventional Commits 规范的 commit
+5. 创建 PR，包含变更摘要、关联计划/ADR、测试计划与风险说明
 
 ---
 
@@ -159,6 +161,7 @@ docs(adr): add ADR-0005 for AI provider abstraction
 
 HomeVital 处理敏感的个人健康信息。开发时：
 
-- 测试数据使用虚构数据，不使用真实个人信息
+- 测试数据必须使用虚构数据
 - 日志中不输出健康数据明文
-- API 响应中不泄漏超出权限模型的数据；健康数据默认按成员级权限控制，家庭成员目录仅返回当前阶段允许公开的基础信息
+- API 响应不能泄漏超出权限模型的数据
+- 健康数据默认按成员级权限控制；家庭成员目录只返回当前阶段允许公开的基础信息

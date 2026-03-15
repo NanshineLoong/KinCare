@@ -7,11 +7,11 @@ from pydantic_ai import RunContext
 from app.ai.deps import AIDeps
 from app.ai.extraction import apply_draft_to_member
 from app.schemas.chat import (
-    DocumentExtractionDraft,
-    ExtractionConditionDraft,
-    ExtractionEncounterDraft,
-    ExtractionMedicationDraft,
-    ExtractionObservationDraft,
+    HealthRecordConditionDraft,
+    HealthRecordDraft,
+    HealthRecordEncounterDraft,
+    HealthRecordMedicationDraft,
+    HealthRecordObservationDraft,
 )
 
 
@@ -19,7 +19,7 @@ def register(agent: object) -> None:
     @agent.tool(requires_approval=True)
     async def draft_observations(
         ctx: RunContext[AIDeps],
-        observations: list[ExtractionObservationDraft],
+        observations: list[HealthRecordObservationDraft],
     ) -> dict[str, Any]:
         return _write_records(
             ctx,
@@ -31,7 +31,7 @@ def register(agent: object) -> None:
     @agent.tool(requires_approval=True)
     async def draft_conditions(
         ctx: RunContext[AIDeps],
-        conditions: list[ExtractionConditionDraft],
+        conditions: list[HealthRecordConditionDraft],
     ) -> dict[str, Any]:
         return _write_records(
             ctx,
@@ -43,7 +43,7 @@ def register(agent: object) -> None:
     @agent.tool(requires_approval=True)
     async def draft_medications(
         ctx: RunContext[AIDeps],
-        medications: list[ExtractionMedicationDraft],
+        medications: list[HealthRecordMedicationDraft],
     ) -> dict[str, Any]:
         return _write_records(
             ctx,
@@ -55,7 +55,7 @@ def register(agent: object) -> None:
     @agent.tool(requires_approval=True)
     async def draft_encounter(
         ctx: RunContext[AIDeps],
-        encounters: list[ExtractionEncounterDraft],
+        encounters: list[HealthRecordEncounterDraft],
     ) -> dict[str, Any]:
         return _write_records(
             ctx,
@@ -92,6 +92,6 @@ def _write_records(
 
 
 def _draft_payload(resource: str, items: list[dict[str, Any]]) -> dict[str, Any]:
-    payload = DocumentExtractionDraft().model_dump()
+    payload = HealthRecordDraft().model_dump()
     payload[resource] = items
     return payload

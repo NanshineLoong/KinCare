@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 
 import type { AuthSession } from "../auth/session";
 
+
 type AppShellProps = {
   onSignOut: () => void;
   session: AuthSession;
@@ -17,15 +18,11 @@ function resolvePageLabel(pathname: string) {
   return "首页";
 }
 
-/** 根据名字生成稳定的头像背景色 */
 function getAvatarColor(name: string): string {
-  const palette = [
-    "#E67E7E", "#4A6076", "#2D4F3E", "#7D746D",
-    "#B8860B", "#6B8E23", "#CD5C5C", "#4682B4",
-  ];
+  const palette = ["#E67E7E", "#4A6076", "#2D4F3E", "#7D746D", "#B8860B", "#6B8E23", "#CD5C5C", "#4682B4"];
   let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let index = 0; index < name.length; index += 1) {
+    hash = name.charCodeAt(index) + ((hash << 5) - hash);
   }
   return palette[Math.abs(hash) % palette.length];
 }
@@ -41,14 +38,16 @@ export function AppShell({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
     }
+
     if (dropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
 
@@ -59,7 +58,6 @@ export function AppShell({
     <div className="min-h-screen bg-warm-cream text-[#2D2926]">
       <header className="sticky top-0 z-50 border-b border-[#F2EDE7] bg-white/70 backdrop-blur-md">
         <div className="relative mx-auto flex h-20 max-w-[1400px] items-center justify-between px-8">
-          {/* Left: logo + title */}
           <div className="flex min-w-0 shrink-0 items-center gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF9F9F] to-[#FF7B7B] text-white">
               <span className="material-symbols-outlined text-[22px]">favorite</span>
@@ -70,14 +68,12 @@ export function AppShell({
             </div>
           </div>
 
-          {/* Center: nav pill (absolutely centered) */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="rounded-full bg-[#F5F0EA] px-6 py-2 text-sm font-semibold text-[#2D2926]">
               {resolvePageLabel(location.pathname)}
             </div>
           </div>
 
-          {/* Right: chat, separator, user area, dropdown */}
           <div ref={dropdownRef} className="relative flex shrink-0 items-center gap-4">
             <button
               aria-label="对话"
@@ -86,15 +82,15 @@ export function AppShell({
               type="button"
             >
               <span className="material-symbols-outlined text-[22px]">forum</span>
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" aria-hidden />
+              <span aria-hidden className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
             </button>
-            <div className="h-8 border-l border-[#F2EDE7]" aria-hidden />
+            <div aria-hidden className="h-8 border-l border-[#F2EDE7]" />
             <button
               aria-expanded={dropdownOpen}
               aria-haspopup="menu"
               aria-label="用户菜单"
               className="flex items-center gap-3 rounded-lg py-1 pr-1 transition hover:bg-[#F5F0EA]/50"
-              onClick={() => setDropdownOpen((o) => !o)}
+              onClick={() => setDropdownOpen((current) => !current)}
               type="button"
             >
               <div className="hidden text-right sm:block">
@@ -110,7 +106,6 @@ export function AppShell({
               <span className="material-symbols-outlined text-[22px] text-warm-gray">expand_more</span>
             </button>
 
-            {/* Dropdown menu */}
             {dropdownOpen && (
               <div
                 className="absolute right-0 top-full z-50 mt-2 min-w-[220px] rounded-2xl border border-[#F2EDE7] bg-white py-3 shadow-soft"

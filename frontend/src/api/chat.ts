@@ -14,7 +14,7 @@ export type ChatSession = {
   updated_at: string;
 };
 
-export type DocumentExtractionDraft = {
+export type HealthRecordDraft = {
   summary: string;
   observations: Array<{
     category: string;
@@ -23,65 +23,54 @@ export type DocumentExtractionDraft = {
     value: number | null;
     value_string?: string | null;
     unit: string | null;
+    context?: string | null;
     effective_at: string;
     notes?: string | null;
-    encounter_id?: string | null;
   }>;
   conditions: Array<{
     category: string;
-    code: string;
     display_name: string;
     clinical_status: string;
     onset_date?: string | null;
-    abatement_date?: string | null;
-    severity?: string | null;
     notes?: string | null;
-    encounter_id?: string | null;
   }>;
   medications: Array<{
-    medication_name: string;
-    dosage?: string | null;
+    name: string;
+    indication?: string | null;
+    dosage_description?: string | null;
     status: string;
     start_date?: string | null;
     end_date?: string | null;
-    reason?: string | null;
-    prescribed_by?: string | null;
-    notes?: string | null;
-    encounter_id?: string | null;
   }>;
   encounters: Array<{
     type: string;
     facility?: string | null;
     department?: string | null;
+    attending_physician?: string | null;
     date: string;
     summary?: string | null;
-  }>;
-  care_plans: Array<{
-    category: string;
-    title: string;
-    description: string;
-    status: string;
-    scheduled_at?: string | null;
-    completed_at?: string | null;
-    generated_by: string;
   }>;
 };
 
 export type ChatToolResult = {
   tool_name: string;
   content: string;
-  requires_confirmation: boolean;
-  draft?: DocumentExtractionDraft | null;
-  meta: Record<string, unknown>;
+  requires_confirmation?: boolean;
+  tool_call_id?: string | null;
+  draft?: HealthRecordDraft | null;
+  suggestion_summary?: string;
+  meta?: Record<string, unknown>;
 };
 
 export type ChatStreamEvent =
   | { event: "session.started"; data: { session_id: string; member_id: string | null } }
   | { event: "tool.started"; data: { tool_name: string } }
   | { event: "tool.result"; data: ChatToolResult }
+  | { event: "tool.draft"; data: ChatToolResult }
+  | { event: "tool.suggest"; data: ChatToolResult }
+  | { event: "tool.error"; data: { tool_name: string; error: string } }
   | { event: "message.delta"; data: { content: string } }
-  | { event: "message.completed"; data: { content: string } }
-  | { event: "error"; data: { detail: string } };
+  | { event: "message.completed"; data: { content: string } };
 
 export function createChatSession(
   session: AuthSession,
@@ -105,10 +94,11 @@ export async function transcribeAudio(session: AuthSession, file: File) {
 
 export async function confirmChatDraft(
   session: AuthSession,
-  payload: { member_id: string; draft: DocumentExtractionDraft },
+  chatSessionId: string,
+  payload: { approvals: Record<string, boolean>; edits: Record<string, HealthRecordDraft> },
 ) {
-  return sendAuthorized<{ created_counts: Record<string, number> }, typeof payload>(
-    "/api/chat/confirm",
+  return sendAuthorized<{ created_counts: Record<string, number>; assistant_message: string }, typeof payload>(
+    `/api/chat/${chatSessionId}/confirm-draft`,
     session,
     {
       method: "POST",
@@ -123,7 +113,6 @@ export async function streamChatMessage(
   payload: {
     content: string;
     member_id?: string | null;
-    document_ids?: string[];
     page_context?: string | null;
   },
 ): Promise<ChatStreamEvent[]> {

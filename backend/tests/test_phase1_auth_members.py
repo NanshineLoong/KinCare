@@ -212,8 +212,19 @@ def test_admin_can_create_update_and_delete_managed_members(client: TestClient) 
     created_member = create_response.json()
     assert created_member["name"] == "奶奶"
     assert created_member["height_cm"] == 158.5
-    assert "allergies" not in created_member
-    assert "medical_history" not in created_member
+    assert set(created_member) == {
+        "id",
+        "family_space_id",
+        "user_account_id",
+        "name",
+        "gender",
+        "birth_date",
+        "height_cm",
+        "blood_type",
+        "avatar_url",
+        "created_at",
+        "updated_at",
+    }
 
     detail_response = client.get(
         f"/api/members/{created_member['id']}",

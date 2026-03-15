@@ -4,13 +4,13 @@ from typing import Any
 
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
-from app.schemas.chat import DocumentExtractionDraft
+from app.schemas.chat import HealthRecordDraft
 from app.services import health_repository
 from app.services.health_records import ensure_member_access
 
 
-def normalize_extraction_draft(payload: dict[str, Any] | None) -> dict[str, Any]:
-    model = DocumentExtractionDraft.model_validate(payload or {})
+def normalize_health_record_draft(payload: dict[str, Any] | None) -> dict[str, Any]:
+    model = HealthRecordDraft.model_validate(payload or {})
     return model.model_dump()
 
 
@@ -23,13 +23,12 @@ def apply_draft_to_member(
     source: str,
 ) -> dict[str, int]:
     ensure_member_access(database, current_user, member_id, require_write=True)
-    normalized = normalize_extraction_draft(draft)
+    normalized = normalize_health_record_draft(draft)
     counts = {
         "observations": 0,
         "conditions": 0,
         "medications": 0,
         "encounters": 0,
-        "care_plans": 0,
     }
 
     with database.connection() as connection:
@@ -80,14 +79,5 @@ def apply_draft_to_member(
                 },
             )
             counts["encounters"] += 1
-
-        for item in normalized["care_plans"]:
-            health_repository.create_resource(
-                connection,
-                "care-plans",
-                member_id=member_id,
-                values=item,
-            )
-            counts["care_plans"] += 1
 
     return counts

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.schemas.chat import DocumentExtractionDraft
+from app.schemas.chat import HealthRecordDraft
 
 
 def register(agent: object) -> None:
     @agent.tool_plain
     def suggest_record_update(
         suggestion_summary: str,
-        draft: DocumentExtractionDraft,
+        draft: HealthRecordDraft,
     ) -> dict[str, Any]:
         return {
             "content": "我已经完成分析，并整理出可保存到档案的建议。",

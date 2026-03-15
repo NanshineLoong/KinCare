@@ -21,9 +21,27 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
     monkeypatch.setenv("HOMEVITAL_JWT_SECRET", "phase-4-test-secret")
     monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "900")
     monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "3600")
-    monkeypatch.setenv("HOMEVITAL_UPLOAD_DIR", str(tmp_path / "uploads"))
-    monkeypatch.setenv("HOMEVITAL_AI_PROVIDER", "stub")
-    monkeypatch.setenv("HOMEVITAL_AI_MODEL", "stub-homevital")
+    monkeypatch.setenv("HOMEVITAL_AI_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("HOMEVITAL_AI_API_KEY", "test-key")
+    monkeypatch.setenv("HOMEVITAL_AI_MODEL", "test-model")
+    monkeypatch.setenv("HOMEVITAL_SCHEDULER_ENABLED", "1")
+
+    _clear_app_modules()
+    main_module = importlib.import_module("app.main")
+
+    with TestClient(main_module.app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def unconfigured_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
+    monkeypatch.setenv("HOMEVITAL_DB_PATH", str(tmp_path / "homevital.db"))
+    monkeypatch.setenv("HOMEVITAL_JWT_SECRET", "phase-4-test-secret")
+    monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "900")
+    monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "3600")
+    monkeypatch.delenv("HOMEVITAL_AI_BASE_URL", raising=False)
+    monkeypatch.delenv("HOMEVITAL_AI_API_KEY", raising=False)
+    monkeypatch.setenv("HOMEVITAL_AI_MODEL", "test-model")
     monkeypatch.setenv("HOMEVITAL_SCHEDULER_ENABLED", "1")
 
     _clear_app_modules()
@@ -100,6 +118,49 @@ def create_observation(
     return response.json()
 
 
+def create_sleep_record(client: TestClient, *, token: str, member_id: str, total_minutes: int = 460) -> dict[str, Any]:
+    response = client.post(
+        f"/api/members/{member_id}/sleep-records",
+        headers=auth_headers(token),
+        json={
+            "start_at": "2026-03-11T22:30:00+08:00",
+            "end_at": "2026-03-12T06:10:00+08:00",
+            "total_minutes": total_minutes,
+            "deep_minutes": 90,
+            "rem_minutes": 110,
+            "light_minutes": 220,
+            "awake_minutes": 40,
+            "efficiency_score": 90.0,
+            "is_nap": False,
+            "source": "device",
+            "device_name": "Apple Watch",
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def create_workout_record(client: TestClient, *, token: str, member_id: str, duration_minutes: int = 48) -> dict[str, Any]:
+    response = client.post(
+        f"/api/members/{member_id}/workout-records",
+        headers=auth_headers(token),
+        json={
+            "type": "walking",
+            "start_at": "2026-03-12T07:00:00+08:00",
+            "end_at": "2026-03-12T07:48:00+08:00",
+            "duration_minutes": duration_minutes,
+            "energy_burned": 180.0,
+            "distance_meters": 3500.0,
+            "avg_heart_rate": 110,
+            "source": "device",
+            "device_name": "Apple Watch",
+            "notes": "晨间快走",
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def create_care_plan(client: TestClient, *, token: str, member_id: str, title: str = "早餐后服药") -> dict[str, Any]:
     response = client.post(
         f"/api/members/{member_id}/care-plans",
@@ -162,6 +223,37 @@ def stream_chat_message(
         return parse_sse_events(response)
 
 
+def override_agent_model(client: TestClient, *, function: Any, stream_function: Any | None = None) -> Any:
+    function_models = importlib.import_module("pydantic_ai.models.function")
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    FunctionModel = function_models.FunctionModel
+    DeltaToolCall = function_models.DeltaToolCall
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def default_stream_function(messages: list[Any], info: Any) -> Any:
+        response = await function(messages, info)
+        assert isinstance(response, ModelResponse)
+        for index, part in enumerate(response.parts):
+            if isinstance(part, TextPart):
+                if part.content:
+                    yield part.content
+                continue
+            if isinstance(part, ToolCallPart):
+                yield {
+                    index: DeltaToolCall(
+                        name=part.tool_name,
+                        json_args=part.args_as_json_str(),
+                        tool_call_id=part.tool_call_id,
+                    )
+                }
+
+    return client.app.state.chat_orchestrator._agent.override(
+        model=FunctionModel(function=function, stream_function=stream_function or default_stream_function),
+    )
+
+
 def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_events(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
@@ -174,14 +266,27 @@ def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_even
         page_context="home",
     )
 
-    events = stream_chat_message(
-        client,
-        token=admin["tokens"]["access_token"],
-        session_id=session_id,
-        member_id=managed_member["id"],
-        page_context="home",
-        content="请看看奶奶最近的指标和提醒",
-    )
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("奶奶最近收缩压 126mmHg，并且有一条早餐后服药提醒。")])
+        return ModelResponse(parts=[ToolCallPart("get_member_summary", {})])
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="请看看奶奶最近的指标和提醒",
+        )
 
     assert [item["event"] for item in events] == [
         "session.started",
@@ -193,6 +298,30 @@ def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_even
     assert events[2]["data"]["tool_name"] == "get_member_summary"
     assert "收缩压" in events[2]["data"]["content"]
     assert "早餐后服药" in events[4]["data"]["content"]
+
+
+def test_chat_returns_tool_error_when_ai_is_not_configured(unconfigured_client: TestClient) -> None:
+    admin = register_user(unconfigured_client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(unconfigured_client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        unconfigured_client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    events = stream_chat_message(
+        unconfigured_client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+        member_id=managed_member["id"],
+        page_context="home",
+        content="帮我看看今天的数据",
+    )
+
+    assert [item["event"] for item in events] == ["session.started", "tool.error"]
+    assert "AI" in events[1]["data"]["error"]
+    assert "配置" in events[1]["data"]["error"]
 
 
 def test_chat_cannot_read_unauthorized_member_data(client: TestClient) -> None:
@@ -209,7 +338,7 @@ def test_chat_cannot_read_unauthorized_member_data(client: TestClient) -> None:
     assert response.status_code == 403
 
 
-def test_chat_explicit_extract_emits_draft_event_without_writing_observation(client: TestClient) -> None:
+def test_chat_explicit_extract_emits_health_record_draft_without_care_plan_entries(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
     session_id = create_session(
@@ -219,21 +348,47 @@ def test_chat_explicit_extract_emits_draft_event_without_writing_observation(cli
         page_context="member-profile",
     )
 
-    events = stream_chat_message(
-        client,
-        token=admin["tokens"]["access_token"],
-        session_id=session_id,
-        member_id=managed_member["id"],
-        page_context="member-profile",
-        content="帮我提取奶奶今天心率 72 到档案里",
-    )
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
 
-    assert events[0]["event"] == "session.started"
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "draft_observations",
+                    {
+                        "observations": [
+                            {
+                                "category": "body-vitals",
+                                "code": "heart-rate",
+                                "display_name": "心率",
+                                "value": 72.0,
+                                "unit": "bpm",
+                                "effective_at": "2026-03-12T08:00:00+08:00",
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="member-profile",
+            content="帮我提取奶奶今天心率 72 到档案里",
+        )
+
     draft_event = next(item for item in events if item["event"] == "tool.draft")
     assert draft_event["data"]["tool_name"] == "draft_observations"
     assert draft_event["data"]["requires_confirmation"] is True
-    assert draft_event["data"]["tool_call_id"]
     assert draft_event["data"]["draft"]["observations"][0]["code"] == "heart-rate"
+    assert "care_plans" not in draft_event["data"]["draft"]
 
     observations_response = client.get(
         f"/api/members/{managed_member['id']}/observations",
@@ -252,25 +407,57 @@ def test_chat_confirm_draft_writes_records_and_returns_assistant_message(client:
         member_id=managed_member["id"],
         page_context="member-profile",
     )
-    events = stream_chat_message(
-        client,
-        token=admin["tokens"]["access_token"],
-        session_id=session_id,
-        member_id=managed_member["id"],
-        page_context="member-profile",
-        content="帮我提取奶奶今天心率 72 到档案里",
-    )
-    draft_event = next(item for item in events if item["event"] == "tool.draft")
-    tool_call_id = draft_event["data"]["tool_call_id"]
 
-    confirm_response = client.post(
-        f"/api/chat/{session_id}/confirm-draft",
-        headers=auth_headers(admin["tokens"]["access_token"]),
-        json={
-            "approvals": {tool_call_id: True},
-            "edits": {},
-        },
-    )
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("已将这条心率记录保存到奶奶的健康档案。")])
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "draft_observations",
+                    {
+                        "observations": [
+                            {
+                                "category": "body-vitals",
+                                "code": "heart-rate",
+                                "display_name": "心率",
+                                "value": 72.0,
+                                "unit": "bpm",
+                                "effective_at": "2026-03-12T08:00:00+08:00",
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="member-profile",
+            content="帮我提取奶奶今天心率 72 到档案里",
+        )
+        draft_event = next(item for item in events if item["event"] == "tool.draft")
+        tool_call_id = draft_event["data"]["tool_call_id"]
+
+        confirm_response = client.post(
+            f"/api/chat/{session_id}/confirm-draft",
+            headers=auth_headers(admin["tokens"]["access_token"]),
+            json={
+                "approvals": {tool_call_id: True},
+                "edits": {},
+            },
+        )
 
     assert confirm_response.status_code == 200, confirm_response.text
     assert confirm_response.json()["created_counts"] == {
@@ -278,7 +465,6 @@ def test_chat_confirm_draft_writes_records_and_returns_assistant_message(client:
         "conditions": 0,
         "medications": 0,
         "encounters": 0,
-        "care_plans": 0,
     }
     assert "已" in confirm_response.json()["assistant_message"]
 
@@ -300,17 +486,53 @@ def test_chat_analysis_emits_suggestion_without_writing_records(client: TestClie
         page_context="member-profile",
     )
 
-    events = stream_chat_message(
-        client,
-        token=admin["tokens"]["access_token"],
-        session_id=session_id,
-        member_id=managed_member["id"],
-        page_context="member-profile",
-        content="帮我分析奶奶今天心率 72 是不是正常",
-    )
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
 
-    event_names = [item["event"] for item in events]
-    assert "tool.suggest" in event_names
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("这条心率目前看起来正常，我也整理出了可录入建议。")])
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "suggest_record_update",
+                    {
+                        "suggestion_summary": "识别到一条可录入的心率记录。",
+                        "draft": {
+                            "summary": "建议保存心率",
+                            "observations": [
+                                {
+                                    "category": "body-vitals",
+                                    "code": "heart-rate",
+                                    "display_name": "心率",
+                                    "value": 72.0,
+                                    "unit": "bpm",
+                                    "effective_at": "2026-03-12T08:00:00+08:00",
+                                }
+                            ],
+                            "conditions": [],
+                            "medications": [],
+                            "encounters": [],
+                        },
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="member-profile",
+            content="帮我分析奶奶今天心率 72 是不是正常",
+        )
+
     suggest_event = next(item for item in events if item["event"] == "tool.suggest")
     assert suggest_event["data"]["tool_name"] == "suggest_record_update"
     assert suggest_event["data"]["draft"]["observations"][0]["code"] == "heart-rate"
@@ -333,14 +555,39 @@ def test_chat_implicit_action_creates_care_plan(client: TestClient) -> None:
         page_context="home",
     )
 
-    events = stream_chat_message(
-        client,
-        token=admin["tokens"]["access_token"],
-        session_id=session_id,
-        member_id=managed_member["id"],
-        page_context="home",
-        content="下午三点想跑个步",
-    )
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("我已经帮你添加了一条今天下午的跑步提醒。")])
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "create_care_plan",
+                    {
+                        "title": "下午跑步",
+                        "description": "15:00 去公园跑步 30 分钟",
+                        "category": "activity-reminder",
+                        "scheduled_at": "2026-03-12T15:00:00+08:00",
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="下午三点想跑个步",
+        )
 
     tool_result = next(item for item in events if item["event"] == "tool.result")
     assert tool_result["data"]["tool_name"] == "create_care_plan"
@@ -365,23 +612,22 @@ def test_chat_loop_limit_returns_tool_error_when_model_exceeds_request_limit(cli
         page_context="home",
     )
 
-    agent_module = importlib.import_module("app.ai.agent")
     function_models = importlib.import_module("pydantic_ai.models.function")
     messages_module = importlib.import_module("pydantic_ai.messages")
 
     ToolCallPart = messages_module.ToolCallPart
     ModelResponse = messages_module.ModelResponse
-    FunctionModel = function_models.FunctionModel
+    DeltaToolCall = function_models.DeltaToolCall
 
     async def always_call_summary(messages: list[Any], info: Any) -> Any:
-        del messages
+        del messages, info
         return ModelResponse(parts=[ToolCallPart("get_member_summary", {})])
 
     async def stream_always_call_summary(messages: list[Any], info: Any) -> Any:
         response = await always_call_summary(messages, info)
         tool_call = response.parts[0]
         yield {
-            0: function_models.DeltaToolCall(
+            0: DeltaToolCall(
                 name=tool_call.tool_name,
                 json_args=tool_call.args_as_json_str(),
                 tool_call_id=tool_call.tool_call_id,
@@ -392,8 +638,10 @@ def test_chat_loop_limit_returns_tool_error_when_model_exceeds_request_limit(cli
     original_request_limit = getattr(orchestrator, "_request_limit", None)
     orchestrator._request_limit = 2
 
-    with orchestrator._agent.override(
-        model=FunctionModel(function=always_call_summary, stream_function=stream_always_call_summary)
+    with override_agent_model(
+        client,
+        function=always_call_summary,
+        stream_function=stream_always_call_summary,
     ):
         events = stream_chat_message(
             client,
@@ -429,53 +677,37 @@ def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: Tes
     assert empty_response.status_code == 400
 
 
-def test_scheduler_service_creates_executes_and_disables_task(client: TestClient) -> None:
+def test_scheduler_refreshes_health_summaries_and_daily_care_plans(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    headers = auth_headers(admin["tokens"]["access_token"])
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    create_sleep_record(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    create_workout_record(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    create_care_plan(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"], title="早餐后服药")
 
-    _clear_app_modules()
-    scheduler_module = importlib.import_module("app.ai.scheduler")
-    dependencies = importlib.import_module("app.core.dependencies")
+    scheduler = client.app.state.scheduler
 
-    current_user = dependencies.CurrentUser(
-        id=admin["user"]["id"],
-        family_space_id=admin["user"]["family_space_id"],
-        email=admin["user"]["email"],
-        role=admin["user"]["role"],
-        member_id=admin["member"]["id"],
+    summary_result = scheduler.refresh_health_summaries()
+    care_plan_result = scheduler.refresh_daily_care_plans()
+
+    assert managed_member["id"] in summary_result["member_ids"]
+    assert managed_member["id"] in care_plan_result["member_ids"]
+
+    summaries_response = client.get(
+        f"/api/members/{managed_member['id']}/health-summaries",
+        headers=headers,
     )
-    database = client.app.state.database
-
-    created_task = scheduler_module.create_scheduled_task(
-        database=database,
-        current_user=current_user,
-        member_id=managed_member["id"],
-        payload={
-            "task_type": "daily-check",
-            "prompt": "每天 20:15 提醒奶奶饭后散步 20 分钟",
-            "schedule_type": "daily",
-            "schedule_config": {"hour": 20, "minute": 15},
-        },
-    )
-
-    assert created_task["enabled"] is True
-    assert created_task["next_run_at"] is not None
-
-    run_result = scheduler_module.run_scheduled_task_now(client.app.state.scheduler, created_task["id"])
-    assert run_result["care_plan"]["title"] == "每天健康提醒"
-    assert run_result["care_plan"]["generated_by"] == "ai"
-
-    disabled_task = scheduler_module.disable_scheduled_task(
-        database=database,
-        current_user=current_user,
-        task_id=created_task["id"],
-    )
-    assert disabled_task["enabled"] is False
-    assert client.app.state.scheduler.get_job(created_task["id"]) is None
+    assert summaries_response.status_code == 200, summaries_response.text
+    summary_labels = {item["label"] for item in summaries_response.json()}
+    assert {"慢病管理", "生活习惯", "生理指标"} <= summary_labels
 
     care_plans_response = client.get(
         f"/api/members/{managed_member['id']}/care-plans",
-        headers=auth_headers(admin["tokens"]["access_token"]),
+        headers=headers,
     )
     assert care_plans_response.status_code == 200, care_plans_response.text
-    assert any(item["title"] == "每天健康提醒" for item in care_plans_response.json())
+    generated_today = [
+        item for item in care_plans_response.json() if item["generated_by"] == "ai" and item["status"] == "active"
+    ]
+    assert generated_today

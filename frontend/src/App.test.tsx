@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import { sessionStorageKey } from "./auth/session";
 
 
 function renderApp(initialPath = "/") {
@@ -13,64 +14,11 @@ function renderApp(initialPath = "/") {
   );
 }
 
-
-function createAuthResponse(name: string, email: string, role = "member", memberId = "member-1", userId = "user-1") {
-  return {
-    user: {
-      id: userId,
-      family_space_id: "family-1",
-      email,
-      role,
-      created_at: "2026-03-11T00:00:00Z",
-    },
-    member: {
-      id: memberId,
-      family_space_id: "family-1",
-      user_account_id: userId,
-      name,
-      gender: "unknown",
-      birth_date: null,
-      blood_type: null,
-      allergies: [],
-      medical_history: [],
-      avatar_url: null,
-      created_at: "2026-03-11T00:00:00Z",
-      updated_at: "2026-03-11T00:00:00Z",
-    },
-    tokens: {
-      access_token: "access-token",
-      refresh_token: "refresh-token",
-      token_type: "bearer",
-    },
-  };
-}
-
-function createMember(id: string, name: string, linkedUserId: string | null = null) {
-  return {
-    id,
-    family_space_id: "family-1",
-    user_account_id: linkedUserId,
-    name,
-    gender: "unknown",
-    birth_date: null,
-    blood_type: null,
-    allergies: [],
-    medical_history: [],
-    avatar_url: null,
-    created_at: "2026-03-11T00:00:00Z",
-    updated_at: "2026-03-11T00:00:00Z",
-  };
-}
-
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-function emptyResponse(status = 204) {
-  return new Response(null, { status });
 }
 
 function sseResponse(events: Array<{ event: string; data: unknown }>) {
@@ -83,141 +31,100 @@ function sseResponse(events: Array<{ event: string; data: unknown }>) {
   });
 }
 
-function createDashboard(memberName = "管理员") {
+function requestPath(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return new URL(input).pathname;
+  }
+  if (input instanceof URL) {
+    return input.pathname;
+  }
+  return new URL(input.url).pathname;
+}
+
+function createSessionPayload() {
   return {
-    members: [
-      {
-        member: {
-          id: "member-1",
-          name: memberName,
-          gender: "unknown",
-          avatar_url: null,
-          blood_type: "O+",
-        },
-        latest_observations: {
-          "body-weight": {
-            code: "body-weight",
-            display_name: "体重",
-            value: 61.5,
-            value_string: null,
-            unit: "kg",
-            effective_at: "2026-03-11T07:30:00+08:00",
-          },
-        },
-        active_conditions: [],
-        active_medications_count: 0,
-        latest_encounter: null,
-      },
-      {
-        member: {
-          id: "member-2",
-          name: "张妈妈",
-          gender: "female",
-          avatar_url: null,
-          blood_type: "A+",
-        },
-        latest_observations: {
-          "bp-systolic": {
-            code: "bp-systolic",
-            display_name: "收缩压",
-            value: 126,
-            value_string: null,
-            unit: "mmHg",
-            effective_at: "2026-03-11T08:00:00+08:00",
-          },
-          "step-count": {
-            code: "step-count",
-            display_name: "步数",
-            value: 4800,
-            value_string: null,
-            unit: "steps",
-            effective_at: "2026-03-11T11:20:00+08:00",
-          },
-          "blood-oxygen": {
-            code: "blood-oxygen",
-            display_name: "血氧",
-            value: 97,
-            value_string: null,
-            unit: "%",
-            effective_at: "2026-03-11T09:10:00+08:00",
-          },
-        },
-        active_conditions: ["高血压"],
-        active_medications_count: 1,
-        latest_encounter: {
-          id: "enc-1",
-          member_id: "member-2",
-          type: "outpatient",
-          facility: "社区医院",
-          department: "心内科",
-          date: "2026-03-08",
-          summary: "复诊并调整降压药",
-          source: "manual",
-          source_ref: null,
-          created_at: "2026-03-08T10:00:00+08:00",
-          updated_at: "2026-03-08T10:00:00+08:00",
-        },
-      },
-    ],
-    today_reminders: [
-      {
-        id: "plan-1",
-        member_id: "member-2",
-        member_name: "张妈妈",
-        category: "medication-reminder",
-        title: "早餐后服药",
-        description: "08:30 服用降压药",
-        status: "active",
-        scheduled_at: "2026-03-11T08:30:00+08:00",
-        completed_at: null,
-        generated_by: "manual",
-        created_at: "2026-03-10T20:00:00+08:00",
-        updated_at: "2026-03-10T20:00:00+08:00",
-      },
-      {
-        id: "plan-2",
-        member_id: "member-2",
-        member_name: "张妈妈",
-        category: "followup-reminder",
-        title: "午后复诊",
-        description: "14:30 前往社区医院",
-        status: "active",
-        scheduled_at: "2026-03-11T14:30:00+08:00",
-        completed_at: null,
-        generated_by: "manual",
-        created_at: "2026-03-10T20:00:00+08:00",
-        updated_at: "2026-03-10T20:00:00+08:00",
-      },
-      {
-        id: "plan-3",
-        member_id: "member-1",
-        member_name: memberName,
-        category: "daily-tip",
-        title: "晚间散步",
-        description: "饭后散步 20 分钟",
-        status: "active",
-        scheduled_at: "2026-03-11T20:15:00+08:00",
-        completed_at: null,
-        generated_by: "manual",
-        created_at: "2026-03-10T20:00:00+08:00",
-        updated_at: "2026-03-10T20:00:00+08:00",
-      },
-    ],
+    user: {
+      id: "user-1",
+      family_space_id: "family-1",
+      email: "owner@example.com",
+      role: "admin",
+      created_at: "2026-03-15T08:00:00Z",
+    },
+    member: {
+      id: "member-1",
+      family_space_id: "family-1",
+      user_account_id: "user-1",
+      name: "管理员",
+      gender: "female",
+      birth_date: "1990-01-01",
+      height_cm: 165,
+      blood_type: "O+",
+      avatar_url: null,
+      created_at: "2026-03-15T08:00:00Z",
+      updated_at: "2026-03-15T08:00:00Z",
+    },
+    tokens: {
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+      token_type: "bearer",
+    },
   };
 }
 
-function createLegacyDashboard(memberName = "管理员") {
+function createMembers() {
+  return [
+    {
+      id: "member-1",
+      family_space_id: "family-1",
+      user_account_id: "user-1",
+      name: "管理员",
+      gender: "female",
+      birth_date: "1990-01-01",
+      height_cm: 165,
+      blood_type: "O+",
+      avatar_url: null,
+      created_at: "2026-03-15T08:00:00Z",
+      updated_at: "2026-03-15T08:00:00Z",
+    },
+    {
+      id: "member-2",
+      family_space_id: "family-1",
+      user_account_id: null,
+      name: "张妈妈",
+      gender: "female",
+      birth_date: "1958-04-12",
+      height_cm: 158,
+      blood_type: "A+",
+      avatar_url: null,
+      created_at: "2026-03-15T08:00:00Z",
+      updated_at: "2026-03-15T08:00:00Z",
+    },
+  ];
+}
+
+function createDashboard() {
   return {
     members: [
       {
         member: {
           id: "member-1",
-          name: memberName,
-          gender: "unknown",
+          name: "管理员",
+          gender: "female",
           avatar_url: null,
           blood_type: "O+",
         },
-        health_summaries: [],
+        health_summaries: [
+          {
+            id: "summary-1",
+            member_id: "member-1",
+            category: "lifestyle",
+            label: "生活习惯",
+            value: "最近一次睡眠 460 分钟，最近一次运动 48 分钟。",
+            status: "good",
+            generated_at: "2026-03-15T08:30:00+08:00",
+            created_at: "2026-03-15T08:30:00+08:00",
+          },
+        ],
       },
       {
         member: {
@@ -229,24 +136,34 @@ function createLegacyDashboard(memberName = "管理员") {
         },
         health_summaries: [
           {
-            id: "summary-1",
-            member_id: "member-2",
-            category: "lifestyle",
-            label: "运动习惯",
-            value: "运动偏少",
-            status: "warning",
-            generated_at: "2026-03-11T08:05:00+08:00",
-            created_at: "2026-03-11T08:05:00+08:00",
-          },
-          {
             id: "summary-2",
             member_id: "member-2",
             category: "chronic-vitals",
-            label: "血压控制",
-            value: "稳步好转",
+            label: "慢病管理",
+            value: "最新收缩压 126mmHg。",
+            status: "neutral",
+            generated_at: "2026-03-15T08:30:00+08:00",
+            created_at: "2026-03-15T08:30:00+08:00",
+          },
+          {
+            id: "summary-3",
+            member_id: "member-2",
+            category: "lifestyle",
+            label: "生活习惯",
+            value: "最近一次睡眠 460 分钟，最近一次运动 48 分钟。",
             status: "good",
-            generated_at: "2026-03-11T08:00:00+08:00",
-            created_at: "2026-03-11T08:00:00+08:00",
+            generated_at: "2026-03-15T08:30:00+08:00",
+            created_at: "2026-03-15T08:30:00+08:00",
+          },
+          {
+            id: "summary-4",
+            member_id: "member-2",
+            category: "body-vitals",
+            label: "生理指标",
+            value: "最近一次指标是 收缩压 126mmHg。",
+            status: "neutral",
+            generated_at: "2026-03-15T08:30:00+08:00",
+            created_at: "2026-03-15T08:30:00+08:00",
           },
         ],
       },
@@ -260,786 +177,328 @@ function createLegacyDashboard(memberName = "管理员") {
         title: "早餐后服药",
         description: "08:30 服用降压药",
         status: "active",
-        scheduled_at: "2026-03-11T08:30:00+08:00",
+        scheduled_at: "2026-03-15T08:30:00+08:00",
         completed_at: null,
         generated_by: "manual",
-        created_at: "2026-03-10T20:00:00+08:00",
-        updated_at: "2026-03-10T20:00:00+08:00",
+        created_at: "2026-03-14T20:00:00+08:00",
+        updated_at: "2026-03-14T20:00:00+08:00",
       },
     ],
   };
 }
 
-function createObservation(overrides: Record<string, unknown> = {}) {
+function createProfileDetail(memberId: string) {
   return {
-    id: "obs-default",
-    member_id: "member-2",
-    category: "vital-signs",
-    code: "bp-systolic",
-    display_name: "收缩压",
-    value: 126,
-    value_string: null,
-    unit: "mmHg",
-    effective_at: "2026-03-11T08:00:00+08:00",
-    source: "manual",
-    source_ref: null,
-    notes: "早餐后测量",
-    encounter_id: null,
-    created_at: "2026-03-11T08:00:00+08:00",
-    updated_at: "2026-03-11T08:00:00+08:00",
-    ...overrides,
+    member: {
+      id: memberId,
+      family_space_id: "family-1",
+      user_account_id: null,
+      name: "张妈妈",
+      gender: "female",
+      birth_date: "1958-04-12",
+      height_cm: 158,
+      blood_type: "A+",
+      avatar_url: null,
+      created_at: "2026-03-15T08:00:00Z",
+      updated_at: "2026-03-15T08:00:00Z",
+    },
+    observations: [
+      {
+        id: "obs-1",
+        member_id: memberId,
+        category: "chronic-vitals",
+        code: "bp-systolic",
+        display_name: "收缩压",
+        value: 126,
+        value_string: null,
+        unit: "mmHg",
+        context: null,
+        effective_at: "2026-03-15T08:00:00+08:00",
+        source: "manual",
+        device_name: null,
+        notes: null,
+        created_at: "2026-03-15T08:00:00+08:00",
+        updated_at: "2026-03-15T08:00:00+08:00",
+      },
+    ],
+    sleepRecords: [
+      {
+        id: "sleep-1",
+        member_id: memberId,
+        start_at: "2026-03-14T22:30:00+08:00",
+        end_at: "2026-03-15T06:10:00+08:00",
+        total_minutes: 460,
+        deep_minutes: 90,
+        rem_minutes: 110,
+        light_minutes: 220,
+        awake_minutes: 40,
+        efficiency_score: 90,
+        is_nap: false,
+        source: "device",
+        device_name: "Apple Watch",
+        created_at: "2026-03-15T06:10:00+08:00",
+      },
+    ],
+    workoutRecords: [
+      {
+        id: "workout-1",
+        member_id: memberId,
+        type: "walking",
+        start_at: "2026-03-15T07:00:00+08:00",
+        end_at: "2026-03-15T07:48:00+08:00",
+        duration_minutes: 48,
+        energy_burned: 180,
+        distance_meters: 3500,
+        avg_heart_rate: 110,
+        source: "device",
+        device_name: "Apple Watch",
+        notes: "晨间快走",
+        created_at: "2026-03-15T07:48:00+08:00",
+      },
+    ],
+    conditions: [
+      {
+        id: "condition-1",
+        member_id: memberId,
+        category: "chronic",
+        display_name: "高血压",
+        clinical_status: "active",
+        onset_date: "2020-01-01",
+        source: "manual",
+        notes: "长期监测",
+        created_at: "2026-03-01T08:00:00+08:00",
+        updated_at: "2026-03-01T08:00:00+08:00",
+      },
+    ],
+    medications: [
+      {
+        id: "med-1",
+        member_id: memberId,
+        name: "降压药",
+        indication: "控制血压",
+        dosage_description: "早餐后 1 片",
+        status: "active",
+        start_date: "2025-01-01",
+        end_date: null,
+        source: "manual",
+        created_at: "2026-03-01T08:00:00+08:00",
+        updated_at: "2026-03-01T08:00:00+08:00",
+      },
+    ],
+    encounters: [
+      {
+        id: "enc-1",
+        member_id: memberId,
+        type: "checkup",
+        facility: "社区医院",
+        department: "心内科",
+        attending_physician: "李医生",
+        date: "2026-03-10",
+        summary: "复查血压",
+        source: "manual",
+        created_at: "2026-03-10T08:00:00+08:00",
+        updated_at: "2026-03-10T08:00:00+08:00",
+      },
+    ],
+    healthSummaries: createDashboard().members[1].health_summaries,
+    carePlans: createDashboard().today_reminders,
   };
 }
-
-function createMedication(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "med-default",
-    member_id: "member-2",
-    medication_name: "缬沙坦",
-    dosage: "每日一次，每次 1 片",
-    status: "active",
-    start_date: "2026-03-01",
-    end_date: null,
-    reason: "高血压",
-    prescribed_by: "社区医院",
-    source: "manual",
-    source_ref: null,
-    notes: "早餐后服用",
-    encounter_id: null,
-    created_at: "2026-03-01T08:00:00+08:00",
-    updated_at: "2026-03-01T08:00:00+08:00",
-    ...overrides,
-  };
-}
-
-function createEncounter(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "enc-default",
-    member_id: "member-2",
-    type: "outpatient",
-    facility: "社区医院",
-    department: "心内科",
-    date: "2026-03-08",
-    summary: "复诊并调整降压药",
-    source: "manual",
-    source_ref: null,
-    created_at: "2026-03-08T14:30:00+08:00",
-    updated_at: "2026-03-08T14:30:00+08:00",
-    ...overrides,
-  };
-}
-
-function mockApi(
-  handler: (request: { method: string; pathname: string; search: string; bodyText: string; request: Request }) => Promise<Response> | Response,
-) {
-  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
-    const method = (init as RequestInit | undefined)?.method ?? "GET";
-    const body = (init as RequestInit | undefined)?.body;
-    let bodyText = "";
-    if (method !== "GET" && body != null && !(body instanceof FormData)) {
-      bodyText = typeof body === "string" ? body : await new Request(url, init).text();
-    }
-    return handler({
-      method,
-      pathname: new URL(url).pathname,
-      search: new URL(url).search,
-      bodyText,
-      request: new Request(url, { method, headers: (init as RequestInit | undefined)?.headers }),
-    });
-  });
-}
-
 
 describe("App", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
   beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
     window.localStorage.clear();
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    window.localStorage.clear();
   });
 
-  it("redirects the root route to the login page", async () => {
+  it("renders login page when there is no session", () => {
     renderApp("/");
-
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "免费注册" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument();
   });
 
-  it("renders the register page with the shared auth style", async () => {
-    renderApp("/register");
+  it("renders dashboard using health summaries and reminders only", async () => {
+    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
 
-    expect(await screen.findByRole("heading", { name: "注册" })).toBeInTheDocument();
-    expect(screen.getByLabelText("家庭成员昵称")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "创建账号" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "返回登录" })).toBeInTheDocument();
-  });
-
-  it("submits the login form and enters the app shell", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(createAuthResponse("王医生", "owner@example.com", "admin")), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify([createMember("member-1", "王医生", "user-1")]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(createDashboard("王医生")),
-      );
-
-    renderApp("/login");
-
-    fireEvent.change(screen.getByLabelText("电子邮箱"), {
-      target: { value: "owner@example.com" },
+    fetchMock.mockImplementation(async (input) => {
+      const pathname = requestPath(input);
+      if (pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      throw new Error(`Unhandled request: ${pathname}`);
     });
-    fireEvent.change(screen.getByLabelText("密码"), {
-      target: { value: "Secret123!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "立即登录" }));
 
-    expect(await screen.findByRole("heading", { name: "家庭健康管理" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    expect(screen.getByText("清晨的叮嘱")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8000/api/auth/login",
-      expect.objectContaining({
-        method: "POST",
-      }),
-    );
-    expect(window.localStorage.getItem("homevital.session")).toContain("owner@example.com");
-  });
+    renderApp("/app");
 
-  it("submits the register form and enters the app shell", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(createAuthResponse("李阿姨", "member@example.com")), {
-          status: 201,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify([createMember("member-1", "李阿姨", "user-1")]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(createDashboard("李阿姨")),
-      );
-
-    renderApp("/register");
-
-    fireEvent.change(screen.getByLabelText("家庭成员昵称"), {
-      target: { value: "李阿姨" },
-    });
-    fireEvent.change(screen.getByLabelText("电子邮箱"), {
-      target: { value: "member@example.com" },
-    });
-    fireEvent.change(screen.getByLabelText("密码"), {
-      target: { value: "Secret123!" },
-    });
-    fireEvent.change(screen.getByLabelText("确认密码"), {
-      target: { value: "Secret123!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "创建账号" }));
-
-    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+    expect((await screen.findAllByText("慢病管理")).length).toBeGreaterThan(0);
     expect(screen.getByText("早餐后服药")).toBeInTheDocument();
+    expect(screen.queryByText("等待活动记录")).not.toBeInTheDocument();
   });
 
-  it("renders the phase 3 dashboard and keeps admin management actions available", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
+  it("opens member profile modal and loads current resources", async () => {
+    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
+    const detail = createProfileDetail("member-2");
 
-    let deleteMemberCount = 0;
-    const fetchMock = mockApi(({ bodyText, method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([
-          createMember("member-1", "管理员", "user-1"),
-          createMember("member-2", "张妈妈", "user-2"),
-        ]);
+    fetchMock.mockImplementation(async (input) => {
+      const pathname = requestPath(input);
+      if (pathname === "/api/members") {
+        return jsonResponse(createMembers());
       }
-      if (method === "GET" && pathname === "/api/dashboard") {
-        return jsonResponse(createDashboard("管理员"));
+      if (pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
       }
-      if (method === "POST" && pathname === "/api/members") {
-        const payload = JSON.parse(bodyText) as { name: string };
-        return jsonResponse(createMember("member-3", payload.name), 201);
+      if (pathname === "/api/members/member-2") {
+        return jsonResponse(detail.member);
       }
-      if (method === "DELETE" && pathname === "/api/members/member-2") {
-        deleteMemberCount += 1;
-        return emptyResponse();
+      if (pathname === "/api/members/member-2/observations") {
+        return jsonResponse(detail.observations);
       }
-      if (method === "DELETE" && pathname === "/api/family-space") {
-        return emptyResponse();
+      if (pathname === "/api/members/member-2/sleep-records") {
+        return jsonResponse(detail.sleepRecords);
       }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
-    });
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-
-    renderApp("/app");
-
-    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    expect(screen.getByText("清晨的叮嘱")).toBeInTheDocument();
-    expect(screen.getByText("午后的守候")).toBeInTheDocument();
-    expect(screen.getByText("晚间小结")).toBeInTheDocument();
-    expect(screen.getByText("张妈妈")).toBeInTheDocument();
-    expect(screen.getByText("2 位成员")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "用户菜单" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /成员管理/ }));
-
-    expect(await screen.findByRole("heading", { name: "成员管理" })).toBeInTheDocument();
-
-    confirmSpy.mockClear();
-  });
-
-  it("renders the homepage when /api/dashboard returns legacy health summaries", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
-
-    mockApi(({ method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([
-          createMember("member-1", "管理员", "user-1"),
-          createMember("member-2", "张妈妈", "user-2"),
-        ]);
+      if (pathname === "/api/members/member-2/workout-records") {
+        return jsonResponse(detail.workoutRecords);
       }
-      if (method === "GET" && pathname === "/api/dashboard") {
-        return jsonResponse(createLegacyDashboard("管理员"));
+      if (pathname === "/api/members/member-2/conditions") {
+        return jsonResponse(detail.conditions);
       }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
+      if (pathname === "/api/members/member-2/medications") {
+        return jsonResponse(detail.medications);
+      }
+      if (pathname === "/api/members/member-2/encounters") {
+        return jsonResponse(detail.encounters);
+      }
+      if (pathname === "/api/members/member-2/health-summaries") {
+        return jsonResponse(detail.healthSummaries);
+      }
+      if (pathname === "/api/members/member-2/care-plans") {
+        return jsonResponse(detail.carePlans);
+      }
+      throw new Error(`Unhandled request: ${pathname}`);
     });
 
     renderApp("/app");
 
-    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    expect(screen.getByText("运动偏少")).toBeInTheDocument();
-    expect(screen.getByText("稳步好转")).toBeInTheDocument();
-    expect(screen.getByText("早餐后服药")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /张妈妈/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "成员档案" });
+    expect(within(dialog).getByText("基础信息")).toBeInTheDocument();
+    expect(within(dialog).getByText("AI 健康摘要")).toBeInTheDocument();
+    expect(within(dialog).getByText("今日提醒")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /健康数据/ }));
+
+    expect(await within(dialog).findByText("慢病指标")).toBeInTheDocument();
+    expect(within(dialog).getByText("睡眠")).toBeInTheDocument();
+    expect(within(dialog).getByText("运动记录")).toBeInTheDocument();
   });
 
-  it("shows all family members to regular members without admin controls", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("普通成员", "member@example.com", "member", "member-2", "user-2")),
-    );
+  it("streams chat draft cards and confirms them through confirm-draft endpoint", async () => {
+    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
 
-    mockApi(({ method, pathname }) => {
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
       if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([
-          createMember("member-1", "管理员", "user-1"),
-          createMember("member-2", "普通成员", "user-2"),
-        ]);
+        return jsonResponse(createMembers());
       }
       if (method === "GET" && pathname === "/api/dashboard") {
-        return jsonResponse(createDashboard("普通成员"));
-      }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
-    });
-
-    renderApp("/app");
-
-    expect((await screen.findAllByText("管理员")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("普通成员").length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "添加成员" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "注销整个家庭空间" })).not.toBeInTheDocument();
-  });
-
-  it("opens the ai chat overlay from the dashboard composer and streams real chat events", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
-
-    mockApi(({ bodyText, method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([
-          createMember("member-1", "管理员", "user-1"),
-          createMember("member-2", "张妈妈", "user-2"),
-        ]);
-      }
-      if (method === "GET" && pathname === "/api/dashboard") {
-        return jsonResponse(createDashboard("管理员"));
+        return jsonResponse(createDashboard());
       }
       if (method === "POST" && pathname === "/api/chat/sessions") {
         return jsonResponse({
-          id: "chat-session-1",
+          id: "chat-1",
           user_id: "user-1",
           family_space_id: "family-1",
-          member_id: null,
+          member_id: "member-2",
           title: null,
           page_context: "home",
-          created_at: "2026-03-12T10:00:00+08:00",
-          updated_at: "2026-03-12T10:00:00+08:00",
+          created_at: "2026-03-15T08:00:00+08:00",
+          updated_at: "2026-03-15T08:00:00+08:00",
         }, 201);
       }
-      if (method === "POST" && pathname === "/api/chat/sessions/chat-session-1/messages") {
-        expect(JSON.parse(bodyText)).toMatchObject({
-          content: "张妈妈今天胃口不错，心情也很好。",
-          page_context: "home",
-        });
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
         return sseResponse([
-          { event: "session.started", data: { session_id: "chat-session-1", member_id: null } },
-          { event: "tool.started", data: { tool_name: "read_member_summary" } },
-          { event: "tool.result", data: { tool_name: "read_member_summary", content: "张妈妈：最新指标 血压平稳", requires_confirmation: false, meta: {} } },
-          { event: "message.delta", data: { content: "我已经帮你整理好张妈妈今天的状态。" } },
-          { event: "message.completed", data: { content: "我已经帮你整理好张妈妈今天的状态。" } },
-        ]);
-      }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
-    });
-
-    renderApp("/app");
-
-    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText("说说今天家人的健康情况..."), {
-      target: { value: "张妈妈今天胃口不错，心情也很好。" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "发送 AI 消息" }));
-
-    expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
-    expect(screen.getByText("张妈妈：最新指标 血压平稳")).toBeInTheDocument();
-    expect(screen.getByText("张妈妈今天胃口不错，心情也很好。")).toBeInTheDocument();
-    expect(screen.getByText("我已经帮你整理好张妈妈今天的状态。")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "关闭 AI 对话" }));
-    expect(screen.queryByRole("dialog", { name: "AI 健康助手" })).not.toBeInTheDocument();
-  });
-
-  it("transcribes uploaded audio into the chat draft", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
-
-    mockApi(({ method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([createMember("member-1", "管理员", "user-1")]);
-      }
-      if (method === "GET" && pathname === "/api/dashboard") {
-        return jsonResponse(createDashboard("管理员"));
-      }
-      if (method === "POST" && pathname === "/api/chat/transcriptions") {
-        return jsonResponse({ text: "奶奶今天胃口不错" });
-      }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
-    });
-
-    renderApp("/app");
-
-    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "打开 AI 对话" }));
-    expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
-
-    const audioInput = screen.getByLabelText("上传语音") as HTMLInputElement;
-    const file = new File(["audio"], "voice.wav", { type: "audio/wav" });
-    fireEvent.change(audioInput, { target: { files: [file] } });
-
-    expect(await screen.findByDisplayValue("奶奶今天胃口不错")).toBeInTheDocument();
-  });
-
-  it("requires selecting a member before uploading a chat attachment", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
-
-    const fetchMock = mockApi(({ method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([
-          createMember("member-1", "管理员", "user-1"),
-          createMember("member-2", "张妈妈", "user-2"),
-        ]);
-      }
-      if (method === "GET" && pathname === "/api/dashboard") {
-        return jsonResponse(createDashboard("管理员"));
-      }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
-    });
-
-    renderApp("/app");
-
-    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "打开 AI 对话" }));
-    expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
-
-    const attachmentInput = screen.getByLabelText("上传附件") as HTMLInputElement;
-    const file = new File(["{}"], "report.json", { type: "application/json" });
-    fireEvent.change(attachmentInput, { target: { files: [file] } });
-
-    expect(await screen.findByText("请先选择成员再上传附件。")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("uploads and confirms extracted documents from the member profile", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
-
-    let observations = [createObservation()];
-    let carePlans = [
-      {
-        id: "plan-1",
-        member_id: "member-2",
-        category: "daily-tip",
-        title: "旧提醒",
-        description: "旧描述",
-        status: "active",
-        scheduled_at: "2026-03-11T20:15:00+08:00",
-        completed_at: null,
-        generated_by: "manual",
-        created_at: "2026-03-10T20:00:00+08:00",
-        updated_at: "2026-03-10T20:00:00+08:00",
-      },
-    ];
-
-    mockApi(({ method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([
-          createMember("member-1", "管理员", "user-1"),
-          createMember("member-2", "张妈妈", "user-2"),
-        ]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2") {
-        return jsonResponse({
-          ...createMember("member-2", "张妈妈", "user-2"),
-          gender: "female",
-          birth_date: "1961-03-08",
-          blood_type: "A+",
-          allergies: ["青霉素"],
-          medical_history: ["高血压"],
-        });
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/observations") {
-        return jsonResponse(observations);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/conditions") {
-        return jsonResponse([]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/medications") {
-        return jsonResponse([]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/encounters") {
-        return jsonResponse([]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/care-plans") {
-        return jsonResponse(carePlans);
-      }
-      if (method === "POST" && pathname === "/api/members/member-2/documents/upload") {
-        return jsonResponse({
-          id: "doc-1",
-          member_id: "member-2",
-          uploaded_by: "user-1",
-          doc_type: "checkup-report",
-          file_path: "uploads/member-2/report.json",
-          file_name: "report.json",
-          mime_type: "application/json",
-          extraction_status: "completed",
-          extracted_at: "2026-03-12T10:00:00+08:00",
-          raw_extraction: {
-            summary: "体检报告显示血压略高。",
-            observations: [
-              {
-                category: "vital-signs",
-                code: "bp-systolic",
-                display_name: "收缩压",
-                value: 132,
-                value_string: null,
-                unit: "mmHg",
-                effective_at: "2026-03-12T08:00:00+08:00",
-                notes: null,
-                encounter_id: null,
-              },
-            ],
-            conditions: [],
-            medications: [],
-            encounters: [],
-            care_plans: [
-              {
-                category: "followup-reminder",
-                title: "继续监测血压",
-                description: "未来 3 天持续记录晨间血压",
-                status: "active",
-                scheduled_at: "2026-03-13T08:00:00+08:00",
-                completed_at: null,
-                generated_by: "ai",
-              },
-            ],
-          },
-          created_at: "2026-03-12T10:00:00+08:00",
-          updated_at: "2026-03-12T10:00:00+08:00",
-        }, 201);
-      }
-      if (method === "GET" && pathname === "/api/documents/doc-1/extraction") {
-        return jsonResponse({
-          id: "doc-1",
-          member_id: "member-2",
-          file_name: "report.json",
-          doc_type: "checkup-report",
-          extraction_status: "completed",
-          extracted_at: "2026-03-12T10:00:00+08:00",
-          raw_extraction: {
-            summary: "体检报告显示血压略高。",
-            observations: [
-              {
-                category: "vital-signs",
-                code: "bp-systolic",
-                display_name: "收缩压",
-                value: 132,
-                value_string: null,
-                unit: "mmHg",
-                effective_at: "2026-03-12T08:00:00+08:00",
-                notes: null,
-                encounter_id: null,
-              },
-            ],
-            conditions: [],
-            medications: [],
-            encounters: [],
-            care_plans: [
-              {
-                category: "followup-reminder",
-                title: "继续监测血压",
-                description: "未来 3 天持续记录晨间血压",
-                status: "active",
-                scheduled_at: "2026-03-13T08:00:00+08:00",
-                completed_at: null,
-                generated_by: "ai",
-              },
-            ],
-          },
-        });
-      }
-      if (method === "POST" && pathname === "/api/documents/doc-1/confirm") {
-        observations = [
-          createObservation({
-            id: "obs-new",
-            value: 132,
-            effective_at: "2026-03-12T08:00:00+08:00",
-            source: "document-extract",
-            source_ref: "doc-1",
-          }),
-          ...observations,
-        ];
-        carePlans = [
           {
-            id: "plan-new",
-            member_id: "member-2",
-            category: "followup-reminder",
-            title: "继续监测血压",
-            description: "未来 3 天持续记录晨间血压",
-            status: "active",
-            scheduled_at: "2026-03-13T08:00:00+08:00",
-            completed_at: null,
-            generated_by: "ai",
-            created_at: "2026-03-12T10:00:00+08:00",
-            updated_at: "2026-03-12T10:00:00+08:00",
+            event: "session.started",
+            data: { session_id: "chat-1", member_id: "member-2" },
           },
-          ...carePlans,
-        ];
+          {
+            event: "tool.draft",
+            data: {
+              tool_name: "draft_observations",
+              tool_call_id: "tool-1",
+              requires_confirmation: true,
+              content: "已生成待确认草稿。",
+              draft: {
+                summary: "",
+                observations: [
+                  {
+                    category: "body-vitals",
+                    code: "heart-rate",
+                    display_name: "心率",
+                    value: 72,
+                    unit: "bpm",
+                    effective_at: "2026-03-15T08:00:00+08:00",
+                  },
+                ],
+                conditions: [],
+                medications: [],
+                encounters: [],
+              },
+            },
+          },
+        ]);
+      }
+      if (method === "POST" && pathname === "/api/chat/chat-1/confirm-draft") {
         return jsonResponse({
-          document_id: "doc-1",
           created_counts: {
             observations: 1,
             conditions: 0,
             medications: 0,
             encounters: 0,
-            care_plans: 1,
           },
+          assistant_message: "已将这条心率记录保存到健康档案。",
         });
       }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
-    });
 
-    renderApp("/app/members/member-2");
-
-    expect(await screen.findByRole("heading", { name: "张妈妈" })).toBeInTheDocument();
-
-    const uploadInput = screen.getByLabelText("上传健康文档") as HTMLInputElement;
-    fireEvent.change(uploadInput, {
-      target: {
-        files: [new File(["{}"], "report.json", { type: "application/json" })],
-      },
-    });
-
-    expect(await screen.findByText("体检报告显示血压略高。")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "确认抽取并入库" }));
-
-    expect(await screen.findByText("已写入 1 条指标和 1 条提醒。")).toBeInTheDocument();
-    expect(await screen.findByText("继续监测血压")).toBeInTheDocument();
-  });
-
-  it("renders the member profile and records a new observation", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
-
-    let lastObservationPayload: Record<string, unknown> | null = null;
-    mockApi(({ bodyText, method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([
-          createMember("member-1", "管理员", "user-1"),
-          createMember("member-2", "张妈妈", "user-2"),
-        ]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2") {
-        return jsonResponse({
-          ...createMember("member-2", "张妈妈", "user-2"),
-          gender: "female",
-          birth_date: "1961-03-08",
-          blood_type: "A+",
-          allergies: ["青霉素"],
-          medical_history: ["高血压"],
-        });
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/observations") {
-        return jsonResponse([
-          createObservation(),
-          createObservation({
-            id: "obs-weight",
-            code: "body-weight",
-            display_name: "体重",
-            value: 58.2,
-            unit: "kg",
-            effective_at: "2026-03-10T07:20:00+08:00",
-            notes: "晨起测量",
-          }),
-          createObservation({
-            id: "obs-step",
-            category: "activity",
-            code: "step-count",
-            display_name: "步数",
-            value: 6200,
-            unit: "steps",
-            effective_at: "2026-03-10T20:00:00+08:00",
-            notes: "全天活动",
-          }),
-        ]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/conditions") {
-        return jsonResponse([
-          {
-            id: "cond-1",
-            member_id: "member-2",
-            category: "chronic",
-            code: "hypertension",
-            display_name: "高血压",
-            clinical_status: "active",
-            onset_date: "2020-05-01",
-            abatement_date: null,
-            severity: "moderate",
-            source: "manual",
-            source_ref: null,
-            notes: "定期复诊",
-            encounter_id: null,
-            created_at: "2026-03-01T08:00:00+08:00",
-            updated_at: "2026-03-01T08:00:00+08:00",
-          },
-        ]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/medications") {
-        return jsonResponse([createMedication()]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/encounters") {
-        return jsonResponse([createEncounter()]);
-      }
-      if (method === "GET" && pathname === "/api/members/member-2/care-plans") {
-        return jsonResponse([]);
-      }
-      if (method === "POST" && pathname === "/api/members/member-2/observations") {
-        lastObservationPayload = JSON.parse(bodyText) as Record<string, unknown>;
-        return jsonResponse(
-          createObservation({
-            id: "obs-new",
-            code: lastObservationPayload.code,
-            display_name: lastObservationPayload.display_name,
-            value: lastObservationPayload.value,
-            unit: lastObservationPayload.unit,
-            effective_at: lastObservationPayload.effective_at,
-            notes: lastObservationPayload.notes,
-          }),
-          201,
-        );
-      }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
-    });
-
-    renderApp("/app/members/member-2");
-
-    expect(await screen.findByRole("heading", { name: "张妈妈" })).toBeInTheDocument();
-    expect(screen.getByText("当前用药")).toBeInTheDocument();
-    expect(screen.getByText("就医时间线")).toBeInTheDocument();
-    expect(screen.getByText("手动录入")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("指标编码"), {
-      target: { value: "heart-rate" },
-    });
-    fireEvent.change(screen.getByLabelText("指标名称"), {
-      target: { value: "心率" },
-    });
-    fireEvent.change(screen.getByLabelText("数值"), {
-      target: { value: "72" },
-    });
-    fireEvent.change(screen.getByLabelText("单位"), {
-      target: { value: "bpm" },
-    });
-    fireEvent.change(screen.getByLabelText("测量时间"), {
-      target: { value: "2026-03-11T19:15" },
-    });
-    fireEvent.change(screen.getByLabelText("备注"), {
-      target: { value: "晚饭后补录" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "记录指标" }));
-
-    expect(await screen.findByText("晚饭后补录")).toBeInTheDocument();
-    expect(lastObservationPayload).toMatchObject({
-      code: "heart-rate",
-      display_name: "心率",
-      value: 72,
-      unit: "bpm",
-      notes: "晚饭后补录",
-    });
-  });
-
-  it("returns to the login page after signing out", async () => {
-    window.localStorage.setItem(
-      "homevital.session",
-      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
-    );
-
-    mockApi(({ method, pathname }) => {
-      if (method === "GET" && pathname === "/api/members") {
-        return jsonResponse([createMember("member-1", "管理员", "user-1")]);
-      }
-      if (method === "GET" && pathname === "/api/dashboard") {
-        return jsonResponse(createDashboard("管理员"));
-      }
-      throw new Error(`Unexpected request: ${method} ${pathname}`);
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
     });
 
     renderApp("/app");
 
-    expect(await screen.findByRole("heading", { name: "家庭健康管理" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "用户菜单" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /退出登录/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "对话" }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
 
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
-    expect(window.localStorage.getItem("homevital.session")).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "帮我记录张妈妈今天心率 72" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(await within(dialog).findByText("待确认草稿")).toBeInTheDocument();
+    expect(within(dialog).getByText("心率 72bpm")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认保存" }));
+
+    expect(await within(dialog).findByText("已将这条心率记录保存到健康档案。")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/chat/chat-1/confirm-draft"),
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
   });
 });

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from app.ai.scheduler import HomeVitalScheduler
 from app.core.database import Database
@@ -16,4 +16,3 @@ class AIDeps:
     scheduler: HomeVitalScheduler
     session_id: str
     page_context: str | None
-    document_ids: list[str] = field(default_factory=list)

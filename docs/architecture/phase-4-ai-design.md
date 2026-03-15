@@ -1,189 +1,125 @@
 # Phase 4 AI 技术设计
 
-> 注：本文档描述的是 Phase 4 当前实现与原始技术路线。基于 PydanticAI 的升级方案见 [ADR-0010](../adr/0010-pydantic-ai-tool-calling.md)。
+> 本文档定义当前开发主线的 AI 架构。旧的规则驱动 orchestrator、独立 provider 主抽象和文档上传主链路已不再是当前默认路线；当前基线以 [ADR-0010](../adr/0010-pydantic-ai-tool-calling.md) 为准。
 
-## 目标与范围
+## 目标
 
-Phase 4 需要在当前 HomeVital 仓库基础上补齐以下后端能力：
+- 在应用内提供流式 AI 对话
+- 支持语音转写进入统一对话入口
+- 从对话内容或附件上下文生成结构化健康档案草稿
+- 对高风险写入保持“先草稿、后确认”
+- 为 Step 7 的每日 `HealthSummary` 和 `CarePlan` 生成提供统一运行时
 
-- AI 流式对话
-- 语音输入转文字
-- 文档结构化抽取
-- 图片理解与信息抽取
-- 用户自定义时间的定时任务
-- AI 在当前用户权限范围内读取和修改 CarePlan、健康事实层数据
+## 非目标
 
-本设计文档面向当前仓库实现，默认沿用现有 FastAPI 后端、FHIR 风格健康事实层和成员级权限模型，不引入新的健康数据底座。
-
-## 当前实现状态（2026-03）
-
-当前仓库已经以应用内模块形式落地 Phase 4 MVP：
-
-- `backend/app/ai/` 已形成 `providers/`、`orchestrator/`、`tools/`、`transcription/`、`extraction/`、`scheduler/` 的职责边界
-- 已提供会话创建、语音转写入口、SSE 对话消息流和高风险草稿确认写入链路
-- 已提供文档上传、抽取草稿查看与确认入库链路
-- `scheduled_task` 与 `APScheduler` 已在 API 进程内驱动提醒生成并写入 `CarePlan`
-
-MCP 对外发布、更重的本地文档/VLM/ASR 运行时，以及 PostgreSQL 收敛，仍保留在后续阶段推进。
+- 不把 MCP 作为当前 Web 对话第一跳
+- 不恢复 `DocumentReference` 独立文档资源与旧上传处理链路
+- 不让 AI 直接访问数据库表
+- 不重新引入关键字匹配驱动的旧 orchestrator
 
 ## 核心决策
 
-### 1. 健康事实层继续作为真源
+### 1. 应用内采用 PydanticAI Tool-Calling
 
-Phase 4 不替换现有健康数据模型，也不迁移到外部 FHIR 平台。AI 对话、文档抽取、提醒生成和后续 MCP 能力，统一复用当前健康事实层和业务服务层。
+AI 编排由 PydanticAI 驱动，使用 `agent.iter()` 运行多轮 tool-calling 循环。一次请求可以经历“读取数据 -> 推理 -> 写入/建议 -> 继续生成文字”的多步过程。
 
-### 2. 应用内优先使用受控工具调用
+### 2. 所有数据访问都走服务层
 
-Phase 4 的 AI 能力优先在应用后端内部实现 typed tools，由 AI Service 直接调用现有 service/repository 边界。MCP 继续保留为 Phase 5 的对外协议层，复用同一批读写能力，而不是成为前端对话的第一跳。
+AI 工具只调用现有业务服务或 repository 边界。成员级权限校验仍由后端现有服务层负责，AI 不能绕过这些边界。
 
-### 3. 不采用“全量健康数据塞进 Prompt”
+### 3. Prompt 只注入最小必要上下文
 
-Prompt 中只放最小必要上下文，例如：
+System prompt 只提供以下内容：
 
 - 当前用户身份与角色
-- 当前会话目标
+- 当前会话 ID、页面上下文、焦点成员
 - 已授权成员范围
-- 最近摘要或当前页面焦点
+- 当前任务说明
 
-详细健康数据、CarePlan、趋势和文档内容通过工具按需读取。这样可以控制 token、权限边界和写入一致性。
+详细健康数据一律通过工具按需读取。
 
-### 4. 所有写操作都走现有权限模型
+### 4. 工具按风险分级
 
-AI 只能代表当前用户发起写操作。真正的鉴权、校验、事务提交和审计由后端现有业务服务层负责。前端是否“立刻更新”，以真实写入结果为准，不以模型文本回复为准。
+| 类别 | 说明 | 典型工具 |
+|---|---|---|
+| 读取类工具 | 无副作用，可随时调用 | `get_member_summary`、`get_recent_observations`、`get_conditions`、`get_medications`、`get_sleep_records`、`get_workout_records`、`get_encounters`、`get_care_plans` |
+| 低风险写入 | 可直接执行 | `create_care_plan`、`create_scheduled_task`、`mark_care_plan_done` |
+| 高风险写入 | 必须审批 | `draft_observations`、`draft_conditions`、`draft_medications`、`draft_encounter` |
+| 主动建议 | 只给建议，不直接写库 | `suggest_record_update` |
 
-## 推荐技术路线
+### 5. 审批流是核心交互，不是补丁能力
 
-| 能力 | 推荐方案 | 说明 |
-|------|----------|------|
-| 应用内 Agent 编排 | 应用内 orchestrator + typed tools | 当前仓库已用轻量 in-process orchestrator 落地；若后续引入更强 Agent 框架，再单独评估迁移成本 |
-| 模型接入抽象 | OpenAI-compatible provider abstraction | 云端可接 OpenAI，私有部署可接 Ollama 或 vLLM，具体接口以官方文档为准 |
-| 文档预处理 | `Docling` | 作为 PDF/Office/图片文档的默认预处理链路 |
-| 复杂中文扫描件补充 | `MinerU` | 用于复杂版式、扫描件或 OCR 质量要求更高的文档 |
-| 通用图片理解 | `Qwen2.5-VL` 类 VLM 或云端多模态模型 | 普通图片与截图理解不与文档链路混用 |
-| 语音转写 | `SenseVoice` / `FunASR` | 面向中文与英文场景的本地优先方案 |
-| 定时任务 | `APScheduler` | 先满足单实例家庭场景的调度需求 |
-| 外部 AI 生态接入 | MCP（Phase 5） | 复用 Phase 4 内部工具能力对外暴露 |
+核心健康档案写入统一通过 `DeferredToolRequests` 和确认接口恢复执行，前端展示结构化草稿卡片，而不是依赖自由文本确认。
 
-## 引入复杂度说明
+## 运行时模块边界
 
-- 当前仓库已落地轻量自定义 orchestrator 与 `APScheduler`；若后续引入新的 Agent 框架，需要额外评估依赖与迁移成本
-- `Docling` 一般可以直接引入，但 OCR、格式转换和运行效果仍需按官方文档核对当前依赖要求
-- `MinerU`、`Qwen2.5-VL`、`SenseVoice`、`FunASR` 若采用本地部署，通常需要额外的模型下载、运行环境准备，部分场景可能需要人工介入完成 GPU、模型文件或服务方式配置
-- 若部署环境暂不具备本地模型条件，可以先落地兼容 OpenAI API 的云端或托管服务，再按部署条件补齐本地模型路线
+当前 AI 代码应围绕以下职责组织：
 
-## 系统边界
+- `backend/app/ai/deps.py`：`AIDeps` 与运行时依赖注入
+- `backend/app/ai/agent.py`：agent 工厂、system prompt、工具注册
+- `backend/app/ai/tools/`：读取类、低风险写入类、审批写入类、建议类工具
+- `backend/app/ai/orchestrator.py`：`agent.iter()` 循环、SSE 事件映射、审批恢复
+- `backend/app/ai/transcription.py`：语音转写
+- `backend/app/ai/extraction.py`：从对话和附件上下文生成结构化草稿，不再承担独立文档资源写入流程
+- `backend/app/ai/scheduler.py`：每日摘要与提醒生成任务
 
-### 当前仓库内负责的部分
+## 对话链路
 
-- 对话会话与消息管理
-- AI 工具调用与权限控制
-- 文档/图片/语音入口编排
-- 抽取草稿的确认与入库
-- 定时任务触发、执行和结果落库
+```text
+用户输入（文字 / 语音 / 附件上下文）
+  → FastAPI 路由鉴权
+  → 组装 AIDeps 与最小上下文
+  → PydanticAI agent.iter()
+      → 读取工具 / 低风险写入 / 审批写入 / 建议
+  → 自定义 SSE 事件输出
+  → 前端展示消息、工具结果、草稿卡片
+  → 用户确认高风险草稿
+  → 服务层正式写入
+```
 
-### 暂不在 Phase 4 内解决的部分
+## SSE 协议约束
 
-- 替换现有健康事实层
-- 引入重型多 Agent 编排平台
-- 复杂长期工作流平台
-- 医疗机构外部系统集成
+当前应用维持自定义 SSE 协议，而不是直接采用官方 AI UI 协议层。前端和后端需要围绕以下事件保持一致：
 
-## 建议的后端模块划分
+- `message.delta`
+- `message.completed`
+- `tool.started`
+- `tool.result`
+- `tool.draft`
+- `tool.suggest`
+- `tool.error`
 
-当前 `backend/app/ai/` 已形成以下职责边界：
+高风险草稿确认接口应以 `POST /api/chat/{session_id}/confirm-draft` 为主，不再沿用旧的全局确认端点。
 
-- `providers/`：模型提供商抽象与适配器
-- `agent/` 或 `orchestrator/`：对话入口、上下文组装、工具调用编排
-- `tools/`：面向 AI 暴露的读写工具，内部调用现有 services
-- `transcription/`：语音转写封装
-- `extraction/`：文档/图片预处理与结构化抽取
-- `scheduler/`：定时任务注册、执行入口与调度协调
+## Step 7 调度能力
 
-新增 AI 能力原则上沿用该目录职责，避免在路由层或 provider 适配层直接拼接业务写入逻辑。
+Step 7 需要在同一套 AI 运行时上补齐两类定时任务：
 
-## 核心链路
+- `refresh_health_summaries`
+- `refresh_daily_care_plans`
 
-### 1. 流式对话
+这两类任务都应通过现有服务层读取成员数据并写回 `HealthSummary` / `CarePlan`，而不是绕过业务边界直接写库。
 
-建议链路：
+## PydanticAI API 约束（已吸收自 Step 2 调研）
 
-1. 前端发送文本、音频或附件
-2. 后端完成鉴权，并将音频先转写为文本
-3. AI Service 只注入最小上下文
-4. AI Service 按需调用受控工具读取成员摘要、趋势、CarePlan 等数据
-5. 若用户明确要求修改且权限允许，AI 调用写工具，后端复用现有 service 层完成写入
-6. 后端通过 SSE 向前端流式返回文本与结构化工具结果
-7. 前端以工具执行结果刷新 CarePlan、成员详情或首页状态
+当前实现与后续修改应遵守以下已验证结论：
 
-### 2. 语音输入
+- 基线版本按 `pydantic-ai >= 1.68.0` 设计；升级前先重新核对官方文档
+- 只要存在 `requires_approval=True` 的工具，agent `output_type` 必须包含 `DeferredToolRequests`
+- `RunContext[AIDeps]` 是工具和 prompt 读取运行时上下文的标准方式
+- `TestModel` 与 `FunctionModel` 可用于测试，但导入路径不同
+- `agent.override(...)` 应作为上下文管理器使用
+- FastAPI 继续使用 `StreamingResponse` + 自定义 async generator，不必切到官方 UI Adapter 协议
 
-语音入口建议采用“浏览器录音 + 后端转写”路线，而不是默认依赖浏览器原生 Web Speech API。这样更符合私有部署、双语准确率和后端可控性要求。
+## 当前明确废弃的旧设计
 
-### 3. 文档结构化抽取
+- 关键字和正则驱动的单步工具选择
+- 围绕 `providers/` 构建的主编排框架
+- 以 `DocumentReference` 为中心的独立文档抽取链路
+- 把“分析建议”和“结构化录入”混成同一种无审批写入
 
-建议链路：
+## 当前状态
 
-1. 上传文件并创建 `DocumentReference`
-2. 文件进入预处理链路
-3. 常规文档优先走 `Docling`
-4. 复杂中文扫描件或 OCR 质量不足时补充 `MinerU`
-5. 预处理结果再交给 LLM/VLM 生成结构化草稿
-6. 用户确认或修正后，写入 Observation、Condition、MedicationStatement、Encounter、CarePlan 等资源
-
-文档抽取的产物应以“草稿资源”看待，不应未经确认直接写入正式健康档案。
-
-### 4. 图片理解
-
-图片需要先区分类型：
-
-- 文档型图片：走文档抽取链路
-- 普通图片或截图：走通用 VLM 理解链路
-
-本地多模态路线可优先参考 `Qwen2.5-VL`；若采用云端模型，则以供应商当前多模态接口文档为准。
-
-### 5. 主动任务与提醒
-
-`CarePlan` 是任务输出，不应承担全部调度定义。若支持用户自定义时间任务，建议新增独立的调度定义模型，在实现阶段持久化以下信息：
-
-- 作用对象（家庭或成员）
-- 任务类型
-- 调度表达
-- 启用状态
-- 下次执行时间
-- 最后执行时间
-- 创建人
-
-`APScheduler` 负责调度执行，执行结果再写入 `CarePlan` 或其他健康事实资源。
-
-## AI 工具边界
-
-Phase 4 建议优先准备两类工具：
-
-- 读取类工具：成员摘要、最近观测值、趋势、CarePlan 列表、文档抽取草稿、当前权限范围
-- 写入类工具：创建或更新 CarePlan、补充 Observation、确认文档抽取结果、标记提醒完成状态
-
-写入类工具需按风险分级：
-
-- 低风险写入：用户明确表达后的状态更新或新增提醒，可直接执行
-- 高风险写入：会改变核心健康档案的操作，应保留用户确认步骤
-
-## 与 MCP 的关系
-
-Phase 4 不要求前端对话直接走 MCP。Phase 5 的 MCP Server 应复用本阶段已经稳定的读写工具与权限校验逻辑，避免形成两套业务实现。
-
-## 涉及下列能力替换或扩展时，必须核对的官方文档
-
-以下项目更新较快，实现前应先核对当前官方文档和版本说明：
-
-- OpenAI-compatible `chat/completions`、流式与多模态接口
-- 若计划引入新的 Agent 框架，再核对对应官方文档（例如 `PydanticAI`）
-- `Ollama` 或 `vLLM` 的 OpenAI-compatible 接口说明
-- `Docling`
-- `MinerU`
-- `Qwen2.5-VL`
-- `SenseVoice`
-- `FunASR`
-- `APScheduler`
-- MCP 官方规范及所选 Python 实现
-
-本仓库文档用于固定架构边界和默认方向，不替代上游项目的实时接口文档。
+- 文档已经切换到最新 AI 主线，为接下来的 Step 6-8 提供统一指导
+- Step 4 被视为当前开发基线的一部分
+- Step 7 的定时生成能力仍待实现，因此相关描述属于已定方案而非已完成状态

@@ -69,7 +69,6 @@ async def create_message(
             content=request.content,
             member_id=request.member_id,
             page_context=request.page_context,
-            document_ids=request.document_ids,
         ):
             yield format_sse_event(event)
 

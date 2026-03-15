@@ -19,11 +19,8 @@ export type AuthMember = {
   name: string;
   gender: string;
   birth_date: string | null;
+  height_cm: number | null;
   blood_type: string | null;
-  /** @deprecated 后端已移除，保留以兼容旧数据 */
-  allergies?: string[];
-  /** @deprecated 后端已移除，保留以兼容旧数据 */
-  medical_history?: string[];
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

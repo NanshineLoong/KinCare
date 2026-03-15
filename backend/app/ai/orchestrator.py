@@ -87,7 +87,6 @@ class ChatOrchestrator:
         content: str,
         member_id: str | None,
         page_context: str | None,
-        document_ids: list[str],
     ) -> AsyncIterator[StreamEvent]:
         session, focus_member_id = self.resolve_session(
             current_user=current_user,
@@ -106,7 +105,6 @@ class ChatOrchestrator:
                 metadata={
                     "member_id": focus_member_id,
                     "page_context": effective_page_context,
-                    "document_ids": document_ids,
                 },
             )
 
@@ -118,7 +116,6 @@ class ChatOrchestrator:
             scheduler=self._scheduler,
             session_id=session_id,
             page_context=effective_page_context,
-            document_ids=document_ids,
         )
         usage_limits = UsageLimits(request_limit=self._request_limit)
         yielded_delta = False
@@ -130,6 +127,18 @@ class ChatOrchestrator:
                 "member_id": focus_member_id,
             },
         )
+
+        if self._agent is None:
+            error_event = StreamEvent(
+                "tool.error",
+                {
+                    "tool_name": "agent",
+                    "error": "AI 模型尚未配置。请设置 HOMEVITAL_AI_BASE_URL 和 HOMEVITAL_AI_API_KEY。",
+                },
+            )
+            self._persist_tool_message(session_id, error_event)
+            yield error_event
+            return
 
         try:
             async with self._agent.iter(
@@ -226,15 +235,19 @@ class ChatOrchestrator:
             scheduler=self._scheduler,
             session_id=session_id,
             page_context=session["page_context"],
-            document_ids=[],
         )
         created_counts = {
             "observations": 0,
             "conditions": 0,
             "medications": 0,
             "encounters": 0,
-            "care_plans": 0,
         }
+
+        if self._agent is None:
+            return {
+                "created_counts": created_counts,
+                "assistant_message": "AI 模型尚未配置，无法继续确认草稿。",
+            }
 
         try:
             async with self._agent.iter(
@@ -381,7 +394,6 @@ class ChatOrchestrator:
             "conditions": [],
             "medications": [],
             "encounters": [],
-            "care_plans": [],
         }
         if call.tool_name == "draft_observations":
             empty_draft["observations"] = args.get("observations", [])

@@ -1,21 +1,12 @@
 import type { AuthSession } from "../auth/session";
 
-import { getAuthorized, sendAuthorized, sendAuthorizedFormData } from "./http";
+import { getAuthorized } from "./http";
 
 
-export type DashboardObservationSnapshot = {
-  code: string;
-  display_name: string;
-  value: number | null;
-  value_string: string | null;
-  unit: string | null;
-  effective_at: string;
-};
-
-export type DashboardHealthSummary = {
+export type HealthSummaryRecord = {
   id: string;
   member_id: string;
-  category: string;
+  category: "chronic-vitals" | "lifestyle" | "body-vitals";
   label: string;
   value: string;
   status: "good" | "warning" | "neutral";
@@ -23,19 +14,114 @@ export type DashboardHealthSummary = {
   created_at: string;
 };
 
+export type CarePlanRecord = {
+  id: string;
+  member_id: string;
+  category: string;
+  title: string;
+  description: string;
+  status: "active" | "completed" | "cancelled";
+  scheduled_at: string | null;
+  completed_at: string | null;
+  generated_by: "ai" | "manual";
+  created_at: string;
+  updated_at: string;
+};
+
+export type DashboardReminder = CarePlanRecord & {
+  member_name: string;
+};
+
+export type ObservationRecord = {
+  id: string;
+  member_id: string;
+  category: "chronic-vitals" | "lifestyle" | "body-vitals";
+  code: string;
+  display_name: string;
+  value: number | null;
+  value_string: string | null;
+  unit: string | null;
+  context: string | null;
+  effective_at: string;
+  source: "manual" | "device" | "ai-extract";
+  device_name: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ConditionRecord = {
+  id: string;
+  member_id: string;
+  category: "diagnosis" | "chronic" | "allergy" | "family-history";
+  display_name: string;
+  clinical_status: "active" | "inactive" | "resolved";
+  onset_date: string | null;
+  source: "manual" | "ai-extract";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MedicationRecord = {
+  id: string;
+  member_id: string;
+  name: string;
+  indication: string | null;
+  dosage_description: string | null;
+  status: "active" | "stopped";
+  start_date: string | null;
+  end_date: string | null;
+  source: "manual" | "ai-extract";
+  created_at: string;
+  updated_at: string;
+};
+
 export type EncounterRecord = {
   id: string;
   member_id: string;
-  type: string;
+  type: "outpatient" | "inpatient" | "checkup" | "emergency";
   facility: string | null;
   department: string | null;
-  attending_physician?: string | null;
+  attending_physician: string | null;
   date: string;
   summary: string | null;
-  source: string;
-  source_ref: string | null;
+  source: "manual" | "ai-extract";
   created_at: string;
   updated_at: string;
+};
+
+export type SleepRecord = {
+  id: string;
+  member_id: string;
+  start_at: string;
+  end_at: string;
+  total_minutes: number;
+  deep_minutes: number | null;
+  rem_minutes: number | null;
+  light_minutes: number | null;
+  awake_minutes: number | null;
+  efficiency_score: number | null;
+  is_nap: boolean;
+  source: "manual" | "device";
+  device_name: string | null;
+  created_at: string;
+};
+
+export type WorkoutRecord = {
+  id: string;
+  member_id: string;
+  type: string;
+  start_at: string;
+  end_at: string;
+  duration_minutes: number;
+  energy_burned: number | null;
+  distance_meters: number | null;
+  avg_heart_rate: number | null;
+  source: "manual" | "device";
+  device_name: string | null;
+  notes: string | null;
+  created_at: string;
 };
 
 export type DashboardMemberSummary = {
@@ -46,151 +132,12 @@ export type DashboardMemberSummary = {
     avatar_url: string | null;
     blood_type: string | null;
   };
-  latest_observations?: Record<string, DashboardObservationSnapshot>;
-  active_conditions?: string[];
-  active_medications_count?: number;
-  latest_encounter?: EncounterRecord | null;
-  health_summaries?: DashboardHealthSummary[];
-};
-
-export type CarePlanRecord = {
-  id: string;
-  member_id: string;
-  category: string;
-  title: string;
-  description: string;
-  status: string;
-  scheduled_at: string | null;
-  completed_at: string | null;
-  generated_by: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type DocumentRecord = {
-  id: string;
-  member_id: string;
-  uploaded_by: string;
-  doc_type: string;
-  file_path: string;
-  file_name: string;
-  mime_type: string;
-  extraction_status: string;
-  extracted_at: string | null;
-  raw_extraction: import("./chat").DocumentExtractionDraft | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type DocumentExtractionRecord = {
-  id: string;
-  member_id: string;
-  file_name: string;
-  doc_type: string;
-  extraction_status: string;
-  extracted_at: string | null;
-  raw_extraction: import("./chat").DocumentExtractionDraft | null;
-};
-
-export type DashboardReminder = CarePlanRecord & {
-  member_name: string;
+  health_summaries: HealthSummaryRecord[];
 };
 
 export type DashboardResponse = {
   members: DashboardMemberSummary[];
   today_reminders: DashboardReminder[];
-};
-
-export type ObservationRecord = {
-  id: string;
-  member_id: string;
-  category: string;
-  code: string;
-  display_name: string;
-  value: number | null;
-  value_string: string | null;
-  unit: string | null;
-  effective_at: string;
-  source: string;
-  source_ref: string | null;
-  notes: string | null;
-  encounter_id: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ConditionRecord = {
-  id: string;
-  member_id: string;
-  category: string;
-  code: string;
-  display_name: string;
-  clinical_status: string;
-  onset_date: string | null;
-  abatement_date: string | null;
-  severity: string | null;
-  source: string;
-  source_ref: string | null;
-  notes: string | null;
-  encounter_id: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type MedicationRecord = {
-  id: string;
-  member_id: string;
-  medication_name: string;
-  dosage: string | null;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
-  reason: string | null;
-  prescribed_by: string | null;
-  source: string;
-  source_ref: string | null;
-  notes: string | null;
-  encounter_id: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ObservationCreatePayload = {
-  category: string;
-  code: string;
-  display_name: string;
-  value: number | null;
-  value_string?: string | null;
-  unit: string | null;
-  effective_at: string;
-  source: string;
-  source_ref?: string | null;
-  notes?: string | null;
-  encounter_id?: string | null;
-};
-
-export type MedicationCreatePayload = {
-  medication_name: string;
-  dosage?: string | null;
-  status: string;
-  start_date?: string | null;
-  end_date?: string | null;
-  reason?: string | null;
-  prescribed_by?: string | null;
-  source: string;
-  source_ref?: string | null;
-  notes?: string | null;
-  encounter_id?: string | null;
-};
-
-export type EncounterCreatePayload = {
-  type: string;
-  facility?: string | null;
-  department?: string | null;
-  date: string;
-  summary?: string | null;
-  source: string;
-  source_ref?: string | null;
 };
 
 export function getDashboard(session: AuthSession) {
@@ -217,65 +164,14 @@ export function listCarePlans(session: AuthSession, memberId: string) {
   return getAuthorized<CarePlanRecord[]>(`/api/members/${memberId}/care-plans`, session);
 }
 
-export function createObservation(session: AuthSession, memberId: string, payload: ObservationCreatePayload) {
-  return sendAuthorized<ObservationRecord, ObservationCreatePayload>(
-    `/api/members/${memberId}/observations`,
-    session,
-    {
-      method: "POST",
-      payload,
-    },
-  );
+export function listSleepRecords(session: AuthSession, memberId: string) {
+  return getAuthorized<SleepRecord[]>(`/api/members/${memberId}/sleep-records`, session);
 }
 
-export function createMedication(session: AuthSession, memberId: string, payload: MedicationCreatePayload) {
-  return sendAuthorized<MedicationRecord, MedicationCreatePayload>(
-    `/api/members/${memberId}/medications`,
-    session,
-    {
-      method: "POST",
-      payload,
-    },
-  );
+export function listWorkoutRecords(session: AuthSession, memberId: string) {
+  return getAuthorized<WorkoutRecord[]>(`/api/members/${memberId}/workout-records`, session);
 }
 
-export function createEncounter(session: AuthSession, memberId: string, payload: EncounterCreatePayload) {
-  return sendAuthorized<EncounterRecord, EncounterCreatePayload>(
-    `/api/members/${memberId}/encounters`,
-    session,
-    {
-      method: "POST",
-      payload,
-    },
-  );
-}
-
-export async function uploadMemberDocument(
-  session: AuthSession,
-  memberId: string,
-  payload: { docType: string; file: File },
-) {
-  const formData = new FormData();
-  formData.append("doc_type", payload.docType);
-  formData.append("file", payload.file);
-  return sendAuthorizedFormData<DocumentRecord>(`/api/members/${memberId}/documents/upload`, session, formData);
-}
-
-export function getDocumentExtraction(session: AuthSession, documentId: string) {
-  return getAuthorized<DocumentExtractionRecord>(`/api/documents/${documentId}/extraction`, session);
-}
-
-export function confirmDocumentExtraction(
-  session: AuthSession,
-  documentId: string,
-  payload: import("./chat").DocumentExtractionDraft,
-) {
-  return sendAuthorized<{ document_id: string; created_counts: Record<string, number> }, import("./chat").DocumentExtractionDraft>(
-    `/api/documents/${documentId}/confirm`,
-    session,
-    {
-      method: "POST",
-      payload,
-    },
-  );
+export function listHealthSummaries(session: AuthSession, memberId: string) {
+  return getAuthorized<HealthSummaryRecord[]>(`/api/members/${memberId}/health-summaries`, session);
 }

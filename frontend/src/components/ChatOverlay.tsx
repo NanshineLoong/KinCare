@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
-import type { ChatToolResult, DocumentExtractionDraft } from "../api/chat";
+import type { ChatToolResult, HealthRecordDraft } from "../api/chat";
 
 
 export type ChatMessage = {
@@ -25,7 +25,6 @@ type ChatOverlayProps = {
   isBusy: boolean;
   memberOptions: MemberOption[];
   messages: ChatMessage[];
-  onAttachmentUpload: (file: File) => void;
   onAudioUpload: (file: File) => void;
   onClose: () => void;
   onConfirmToolDraft: (toolCard: ChatToolCard) => void;
@@ -36,8 +35,8 @@ type ChatOverlayProps = {
   toolCards: ChatToolCard[];
 };
 
-function countDraftItems(draft: DocumentExtractionDraft): number {
-  return draft.observations.length + draft.care_plans.length;
+function countDraftItems(draft: HealthRecordDraft): number {
+  return draft.observations.length + draft.conditions.length + draft.medications.length + draft.encounters.length;
 }
 
 export function ChatOverlay({
@@ -46,7 +45,6 @@ export function ChatOverlay({
   isBusy,
   memberOptions,
   messages,
-  onAttachmentUpload,
   onAudioUpload,
   onClose,
   onConfirmToolDraft,
@@ -58,7 +56,6 @@ export function ChatOverlay({
 }: ChatOverlayProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
-  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [dismissedToolIds, setDismissedToolIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -74,16 +71,7 @@ export function ChatOverlay({
     event.target.value = "";
   }
 
-  function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    onAttachmentUpload(file);
-    event.target.value = "";
-  }
-
-  const visibleToolCards = toolCards.filter((tc) => !dismissedToolIds.has(tc.id));
+  const visibleToolCards = toolCards.filter((toolCard) => !dismissedToolIds.has(toolCard.id));
 
   return (
     <div
@@ -99,14 +87,6 @@ export function ChatOverlay({
         ref={audioInputRef}
         type="file"
         accept="audio/*"
-      />
-      <input
-        aria-label="上传附件"
-        className="hidden"
-        onChange={handleAttachmentChange}
-        ref={attachmentInputRef}
-        type="file"
-        accept="application/pdf,image/*,application/json,text/plain"
       />
 
       <div className="flex flex-1 flex-col overflow-hidden px-5 py-6 sm:px-6 sm:py-8">
@@ -148,9 +128,9 @@ export function ChatOverlay({
           tabIndex={-1}
         >
           {visibleToolCards.map((toolCard) => {
-            const draft = toolCard.result.draft;
-            const hasDraftItems = draft && countDraftItems(draft) > 0;
-            const itemCount = draft ? countDraftItems(draft) : 0;
+            const toolDraft = toolCard.result.draft;
+            const hasDraftItems = toolDraft && countDraftItems(toolDraft) > 0;
+            const itemCount = toolDraft ? countDraftItems(toolDraft) : 0;
 
             return (
               <div className="flex max-w-[85%] items-start gap-4" key={toolCard.id}>
@@ -165,31 +145,63 @@ export function ChatOverlay({
                 </div>
                 <div className="min-w-0 flex-1 rounded-[2rem] rounded-tl-none border border-white/40 bg-[rgba(235,242,247,0.45)] p-0 shadow-sm backdrop-blur-lg">
                   <div className="p-6">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6D8295]">
+                      {toolCard.result.requires_confirmation ? "待确认草稿" : "分析结果"}
+                    </p>
                     <p className="text-[16px] leading-relaxed text-[#2D2926]">{toolCard.result.content}</p>
+                    {toolCard.result.suggestion_summary ? (
+                      <p className="mt-3 text-sm text-[#5E768C]">{toolCard.result.suggestion_summary}</p>
+                    ) : null}
                   </div>
-                  {toolCard.result.requires_confirmation && draft ? (
+                  {toolDraft ? (
                     <div className="rounded-b-[2rem] border-t border-[#F2EDE7] bg-white/90 p-5 shadow-sm">
                       {hasDraftItems ? (
                         <div className="mb-4 space-y-2">
-                          {draft.observations.map((obs, i) => (
+                          {toolDraft.observations.map((observation, index) => (
                             <label
                               className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
-                              key={`obs-${i}`}
+                              key={`obs-${index}`}
                             >
                               <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
                               <span className="text-sm text-[#2D2926]">
-                                {obs.display_name}
-                                {obs.value != null ? ` ${obs.value}${obs.unit ?? ""}` : ""}
+                                {observation.display_name}
+                                {observation.value != null ? ` ${observation.value}${observation.unit ?? ""}` : ""}
                               </span>
                             </label>
                           ))}
-                          {draft.care_plans.map((cp, i) => (
+                          {toolDraft.conditions.map((condition, index) => (
                             <label
                               className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
-                              key={`cp-${i}`}
+                              key={`condition-${index}`}
                             >
                               <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
-                              <span className="text-sm text-[#2D2926]">{cp.title}</span>
+                              <span className="text-sm text-[#2D2926]">
+                                {condition.display_name} · {condition.clinical_status}
+                              </span>
+                            </label>
+                          ))}
+                          {toolDraft.medications.map((medication, index) => (
+                            <label
+                              className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
+                              key={`medication-${index}`}
+                            >
+                              <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
+                              <span className="text-sm text-[#2D2926]">
+                                {medication.name}
+                                {medication.dosage_description ? ` ${medication.dosage_description}` : ""}
+                              </span>
+                            </label>
+                          ))}
+                          {toolDraft.encounters.map((encounter, index) => (
+                            <label
+                              className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
+                              key={`encounter-${index}`}
+                            >
+                              <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
+                              <span className="text-sm text-[#2D2926]">
+                                {encounter.type}
+                                {encounter.facility ? ` · ${encounter.facility}` : ""}
+                              </span>
                             </label>
                           ))}
                         </div>
@@ -197,31 +209,24 @@ export function ChatOverlay({
                       <div className="flex flex-wrap items-center gap-3">
                         <button
                           className="rounded-full px-4 py-2 text-sm font-medium text-[#4A443F] transition hover:bg-[#F2EDE7]/70"
-                          type="button"
-                        >
-                          编辑详情
-                        </button>
-                        <button
-                          className="rounded-full px-4 py-2 text-sm font-medium text-[#4A443F] transition hover:bg-[#F2EDE7]/70"
-                          onClick={() => setDismissedToolIds((s) => new Set(s).add(toolCard.id))}
+                          onClick={() => setDismissedToolIds((current) => new Set(current).add(toolCard.id))}
                           type="button"
                         >
                           忽略
                         </button>
-                        <button
-                          className="rounded-full bg-[#2D2926] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#161412]"
-                          onClick={() => onConfirmToolDraft(toolCard)}
-                          type="button"
-                        >
-                          确认保存
-                        </button>
+                        {toolCard.result.requires_confirmation ? (
+                          <button
+                            className="rounded-full bg-[#2D2926] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#161412]"
+                            onClick={() => onConfirmToolDraft(toolCard)}
+                            type="button"
+                          >
+                            确认保存
+                          </button>
+                        ) : null}
                       </div>
                       {hasDraftItems ? (
                         <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#D8E5EF] px-6 py-3">
-                          <span
-                            aria-hidden
-                            className="material-symbols-outlined text-[18px] text-[#4A6076]"
-                          >
+                          <span aria-hidden className="material-symbols-outlined text-[18px] text-[#4A6076]">
                             lightbulb
                           </span>
                           <span className="text-sm text-[#2D2926]">发现 {itemCount} 条可录入数据</span>
@@ -274,14 +279,6 @@ export function ChatOverlay({
         <div className="pointer-events-auto mx-auto flex max-w-3xl flex-col gap-3 rounded-[2.5rem] border border-white/60 bg-white/95 p-3 pl-6 pr-4 shadow backdrop-blur-md">
           <div className="flex items-center gap-3">
             <button
-              aria-label="添加附件"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#4A443F] transition hover:bg-white/60"
-              onClick={() => attachmentInputRef.current?.click()}
-              type="button"
-            >
-              <span aria-hidden className="material-symbols-outlined text-[22px]">add</span>
-            </button>
-            <button
               aria-label="语音输入"
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#4A443F] transition hover:bg-white/60"
               onClick={() => audioInputRef.current?.click()}
@@ -290,6 +287,7 @@ export function ChatOverlay({
               <span aria-hidden className="material-symbols-outlined text-[22px]">mic</span>
             </button>
             <input
+              aria-label="对话输入框"
               className="min-w-0 flex-1 border-none bg-transparent px-3 text-[16px] text-[#2D2926] outline-none placeholder:text-[#B8B0A9]"
               onChange={(event) => onDraftChange(event.target.value)}
               placeholder="说说今天家人的健康情况..."
@@ -299,15 +297,12 @@ export function ChatOverlay({
               aria-label="发送 AI 消息"
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-[#161412] disabled:opacity-60"
               disabled={isBusy}
-              onClick={onSend}
+              onClick={() => onSend()}
               type="button"
             >
               <span aria-hidden className="material-symbols-outlined text-[20px]">arrow_upward</span>
             </button>
           </div>
-          <p className="px-2 text-xs text-warm-gray">
-            语音会先转写成文本；附件会先抽取为草稿，再由你确认是否写入正式档案。
-          </p>
         </div>
       </div>
     </div>

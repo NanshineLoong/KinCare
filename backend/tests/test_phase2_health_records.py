@@ -484,25 +484,6 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
 
     assert [item["title"] for item in payload["today_reminders"]] == ["早餐后服药"]
     assert payload["today_reminders"][0]["member_name"] == "奶奶"
-
-
-def test_document_routes_are_removed(client: TestClient) -> None:
-    admin = register_user(
-        client,
-        email="owner@example.com",
-        password="Secret123!",
-        name="管理员",
-    )
-    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
-
-    response = client.post(
-        f"/api/members/{managed_member['id']}/documents/upload",
-        headers=auth_headers(admin["tokens"]["access_token"]),
-    )
-
-    assert response.status_code == 404
-
-
 def test_member_health_access_requires_self_or_grant(client: TestClient) -> None:
     admin = register_user(
         client,

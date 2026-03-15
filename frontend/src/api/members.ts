@@ -1,25 +1,19 @@
 import type { AuthMember, AuthSession } from "../auth/session";
 
-import {
-  buildApiUrl,
-  createAuthHeaders,
-  deleteAuthorized,
-  parseResponse,
-  sendAuthorized,
-} from "./http";
+import { buildApiUrl, createAuthHeaders, deleteAuthorized, parseResponse, sendAuthorized } from "./http";
 
 
 type MemberCreatePayload = {
   name: string;
+  gender?: string;
 };
 
 type MemberUpdatePayload = Partial<{
   name: string;
   gender: string;
   birth_date: string | null;
+  height_cm: number | null;
   blood_type: string | null;
-  allergies: string[];
-  medical_history: string[];
   avatar_url: string | null;
 }>;
 
