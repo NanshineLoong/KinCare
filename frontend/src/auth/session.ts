@@ -20,8 +20,10 @@ export type AuthMember = {
   gender: string;
   birth_date: string | null;
   blood_type: string | null;
-  allergies: string[];
-  medical_history: string[];
+  /** @deprecated 后端已移除，保留以兼容旧数据 */
+  allergies?: string[];
+  /** @deprecated 后端已移除，保留以兼容旧数据 */
+  medical_history?: string[];
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

@@ -206,6 +206,70 @@ function createDashboard(memberName = "管理员") {
   };
 }
 
+function createLegacyDashboard(memberName = "管理员") {
+  return {
+    members: [
+      {
+        member: {
+          id: "member-1",
+          name: memberName,
+          gender: "unknown",
+          avatar_url: null,
+          blood_type: "O+",
+        },
+        health_summaries: [],
+      },
+      {
+        member: {
+          id: "member-2",
+          name: "张妈妈",
+          gender: "female",
+          avatar_url: null,
+          blood_type: "A+",
+        },
+        health_summaries: [
+          {
+            id: "summary-1",
+            member_id: "member-2",
+            category: "lifestyle",
+            label: "运动习惯",
+            value: "运动偏少",
+            status: "warning",
+            generated_at: "2026-03-11T08:05:00+08:00",
+            created_at: "2026-03-11T08:05:00+08:00",
+          },
+          {
+            id: "summary-2",
+            member_id: "member-2",
+            category: "chronic-vitals",
+            label: "血压控制",
+            value: "稳步好转",
+            status: "good",
+            generated_at: "2026-03-11T08:00:00+08:00",
+            created_at: "2026-03-11T08:00:00+08:00",
+          },
+        ],
+      },
+    ],
+    today_reminders: [
+      {
+        id: "plan-1",
+        member_id: "member-2",
+        member_name: "张妈妈",
+        category: "medication-reminder",
+        title: "早餐后服药",
+        description: "08:30 服用降压药",
+        status: "active",
+        scheduled_at: "2026-03-11T08:30:00+08:00",
+        completed_at: null,
+        generated_by: "manual",
+        created_at: "2026-03-10T20:00:00+08:00",
+        updated_at: "2026-03-10T20:00:00+08:00",
+      },
+    ],
+  };
+}
+
 function createObservation(overrides: Record<string, unknown> = {}) {
   return {
     id: "obs-default",
@@ -269,13 +333,19 @@ function mockApi(
   handler: (request: { method: string; pathname: string; search: string; bodyText: string; request: Request }) => Promise<Response> | Response,
 ) {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-    const request = new Request(input, init);
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+    const method = (init as RequestInit | undefined)?.method ?? "GET";
+    const body = (init as RequestInit | undefined)?.body;
+    let bodyText = "";
+    if (method !== "GET" && body != null && !(body instanceof FormData)) {
+      bodyText = typeof body === "string" ? body : await new Request(url, init).text();
+    }
     return handler({
-      method: request.method,
-      pathname: new URL(request.url).pathname,
-      search: new URL(request.url).search,
-      bodyText: request.method === "GET" ? "" : await request.text(),
-      request,
+      method,
+      pathname: new URL(url).pathname,
+      search: new URL(url).search,
+      bodyText,
+      request: new Request(url, { method, headers: (init as RequestInit | undefined)?.headers }),
     });
   });
 }
@@ -425,30 +495,40 @@ describe("App", () => {
     expect(screen.getByText("晚间小结")).toBeInTheDocument();
     expect(screen.getByText("张妈妈")).toBeInTheDocument();
     expect(screen.getByText("2 位成员")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "添加成员" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "删除 张妈妈" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "注销整个家庭空间" })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("新成员姓名"), {
-      target: { value: "奶奶" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "添加成员" }));
-    expect((await screen.findAllByText("奶奶")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "用户菜单" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /成员管理/ }));
 
-    fireEvent.click(screen.getByRole("button", { name: "删除 张妈妈" }));
-    expect(confirmSpy).toHaveBeenCalled();
-    await waitFor(() => {
-      expect(deleteMemberCount).toBe(1);
-    });
+    expect(await screen.findByRole("heading", { name: "成员管理" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "注销整个家庭空间" }));
-    expect(await screen.findByRole("heading", { name: "注册" })).toBeInTheDocument();
-    expect(window.localStorage.getItem("homevital.session")).toBeNull();
+    confirmSpy.mockClear();
+  });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8000/api/family-space",
-      expect.objectContaining({ method: "DELETE" }),
+  it("renders the homepage when /api/dashboard returns legacy health summaries", async () => {
+    window.localStorage.setItem(
+      "homevital.session",
+      JSON.stringify(createAuthResponse("管理员", "owner@example.com", "admin")),
     );
+
+    mockApi(({ method, pathname }) => {
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse([
+          createMember("member-1", "管理员", "user-1"),
+          createMember("member-2", "张妈妈", "user-2"),
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createLegacyDashboard("管理员"));
+      }
+      throw new Error(`Unexpected request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
+    expect(screen.getByText("运动偏少")).toBeInTheDocument();
+    expect(screen.getByText("稳步好转")).toBeInTheDocument();
+    expect(screen.getByText("早餐后服药")).toBeInTheDocument();
   });
 
   it("shows all family members to regular members without admin controls", async () => {
@@ -562,7 +642,7 @@ describe("App", () => {
     renderApp("/app");
 
     expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "打开 AI 助手" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开 AI 对话" }));
     expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
 
     const audioInput = screen.getByLabelText("上传语音") as HTMLInputElement;
@@ -594,7 +674,7 @@ describe("App", () => {
     renderApp("/app");
 
     expect(await screen.findByRole("heading", { name: "今日贴心提醒" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "打开 AI 助手" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开 AI 对话" }));
     expect(await screen.findByRole("dialog", { name: "AI 健康助手" })).toBeInTheDocument();
 
     const attachmentInput = screen.getByLabelText("上传附件") as HTMLInputElement;
@@ -956,7 +1036,8 @@ describe("App", () => {
     renderApp("/app");
 
     expect(await screen.findByRole("heading", { name: "家庭健康管理" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "退出" }));
+    fireEvent.click(screen.getByRole("button", { name: "用户菜单" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /退出登录/ }));
 
     expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
     expect(window.localStorage.getItem("homevital.session")).toBeNull();

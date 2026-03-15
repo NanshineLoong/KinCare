@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState, type ChangeEvent, type FormEvent, type SVGProps } from "react";
+import { startTransition, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import {
@@ -7,7 +7,6 @@ import {
   streamChatMessage,
   transcribeAudio,
   type ChatSession,
-  type ChatToolResult,
 } from "../api/chat";
 import {
   confirmDocumentExtraction,
@@ -23,6 +22,9 @@ import { createMember, deleteMember } from "../api/members";
 import type { AuthMember, AuthSession } from "../auth/session";
 import { ChatOverlay, type ChatMessage, type ChatToolCard } from "../components/ChatOverlay";
 
+function MaterialIcon({ name, className }: { name: string; className?: string }) {
+  return <span className={`material-symbols-outlined ${className ?? ""}`}>{name}</span>;
+}
 
 type HomePageProps = {
   isLoadingMembers: boolean;
@@ -30,6 +32,7 @@ type HomePageProps = {
   membersError: string | null;
   onFamilySpaceDeleted: () => void;
   onMembersChange: (members: AuthMember[]) => void;
+  onOpenMemberProfile?: (memberId: string) => void;
   session: AuthSession;
 };
 
@@ -44,6 +47,7 @@ type ReminderGroup = {
   iconColor: string;
   key: "morning" | "afternoon" | "evening";
   label: string;
+  materialIcon: string;
   reminders: DashboardReminder[];
 };
 
@@ -55,68 +59,22 @@ const initialAssistantMessages: ChatMessage[] = [
   },
 ];
 
-function SunIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v3" />
-      <path d="M12 19v3" />
-      <path d="m4.9 4.9 2.1 2.1" />
-      <path d="m17 17 2.1 2.1" />
-      <path d="M2 12h3" />
-      <path d="M19 12h3" />
-      <path d="m4.9 19.1 2.1-2.1" />
-      <path d="m17 7 2.1-2.1" />
-    </svg>
-  );
+function dashboardChipTone(status: "good" | "warning" | "neutral" | undefined, fallback: string) {
+  if (status === "good") {
+    return "border-[#E8F0E6] bg-soft-sage text-[#3E5C3A]";
+  }
+  if (status === "warning") {
+    return "border-[#FAE6D8] bg-[#FEF5ED] text-[#A67C52]";
+  }
+  return fallback;
 }
 
-function SparkIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-      <path d="m11.3 3.7 1.2 3.6a1 1 0 0 0 .6.6l3.6 1.2-3.6 1.2a1 1 0 0 0-.6.6l-1.2 3.6-1.2-3.6a1 1 0 0 0-.6-.6L6.9 9.1l3.6-1.2a1 1 0 0 0 .6-.6l1.2-3.6Z" />
-      <path d="m17.5 13.5.7 2a.9.9 0 0 0 .5.5l2 .7-2 .7a.9.9 0 0 0-.5.5l-.7 2-.7-2a.9.9 0 0 0-.5-.5l-2-.7 2-.7a.9.9 0 0 0 .5-.5l.7-2Z" />
-    </svg>
-  );
+function latestDashboardObservation(summary: DashboardMemberSummary | undefined, code: string) {
+  return summary?.latest_observations?.[code];
 }
 
-function PlusIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function MicIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path d="M12 15a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z" />
-      <path d="M19 11a7 7 0 0 1-14 0" />
-      <path d="M12 18v4" />
-    </svg>
-  );
-}
-
-function SendIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path d="M5 12h12" />
-      <path d="m12 5 7 7-7 7" />
-    </svg>
-  );
-}
-
-function CardStatusIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path d="M4 7h16" />
-      <path d="M7 4v6" />
-      <path d="M17 4v6" />
-      <rect x="4" y="7" width="16" height="13" rx="3" />
-    </svg>
-  );
+function legacyHealthSummary(summary: DashboardMemberSummary | undefined, category: string) {
+  return summary?.health_summaries?.find((item) => item.category === category);
 }
 
 function readHourFromIso(value: string | null) {
@@ -128,7 +86,17 @@ function readHourFromIso(value: string | null) {
 }
 
 function summarizeCondition(summary: DashboardMemberSummary | undefined): SummaryChip {
-  if (!summary || summary.active_conditions.length === 0) {
+  const conditions = summary?.active_conditions;
+  if (!conditions || conditions.length === 0) {
+    const chronicSummary = legacyHealthSummary(summary, "chronic-vitals");
+    if (chronicSummary) {
+      return {
+        label: "慢病管理",
+        summary: chronicSummary.value,
+        tone: dashboardChipTone(chronicSummary.status, "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray"),
+      };
+    }
+
     return {
       label: "慢病管理",
       summary: "期待新记录",
@@ -138,14 +106,14 @@ function summarizeCondition(summary: DashboardMemberSummary | undefined): Summar
 
   return {
     label: "慢病管理",
-    summary: summary.active_conditions.join(" · "),
+    summary: conditions.join(" · "),
     tone: "border-[#E8F0E6] bg-soft-sage text-[#3E5C3A]",
   };
 }
 
 function summarizeLifestyle(summary: DashboardMemberSummary | undefined): SummaryChip {
-  const steps = summary?.latest_observations["step-count"];
-  const sleep = summary?.latest_observations["sleep-duration"];
+  const steps = latestDashboardObservation(summary, "step-count");
+  const sleep = latestDashboardObservation(summary, "sleep-duration");
 
   if (steps?.value) {
     return {
@@ -162,6 +130,15 @@ function summarizeLifestyle(summary: DashboardMemberSummary | undefined): Summar
     };
   }
 
+  const lifestyleSummary = legacyHealthSummary(summary, "lifestyle");
+  if (lifestyleSummary) {
+    return {
+      label: "生活习惯",
+      summary: lifestyleSummary.value,
+      tone: dashboardChipTone(lifestyleSummary.status, "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray"),
+    };
+  }
+
   return {
     label: "生活习惯",
     summary: "等待活动记录",
@@ -170,9 +147,9 @@ function summarizeLifestyle(summary: DashboardMemberSummary | undefined): Summar
 }
 
 function summarizeVitals(summary: DashboardMemberSummary | undefined): SummaryChip {
-  const oxygen = summary?.latest_observations["blood-oxygen"];
-  const temperature = summary?.latest_observations["body-temperature"];
-  const heartRate = summary?.latest_observations["heart-rate"];
+  const oxygen = latestDashboardObservation(summary, "blood-oxygen");
+  const temperature = latestDashboardObservation(summary, "body-temperature");
+  const heartRate = latestDashboardObservation(summary, "heart-rate");
 
   if (oxygen?.value) {
     return {
@@ -193,6 +170,15 @@ function summarizeVitals(summary: DashboardMemberSummary | undefined): SummaryCh
       label: "生理指标",
       summary: `心率 ${heartRate.value}${heartRate.unit ?? ""}`,
       tone: "border-[#DAE8F7] bg-gentle-blue text-[#41678B]",
+    };
+  }
+
+  const bodySummary = legacyHealthSummary(summary, "body-vitals");
+  if (bodySummary) {
+    return {
+      label: "生理指标",
+      summary: bodySummary.value,
+      tone: dashboardChipTone(bodySummary.status, "border-[#DAE8F7] bg-gentle-blue text-[#41678B]"),
     };
   }
 
@@ -225,22 +211,25 @@ function groupReminders(reminders: DashboardReminder[]): ReminderGroup[] {
       key: "morning",
       label: "清晨的叮嘱",
       reminders: [],
-      iconBg: "bg-[#FFF3E4]",
-      iconColor: "text-[#E79C32]",
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-500",
+      materialIcon: "wb_sunny",
     },
     afternoon: {
       key: "afternoon",
       label: "午后的守候",
       reminders: [],
-      iconBg: "bg-[#E9F1FF]",
-      iconColor: "text-[#4B77D1]",
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-500",
+      materialIcon: "light_mode",
     },
     evening: {
       key: "evening",
       label: "晚间小结",
       reminders: [],
-      iconBg: "bg-[#F4ECFF]",
-      iconColor: "text-[#7A5CC7]",
+      iconBg: "bg-purple-50",
+      iconColor: "text-purple-500",
+      materialIcon: "dark_mode",
     },
   };
 
@@ -273,6 +262,7 @@ export function HomePage({
   membersError,
   onFamilySpaceDeleted,
   onMembersChange,
+  onOpenMemberProfile,
   session,
 }: HomePageProps) {
   const navigate = useNavigate();
@@ -578,32 +568,31 @@ export function HomePage({
     }
   }
 
+  const totalReminders = dashboard?.today_reminders?.length ?? 0;
+
   return (
     <>
       <section className="flex flex-1 flex-col gap-6 pb-28 xl:gap-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-warm-gray/65">HomeVital MVP v1 / Phase 3</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#2D2926] sm:text-4xl">今日贴心提醒</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-warm-gray">
-              家人状态、提醒流和 AI 对话入口已经合并到同一块首页面板里，方便在同一视图里查看、记录和追问。
-            </p>
+            <h2 className="text-3xl font-bold text-[#2D2926]">今日贴心提醒</h2>
+            <p className="mt-1 text-warm-gray">今天有 {totalReminders} 项健康小任务等待完成，一起加油吧！</p>
           </div>
           <button
-            className="inline-flex items-center gap-2 self-start rounded-full bg-white px-4 py-2 text-sm font-semibold text-apple-blue shadow-soft transition hover:text-[#005fcc]"
-            onClick={handleOpenChat}
+            className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-apple-blue shadow-soft"
+            onClick={() => void loadDashboardData()}
             type="button"
           >
-            <SparkIcon aria-hidden className="h-4 w-4" />
-            打开 AI 助手
+            <MaterialIcon name="event_repeat" className="text-sm" />
+            刷新进度
           </button>
         </div>
 
-        <div className="grid flex-1 gap-8 xl:grid-cols-[20rem_minmax(0,1fr)]">
-          <aside className="flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+        <div className="flex h-[calc(100vh-5rem-120px)] gap-8 overflow-hidden">
+          <aside className="flex h-full w-80 flex-col gap-5">
+            <div className="flex items-center justify-between shrink-0">
               <h3 className="flex items-center gap-2 text-lg font-bold text-[#2D2926]">
-                <CardStatusIcon aria-hidden className="h-5 w-5 text-[#E67E7E]" />
+                <MaterialIcon name="group" className="text-rose-400 text-xl" />
                 家人状态
               </h3>
               <span className="rounded-full border border-[#F2EDE7] bg-white px-3 py-1 text-xs font-semibold text-warm-gray shadow-soft">
@@ -612,18 +601,18 @@ export function HomePage({
             </div>
 
             {membersError || actionError ? (
-              <div className="rounded-[1.6rem] border border-[#f1d6d6] bg-[#fff5f4] px-4 py-4 text-sm text-[#9a5e5e]">
+              <div className="shrink-0 rounded-[1.6rem] border border-[#f1d6d6] bg-[#fff5f4] px-4 py-4 text-sm text-[#9a5e5e]">
                 {membersError ?? actionError}
               </div>
             ) : null}
 
             {isLoadingMembers && members.length === 0 ? (
-              <div className="rounded-[1.6rem] border border-[#F2EDE7]/60 bg-white px-4 py-4 text-sm text-warm-gray">
+              <div className="rounded-[1.6rem] border border-[#F2EDE7]/60 bg-white px-4 py-4 text-sm text-warm-gray shrink-0">
                 正在加载家庭成员...
               </div>
             ) : null}
 
-            <div className="space-y-4">
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-4">
               {visibleMembers.map((member) => {
                 const summary = memberSummaries.get(member.id);
                 const chips = [
@@ -634,7 +623,14 @@ export function HomePage({
                 ];
 
                 return (
-                  <article className="rounded-[2rem] border border-[#F2EDE7]/60 bg-white p-5 shadow-card" key={member.id}>
+                  <article className="relative rounded-[2rem] border border-[#F2EDE7]/60 bg-white p-5 shadow-card" key={member.id}>
+                    <button
+                      aria-label="更多操作"
+                      className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-gray-50 text-gray-400 transition-all hover:bg-gray-100 hover:text-apple-blue"
+                      type="button"
+                    >
+                      <MaterialIcon name="more_horiz" className="text-lg" />
+                    </button>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F9EBEA] text-lg font-bold text-[#b86d6d]">
@@ -653,18 +649,6 @@ export function HomePage({
                           </p>
                         </div>
                       </div>
-
-                      {isAdmin && member.id !== session.member.id ? (
-                        <button
-                          aria-label={`删除 ${member.name}`}
-                          className="rounded-full border border-[#F2EDE7] px-3 py-1 text-xs font-semibold text-warm-gray transition hover:border-[#e5c7c2] hover:text-[#a45d5d]"
-                          disabled={pendingDeleteMemberId === member.id}
-                          onClick={() => void handleDeleteMember(member)}
-                          type="button"
-                        >
-                          {pendingDeleteMemberId === member.id ? "删除中..." : `删除 ${member.name}`}
-                        </button>
-                      ) : null}
                     </div>
 
                     <div className="mt-5 grid grid-cols-2 gap-3">
@@ -677,131 +661,111 @@ export function HomePage({
                     </div>
 
                     <div className="mt-5">
-                      <Link
-                        className="inline-flex items-center gap-2 rounded-full bg-[#F5F0EA] px-4 py-2 text-sm font-semibold text-[#2D2926] transition hover:bg-[#efe7de]"
-                        to={`/app/members/${member.id}`}
-                      >
-                        查看 {member.name} 档案
-                      </Link>
+                      {onOpenMemberProfile ? (
+                        <button
+                          className="inline-flex items-center gap-2 rounded-full bg-[#F5F0EA] px-4 py-2 text-sm font-semibold text-[#2D2926] transition hover:bg-[#efe7de]"
+                          onClick={() => onOpenMemberProfile(member.id)}
+                          type="button"
+                        >
+                          查看 {member.name} 档案
+                        </button>
+                      ) : (
+                        <Link
+                          className="inline-flex items-center gap-2 rounded-full bg-[#F5F0EA] px-4 py-2 text-sm font-semibold text-[#2D2926] transition hover:bg-[#efe7de]"
+                          to={`/app/members/${member.id}`}
+                        >
+                          查看 {member.name} 档案
+                        </Link>
+                      )}
                     </div>
                   </article>
                 );
               })}
             </div>
 
-            {isAdmin ? (
-              <div className="rounded-[2rem] border border-[#F2EDE7]/60 bg-white p-5 shadow-soft">
-                <h4 className="text-base font-bold text-[#2D2926]">成员管理</h4>
-                <p className="mt-2 text-sm leading-6 text-warm-gray">延续 Phase 1 的管理能力，管理员仍可在首页直接维护家庭成员。</p>
-
-                <form className="mt-5 grid gap-3" onSubmit={handleCreateMember}>
-                  <label className="text-sm font-medium text-[#2D2926]" htmlFor="new-member-name">
-                    新成员姓名
-                    <input
-                      className="mt-2 w-full rounded-2xl border border-[#E7DDD1] bg-white px-4 py-3 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/20"
-                      id="new-member-name"
-                      onChange={updateNewMemberName}
-                      placeholder="例如：奶奶"
-                      type="text"
-                      value={newMemberName}
-                    />
-                  </label>
-                  <button
-                    className="inline-flex items-center justify-center rounded-full bg-[#2D2926] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1f1c1a] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={isCreatingMember}
-                    type="submit"
-                  >
-                    {isCreatingMember ? "添加中..." : "添加成员"}
-                  </button>
-                </form>
-
-                <div className="mt-6 rounded-[1.6rem] bg-[#2D2926] px-5 py-5 text-white">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">危险操作</p>
-                  <p className="mt-3 text-sm leading-6 text-white/80">
-                    注销后会删除当前家庭空间、所有家庭成员和对应登录账号，系统会回到首次注册状态。
-                  </p>
-                  <button
-                    className="mt-5 inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#2D2926] transition hover:bg-[#f6f1ec] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={isDeletingFamilySpace}
-                    onClick={() => void handleDeleteFamilySpace()}
-                    type="button"
-                  >
-                    {isDeletingFamilySpace ? "注销中..." : "注销整个家庭空间"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
           </aside>
 
-          <div className="flex min-w-0 flex-col gap-8">
+          <div className="flex min-w-0 flex-1 flex-col h-full">
             {dashboardError ? (
-              <div className="rounded-[2rem] border border-[#f1d6d6] bg-[#fff5f4] px-5 py-4 text-sm text-[#9a5e5e]">
+              <div className="shrink-0 rounded-[2rem] border border-[#f1d6d6] bg-[#fff5f4] px-5 py-4 text-sm text-[#9a5e5e]">
                 {dashboardError}
               </div>
             ) : null}
 
             {isLoadingDashboard ? (
-              <div className="rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-6 py-8 text-sm text-warm-gray shadow-card">
+              <div className="shrink-0 rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-6 py-8 text-sm text-warm-gray shadow-card">
                 正在整理今日提醒...
               </div>
             ) : null}
 
-            {reminderGroups.length === 0 && !isLoadingDashboard ? (
-              <div className="rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-8 py-10 shadow-card">
-                <h3 className="text-2xl font-bold text-[#2D2926]">今天还没有待办提醒</h3>
-                <p className="mt-3 max-w-xl text-sm leading-7 text-warm-gray">可以先进入成员档案补充用药、复诊和指标记录，系统会在后续 AI 阶段生成更完整的每日提醒。</p>
-              </div>
-            ) : null}
-
-            {reminderGroups.map((group) => (
-              <section className="space-y-5" key={group.key}>
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-full ${group.iconBg} ${group.iconColor}`}>
-                    <SunIcon aria-hidden className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-[#2D2926]">{group.label}</h3>
-                    <p className="text-sm text-warm-gray">今天有 {group.reminders.length} 项提醒需要留意</p>
-                  </div>
+            <div className="flex-1 overflow-y-auto no-scrollbar pr-4 space-y-10 pb-20">
+              {reminderGroups.length === 0 && !isLoadingDashboard ? (
+                <div className="rounded-[2.5rem] border border-[#F2EDE7]/60 bg-white px-8 py-10 shadow-card">
+                  <h3 className="text-2xl font-bold text-[#2D2926]">今天还没有待办提醒</h3>
+                  <p className="mt-3 max-w-xl text-sm leading-7 text-warm-gray">可以先进入成员档案补充用药、复诊和指标记录，系统会在后续 AI 阶段生成更完整的每日提醒。</p>
                 </div>
+              ) : null}
 
-                <div className={`grid gap-5 ${group.reminders.length > 1 ? "xl:grid-cols-2" : ""}`}>
-                  {group.reminders.map((reminder) => (
-                    <article
-                      className="flex h-full flex-col justify-between rounded-[2.5rem] border border-[#F2EDE7]/40 bg-white px-6 py-6 shadow-card"
-                      key={reminder.id}
-                    >
-                      <div className="flex items-start justify-between gap-5">
-                        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.5rem] ${group.iconBg} ${group.iconColor}`}>
-                          <SparkIcon aria-hidden className="h-6 w-6" />
+              {reminderGroups.map((group) => (
+                <section className="space-y-5" key={group.key}>
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-full ${group.iconBg} ${group.iconColor}`}>
+                      <MaterialIcon name={group.materialIcon} className="text-xl" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-[#2D2926]">{group.label}</h3>
+                      <p className="text-sm text-warm-gray">今天有 {group.reminders.length} 项提醒需要留意</p>
+                    </div>
+                  </div>
+
+                  <div className={`grid gap-5 ${group.reminders.length > 1 ? "xl:grid-cols-2" : ""}`}>
+                    {group.reminders.map((reminder) => (
+                      <article
+                        className="flex h-full flex-col justify-between rounded-[2.5rem] border border-[#F2EDE7]/40 bg-white px-6 py-6 shadow-card"
+                        key={reminder.id}
+                      >
+                        <div className="flex items-start justify-between gap-5">
+                          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.5rem] ${group.iconBg} ${group.iconColor}`}>
+                            <MaterialIcon name="auto_awesome" className="text-2xl" />
+                          </div>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F4EEE7] text-lg font-bold text-[#8c7c73]">
+                            {reminder.member_name.slice(0, 1)}
+                          </div>
                         </div>
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F4EEE7] text-lg font-bold text-[#8c7c73]">
-                          {reminder.member_name.slice(0, 1)}
+
+                        <div className="mt-6">
+                          <p className="text-sm font-semibold text-warm-gray">给 {reminder.member_name}</p>
+                          <h4 className="mt-2 text-2xl font-bold leading-tight text-[#2D2926]">{reminder.title}</h4>
+                          <p className="mt-3 text-sm leading-7 text-warm-gray">{reminder.description}</p>
                         </div>
-                      </div>
 
-                      <div className="mt-6">
-                        <p className="text-sm font-semibold text-warm-gray">给 {reminder.member_name}</p>
-                        <h4 className="mt-2 text-2xl font-bold leading-tight text-[#2D2926]">{reminder.title}</h4>
-                        <p className="mt-3 text-sm leading-7 text-warm-gray">{reminder.description}</p>
-                      </div>
-
-                      <div className="mt-6 flex items-center justify-between gap-3">
-                        <span className="rounded-full bg-[#F5F0EA] px-4 py-2 text-xs font-semibold tracking-[0.22em] text-warm-gray">
-                          {formatReminderTime(reminder.scheduled_at)}
-                        </span>
-                        <Link
-                          className="text-sm font-semibold text-apple-blue transition hover:text-[#005fcc]"
-                          to={`/app/members/${reminder.member_id}`}
-                        >
-                          去档案页
-                        </Link>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
+                        <div className="mt-6 flex items-center justify-between gap-3">
+                          <span className="rounded-full bg-[#F5F0EA] px-4 py-2 text-xs font-semibold tracking-[0.22em] text-warm-gray">
+                            {formatReminderTime(reminder.scheduled_at)}
+                          </span>
+                          {onOpenMemberProfile ? (
+                            <button
+                              className="text-sm font-semibold text-apple-blue transition hover:text-[#005fcc]"
+                              onClick={() => onOpenMemberProfile(reminder.member_id)}
+                              type="button"
+                            >
+                              去档案页
+                            </button>
+                          ) : (
+                            <Link
+                              className="text-sm font-semibold text-apple-blue transition hover:text-[#005fcc]"
+                              to={`/app/members/${reminder.member_id}`}
+                            >
+                              去档案页
+                            </Link>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -814,7 +778,7 @@ export function HomePage({
             onClick={handleOpenChat}
             type="button"
           >
-            <PlusIcon aria-hidden className="h-6 w-6" />
+            <MaterialIcon name="add" className="text-2xl" />
           </button>
           <input
             className="h-12 min-w-0 flex-1 rounded-full border-none bg-transparent px-2 text-base text-[#2D2926] outline-none placeholder:text-[#B8B0A9]"
@@ -828,7 +792,7 @@ export function HomePage({
             onClick={handleOpenChat}
             type="button"
           >
-            <MicIcon aria-hidden className="h-5 w-5" />
+            <MaterialIcon name="mic" className="text-xl" />
           </button>
           <button
             aria-label="发送 AI 消息"
@@ -836,7 +800,7 @@ export function HomePage({
             onClick={handleSendHomeMessage}
             type="button"
           >
-            <SendIcon aria-hidden className="h-5 w-5" />
+            <MaterialIcon name="arrow_upward" className="text-xl" />
           </button>
         </div>
       </div>

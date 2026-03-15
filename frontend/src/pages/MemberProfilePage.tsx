@@ -465,8 +465,8 @@ export function MemberProfilePage({ members, session }: MemberProfilePageProps) 
             </div>
           </div>
           <div className="rounded-[1.5rem] bg-[#F8F6F3] px-5 py-4 text-sm leading-6 text-warm-gray">
-            <p>过敏史：{member.allergies.length > 0 ? member.allergies.join("、") : "未填写"}</p>
-            <p>病史：{member.medical_history.length > 0 ? member.medical_history.join("、") : "未填写"}</p>
+            <p>过敏史：{(member.allergies?.length ?? 0) > 0 ? (member.allergies ?? []).join("、") : "未填写"}</p>
+            <p>病史：{(member.medical_history?.length ?? 0) > 0 ? (member.medical_history ?? []).join("、") : "未填写"}</p>
           </div>
         </div>
 

@@ -12,12 +12,24 @@ export type DashboardObservationSnapshot = {
   effective_at: string;
 };
 
+export type DashboardHealthSummary = {
+  id: string;
+  member_id: string;
+  category: string;
+  label: string;
+  value: string;
+  status: "good" | "warning" | "neutral";
+  generated_at: string;
+  created_at: string;
+};
+
 export type EncounterRecord = {
   id: string;
   member_id: string;
   type: string;
   facility: string | null;
   department: string | null;
+  attending_physician?: string | null;
   date: string;
   summary: string | null;
   source: string;
@@ -34,10 +46,11 @@ export type DashboardMemberSummary = {
     avatar_url: string | null;
     blood_type: string | null;
   };
-  latest_observations: Record<string, DashboardObservationSnapshot>;
-  active_conditions: string[];
-  active_medications_count: number;
-  latest_encounter: EncounterRecord | null;
+  latest_observations?: Record<string, DashboardObservationSnapshot>;
+  active_conditions?: string[];
+  active_medications_count?: number;
+  latest_encounter?: EncounterRecord | null;
+  health_summaries?: DashboardHealthSummary[];
 };
 
 export type CarePlanRecord = {
