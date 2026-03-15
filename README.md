@@ -28,11 +28,15 @@ HomeVital is a locally deployed family health management system. This repository
 ## Quick Start
 
 ```bash
+# Create local config once
+cp .env.example .env
+# Edit .env and fill HOMEVITAL_AI_BASE_URL / HOMEVITAL_AI_API_KEY as needed
+
 # Backend
 cd backend
 UV_CACHE_DIR=/tmp/homevital-uv-cache uv venv .venv
 UV_CACHE_DIR=/tmp/homevital-uv-cache uv pip install --python .venv/bin/python -r requirements.txt
-HOMEVITAL_DB_PATH=./data/homevital.db HOMEVITAL_JWT_SECRET=dev-secret .venv/bin/uvicorn app.main:app --reload
+.venv/bin/uvicorn app.main:app --reload
 
 # Frontend (another terminal)
 cd frontend
@@ -50,6 +54,8 @@ Optional AI runtime configuration:
 - `HOMEVITAL_AI_BASE_URL`
 - `HOMEVITAL_AI_API_KEY`
 - `HOMEVITAL_AI_MODEL`
+
+The backend now automatically loads the project root `.env`, so local AI credentials can be stored there instead of being prefixed on the startup command.
 
 ## Testing
 

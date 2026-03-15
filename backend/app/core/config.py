@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -21,6 +23,8 @@ class Settings:
 
 def get_settings() -> Settings:
     backend_root = Path(__file__).resolve().parents[2]
+    repo_root = backend_root.parent
+    load_dotenv(repo_root / ".env", override=False)
     default_database_path = backend_root / "data" / "homevital.db"
     cors_origins = os.getenv(
         "HOMEVITAL_CORS_ORIGINS",
