@@ -247,3 +247,121 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
         "members": summaries,
         "today_reminders": reminders,
     }
+
+
+def list_all_members_for_scheduler(connection: Any) -> list[dict[str, Any]]:
+    family_space_rows = connection.execute(
+        "SELECT id FROM family_space ORDER BY created_at ASC"
+    ).fetchall()
+    members: list[dict[str, Any]] = []
+    for row in family_space_rows:
+        members.extend(repository.list_members_by_family_space(connection, str(row["id"])))
+    return members
+
+
+def build_member_daily_generation_snapshot(
+    connection: Any,
+    *,
+    member_id: str,
+    now: datetime,
+    timezone: str,
+) -> dict[str, Any]:
+    member = repository.get_member_by_id(connection, member_id)
+    if member is None:
+        raise KeyError(member_id)
+
+    care_plans = health_repository.list_resources_for_member(connection, "care-plans", member_id=member_id)
+    today_manual_care_plans = [
+        item
+        for item in care_plans
+        if item["generated_by"] == "manual"
+        and item["status"] == "active"
+        and _resource_is_scheduled_for_day(item.get("scheduled_at"), now)
+    ]
+    return {
+        "member": {
+            "id": member["id"],
+            "name": member["name"],
+            "gender": member["gender"],
+            "birth_date": member["birth_date"],
+            "height_cm": member["height_cm"],
+            "blood_type": member["blood_type"],
+        },
+        "observations": health_repository.list_resources_for_member(connection, "observations", member_id=member_id)[:12],
+        "conditions": health_repository.list_resources_for_member(connection, "conditions", member_id=member_id)[:10],
+        "medications": health_repository.list_resources_for_member(connection, "medications", member_id=member_id)[:10],
+        "encounters": health_repository.list_resources_for_member(connection, "encounters", member_id=member_id)[:8],
+        "sleep_records": health_repository.list_resources_for_member(connection, "sleep-records", member_id=member_id)[:7],
+        "workout_records": health_repository.list_resources_for_member(connection, "workout-records", member_id=member_id)[:7],
+        "today_manual_care_plans": today_manual_care_plans,
+        "timezone": timezone,
+        "generated_for_date": now.date().isoformat(),
+    }
+
+
+def replace_generated_health_summaries(
+    connection: Any,
+    *,
+    member_id: str,
+    generated_at: str,
+    summaries: list[dict[str, Any]],
+) -> None:
+    existing = health_repository.list_resources_for_member(connection, "health-summaries", member_id=member_id)
+    for item in existing:
+        health_repository.delete_resource(connection, "health-summaries", item["id"])
+
+    for summary in summaries:
+        health_repository.create_resource(
+            connection,
+            "health-summaries",
+            member_id=member_id,
+            values={
+                "category": summary["category"],
+                "label": summary["label"],
+                "value": summary["value"],
+                "status": summary["status"],
+                "generated_at": generated_at,
+            },
+        )
+
+
+def replace_generated_daily_care_plan(
+    connection: Any,
+    *,
+    member_id: str,
+    now: datetime,
+    care_plan: dict[str, Any] | None,
+) -> bool:
+    existing = health_repository.list_resources_for_member(connection, "care-plans", member_id=member_id)
+    for item in existing:
+        if (
+            item["generated_by"] == "ai"
+            and item["status"] == "active"
+            and _resource_is_scheduled_for_day(item.get("scheduled_at"), now)
+        ):
+            health_repository.delete_resource(connection, "care-plans", item["id"])
+
+    if care_plan is None:
+        return True
+
+    health_repository.create_resource(
+        connection,
+        "care-plans",
+        member_id=member_id,
+        values={
+            "category": care_plan["category"],
+            "title": care_plan["title"],
+            "description": care_plan["description"],
+            "status": "active",
+            "scheduled_at": care_plan["scheduled_at"],
+            "generated_by": "ai",
+        },
+    )
+    return True
+
+
+def _resource_is_scheduled_for_day(scheduled_at: str | None, now: datetime) -> bool:
+    parsed = _parse_datetime(scheduled_at)
+    if parsed is None:
+        return False
+    return parsed.astimezone(now.tzinfo).date() == now.date()

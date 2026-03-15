@@ -13,9 +13,9 @@ HomeVital is a locally deployed family health management system. This repository
 
 ## Delivery Status
 
-- Completed baseline in the active plan: ADR finalization, PydanticAI API validation, health schema migration, AI orchestration migration, and design-token/component groundwork
-- Pending implementation: Step 6 frontend page rebuild, Step 7 daily `HealthSummary` and `CarePlan` generation, Step 8 test refresh and integration verification
-- Documentation reset: Step 9 was executed early to remove superseded design guidance before the remaining implementation work
+- Completed baseline in the active plan: ADR finalization, PydanticAI API validation, health schema migration, AI orchestration migration, frontend page rebuild, AI daily generation, and test refresh/integration verification
+- Documentation reset: Step 9 was executed early and is now aligned with the implemented Step 6-8 baseline
+- Next product work should build on this baseline instead of restoring the superseded pre-ADR architecture
 
 ## Product Scope
 
@@ -50,18 +50,22 @@ Optional AI runtime configuration:
 - `HOMEVITAL_AI_BASE_URL`
 - `HOMEVITAL_AI_API_KEY`
 - `HOMEVITAL_AI_MODEL`
+- `HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR`
+- `HOMEVITAL_HEALTH_SUMMARY_REFRESH_MINUTE`
+- `HOMEVITAL_CARE_PLAN_REFRESH_HOUR`
+- `HOMEVITAL_CARE_PLAN_REFRESH_MINUTE`
 
 ## Testing
 
 ```bash
 # Backend
-cd backend && .venv/bin/pytest
+cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest
 
 # Frontend
 cd frontend && npm test
 ```
 
-The repository does not currently include E2E tests. Step 8 of the active plan is responsible for refreshing frontend tests and closing the current integration gap.
+The repository does not currently include E2E tests. The active baseline closes Step 8 with refreshed backend/frontend automated tests, but still relies on manual UI acceptance for full end-to-end coverage.
 
 ## Project Structure
 

@@ -346,6 +346,30 @@ describe("App", () => {
     expect(screen.queryByText("等待活动记录")).not.toBeInTheDocument();
   });
 
+  it("renders empty reminder state without future-phase wording", async () => {
+    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
+
+    fetchMock.mockImplementation(async (input) => {
+      const pathname = requestPath(input);
+      if (pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (pathname === "/api/dashboard") {
+        return jsonResponse({
+          ...createDashboard(),
+          today_reminders: [],
+        });
+      }
+      throw new Error(`Unhandled request: ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByText("今天还没有待办提醒")).toBeInTheDocument();
+    expect(screen.queryByText(/后续 AI 阶段/)).not.toBeInTheDocument();
+    expect(screen.getByText(/每日刷新时同步最新 AI 提醒/)).toBeInTheDocument();
+  });
+
   it("opens member profile modal and loads current resources", async () => {
     window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
     const detail = createProfileDetail("member-2");

@@ -29,7 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
     database = Database(resolved_settings.database_path)
     database.initialize()
-    scheduler = HomeVitalScheduler(database, timezone=resolved_settings.scheduler_timezone)
+    scheduler = HomeVitalScheduler(database, settings=resolved_settings)
     orchestrator = ChatOrchestrator(
         database=database,
         settings=resolved_settings,
