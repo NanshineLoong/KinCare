@@ -3,7 +3,7 @@
 > 状态：已接受（见 [ADR-0010](../adr/0010-pydantic-ai-tool-calling.md)）
 > 日期：2026-03-13
 > 接受日期：2026-03-15
-> 关联文档：`docs/architecture/phase-4-ai-design.md`、`docs/architecture/overview.md`
+> 关联文档：`docs/architecture/phase-4-ai-design.md`、`docs/architecture/overview.md`、`docs/architecture/pydantic-ai-api-validation.md`
 
 ---
 
@@ -49,7 +49,7 @@ if tool_result is None and focus_member_id is not None:
 
 ### 版本要求
 
-- `pydantic-ai >= 1.0.5`（使用 `agent.iter()`、`DeferredToolRequests`、`requires_approval` 等新 API）
+- `pydantic-ai >= 1.68.0`（2026-03-15 调研时本地验证版本；若后续升级，先复核 `docs/architecture/pydantic-ai-api-validation.md`）
 - 添加到 `backend/requirements.txt`
 
 ---
@@ -121,11 +121,11 @@ class AIDeps:
 ### 4.2 Agent 初始化
 
 ```python
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-def create_agent(settings: Settings) -> Agent[AIDeps, str]:
+def create_agent(settings: Settings) -> Agent[AIDeps, str | DeferredToolRequests]:
     model = OpenAIChatModel(
         settings.ai_model,
         provider=OpenAIProvider(
@@ -136,7 +136,7 @@ def create_agent(settings: Settings) -> Agent[AIDeps, str]:
     agent = Agent(
         model,
         deps_type=AIDeps,
-        output_type=str,
+        output_type=[str, DeferredToolRequests],
         instructions=build_system_prompt,  # 动态 system prompt 函数
     )
     # 注册所有工具（见第 5 节）
@@ -546,7 +546,7 @@ Body: {
 
 | 文件 | 改动内容 |
 |------|---------|
-| `backend/requirements.txt` | 添加 `pydantic-ai>=1.0.5` |
+| `backend/requirements.txt` | 添加 `pydantic-ai>=1.68.0` |
 | `backend/app/ai/orchestrator.py` | **重写**：用 PydanticAI Agent 替换当前三个 if 分支，实现 `stream_chat` 异步生成器 |
 | `backend/app/ai/providers/base.py` | **移除或保留为兼容层**：PydanticAI 自带 provider 抽象 |
 | `backend/app/ai/providers/openai_compatible.py` | **移除或保留为兼容层**：改用 `OpenAIChatModel` + `OpenAIProvider` |
@@ -589,10 +589,18 @@ PydanticAI 提供 `TestModel` 和 `FunctionModel` 用于测试，无需真实 LL
 
 ```python
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.models.function import FunctionModel
 
 # 使用 TestModel 时，模型会按确定性方式调用工具或返回文本
-test_agent = agent.override(model=TestModel())
-result = await test_agent.run("爸爸血压怎么样", deps=mock_deps)
+with agent.override(model=TestModel()):
+    result = await agent.run("爸爸血压怎么样", deps=mock_deps)
+
+# FunctionModel 适合精确脚本化模型行为
+def scripted_model(messages, info):
+    ...
+
+with agent.override(model=FunctionModel(function=scripted_model)):
+    result = await agent.run("爸爸血压怎么样", deps=mock_deps)
 ```
 
 ### 11.2 需要覆盖的测试用例
