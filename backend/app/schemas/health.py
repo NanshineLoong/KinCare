@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 ObservationCategory = Literal["chronic-vitals", "lifestyle", "body-vitals"]
-ObservationSource = Literal["manual", "device"]
+ObservationSource = Literal["manual", "device", "ai-extract"]
 ClinicalRecordSource = Literal["manual", "ai-extract"]
 ConditionCategory = Literal["diagnosis", "chronic", "allergy", "family-history"]
 ConditionStatus = Literal["active", "inactive", "resolved"]
