@@ -1,4 +1,5 @@
 import type { AuthSession } from "../auth/session";
+import { getSessionSnapshot, refreshSession } from "../auth/sessionManager";
 
 import { apiBaseUrl } from "./client";
 
@@ -22,6 +23,42 @@ export function createAuthHeaders(session: AuthSession, includeJsonContentType =
     ...(includeJsonContentType ? { "Content-Type": "application/json" } : {}),
     Authorization: `Bearer ${session.tokens.access_token}`,
   };
+}
+
+function mergeHeaders(baseHeaders?: HeadersInit, authHeaders?: HeadersInit): Headers {
+  const headers = new Headers(baseHeaders);
+  if (authHeaders) {
+    new Headers(authHeaders).forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+  return headers;
+}
+
+export async function authorizedFetch(
+  path: string,
+  session: AuthSession,
+  init: RequestInit = {},
+): Promise<Response> {
+  const activeSession = getSessionSnapshot() ?? session;
+  const response = await fetch(buildApiUrl(path), {
+    ...init,
+    headers: mergeHeaders(init.headers, createAuthHeaders(activeSession)),
+  });
+
+  if (response.status !== 401) {
+    return response;
+  }
+
+  const refreshedSession = await refreshSession(activeSession);
+  if (!refreshedSession) {
+    return response;
+  }
+
+  return fetch(buildApiUrl(path), {
+    ...init,
+    headers: mergeHeaders(init.headers, createAuthHeaders(refreshedSession)),
+  });
 }
 
 export async function parseResponse<T>(response: Response): Promise<T> {
@@ -49,10 +86,7 @@ export async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export async function getAuthorized<T>(path: string, session: AuthSession): Promise<T> {
-  const response = await fetch(buildApiUrl(path), {
-    headers: createAuthHeaders(session),
-  });
-
+  const response = await authorizedFetch(path, session);
   return parseResponse<T>(response);
 }
 
@@ -64,9 +98,11 @@ export async function sendAuthorized<TResponse, TPayload extends object>(
     payload: TPayload;
   },
 ): Promise<TResponse> {
-  const response = await fetch(buildApiUrl(path), {
+  const response = await authorizedFetch(path, session, {
     method: options.method,
-    headers: createAuthHeaders(session, true),
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(options.payload),
   });
 
@@ -74,9 +110,8 @@ export async function sendAuthorized<TResponse, TPayload extends object>(
 }
 
 export async function deleteAuthorized(path: string, session: AuthSession): Promise<void> {
-  const response = await fetch(buildApiUrl(path), {
+  const response = await authorizedFetch(path, session, {
     method: "DELETE",
-    headers: createAuthHeaders(session),
   });
 
   await parseResponse<void>(response);
@@ -87,9 +122,8 @@ export async function sendAuthorizedFormData<TResponse>(
   session: AuthSession,
   formData: FormData,
 ): Promise<TResponse> {
-  const response = await fetch(buildApiUrl(path), {
+  const response = await authorizedFetch(path, session, {
     method: "POST",
-    headers: createAuthHeaders(session),
     body: formData,
   });
 

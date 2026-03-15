@@ -1,14 +1,11 @@
 import type { AuthSession } from "../auth/session";
 
-import { apiBaseUrl } from "./client";
+import { authorizedFetch } from "./http";
 
 
 export async function deleteFamilySpace(session: AuthSession): Promise<void> {
-  const response = await fetch(`${apiBaseUrl}/api/family-space`, {
+  const response = await authorizedFetch("/api/family-space", session, {
     method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${session.tokens.access_token}`,
-    },
   });
 
   if (!response.ok) {

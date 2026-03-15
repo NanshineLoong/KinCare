@@ -1,6 +1,6 @@
 import type { AuthMember, AuthSession } from "../auth/session";
 
-import { buildApiUrl, createAuthHeaders, deleteAuthorized, parseResponse, sendAuthorized } from "./http";
+import { deleteAuthorized, getAuthorized, sendAuthorized } from "./http";
 
 
 type MemberCreatePayload = {
@@ -18,11 +18,7 @@ type MemberUpdatePayload = Partial<{
 }>;
 
 export async function listMembers(session: AuthSession): Promise<AuthMember[]> {
-  const response = await fetch(buildApiUrl("/api/members"), {
-    headers: createAuthHeaders(session),
-  });
-
-  return parseResponse<AuthMember[]>(response);
+  return getAuthorized<AuthMember[]>("/api/members", session);
 }
 
 export async function createMember(session: AuthSession, payload: MemberCreatePayload): Promise<AuthMember> {
@@ -33,11 +29,7 @@ export async function createMember(session: AuthSession, payload: MemberCreatePa
 }
 
 export async function getMember(session: AuthSession, memberId: string): Promise<AuthMember> {
-  const response = await fetch(buildApiUrl(`/api/members/${memberId}`), {
-    headers: createAuthHeaders(session),
-  });
-
-  return parseResponse<AuthMember>(response);
+  return getAuthorized<AuthMember>(`/api/members/${memberId}`, session);
 }
 
 export async function updateMember(

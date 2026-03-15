@@ -13,6 +13,7 @@ class Settings:
     jwt_secret: str
     access_token_ttl_seconds: int
     refresh_token_ttl_seconds: int
+    remember_me_refresh_token_ttl_seconds: int
     cors_origins: tuple[str, ...]
     ai_base_url: str | None
     ai_api_key: str | None
@@ -39,8 +40,11 @@ def get_settings() -> Settings:
     return Settings(
         database_path=os.getenv("HOMEVITAL_DB_PATH", str(default_database_path)),
         jwt_secret=os.getenv("HOMEVITAL_JWT_SECRET", "change-me-in-production"),
-        access_token_ttl_seconds=int(os.getenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "900")),
-        refresh_token_ttl_seconds=int(os.getenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "604800")),
+        access_token_ttl_seconds=int(os.getenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "1800")),
+        refresh_token_ttl_seconds=int(os.getenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "1209600")),
+        remember_me_refresh_token_ttl_seconds=int(
+            os.getenv("HOMEVITAL_REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS", "2592000")
+        ),
         cors_origins=tuple(origin.strip() for origin in cors_origins.split(",") if origin.strip()),
         ai_base_url=os.getenv("HOMEVITAL_AI_BASE_URL"),
         ai_api_key=os.getenv("HOMEVITAL_AI_API_KEY"),

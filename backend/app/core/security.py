@@ -60,6 +60,7 @@ def create_token(
     token_type: str,
     secret: str,
     ttl_seconds: int,
+    remember_session: bool = False,
 ) -> str:
     now = int(time.time())
     payload = {
@@ -67,6 +68,7 @@ def create_token(
         "family_space_id": family_space_id,
         "role": role,
         "type": token_type,
+        "remember_session": remember_session,
         "iat": now,
         "exp": now + ttl_seconds,
         "jti": uuid.uuid4().hex,

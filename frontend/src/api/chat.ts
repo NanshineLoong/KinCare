@@ -1,6 +1,6 @@
 import type { AuthSession } from "../auth/session";
 
-import { ApiError, buildApiUrl, createAuthHeaders, parseResponse, sendAuthorized, sendAuthorizedFormData } from "./http";
+import { ApiError, authorizedFetch, parseResponse, sendAuthorized, sendAuthorizedFormData } from "./http";
 
 
 export type ChatSession = {
@@ -116,9 +116,11 @@ export async function streamChatMessage(
     page_context?: string | null;
   },
 ): Promise<ChatStreamEvent[]> {
-  const response = await fetch(buildApiUrl(`/api/chat/sessions/${chatSessionId}/messages`), {
+  const response = await authorizedFetch(`/api/chat/sessions/${chatSessionId}/messages`, session, {
     method: "POST",
-    headers: createAuthHeaders(session, true),
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(payload),
   });
 

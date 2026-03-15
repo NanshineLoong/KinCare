@@ -8,6 +8,7 @@ import { ChatOverlay, type ChatMessage, type ChatToolCard } from "./components/C
 import { MemberManagementModal } from "./components/MemberManagementModal";
 import { MemberProfileModal } from "./components/MemberProfileModal";
 import { clearSession, readSession, writeSession, type AuthMember, type AuthSession } from "./auth/session";
+import { configureSessionManager, refreshSession, shouldRefreshSession } from "./auth/sessionManager";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -25,16 +26,22 @@ function nextId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export default function App() {
-  const [session, setSession] = useState<AuthSession | null>(() => {
-    const stored = readSession();
-    if (!stored?.user?.id || !stored?.member?.id || !stored?.tokens?.access_token) {
-      if (stored) {
-        clearSession();
-      }
-      return null;
+function loadStoredSession(): AuthSession | null {
+  const stored = readSession();
+  if (!stored?.user?.id || !stored?.member?.id || !stored?.tokens?.access_token) {
+    if (stored) {
+      clearSession();
     }
-    return stored;
+    return null;
+  }
+  return stored;
+}
+
+export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(loadStoredSession);
+  const [isSessionReady, setIsSessionReady] = useState(() => {
+    const stored = loadStoredSession();
+    return !stored || !shouldRefreshSession(stored);
   });
   const [signedOutPath, setSignedOutPath] = useState("/login");
   const [members, setMembers] = useState<AuthMember[]>([]);
@@ -53,11 +60,104 @@ export default function App() {
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
   const [queuedMessage, setQueuedMessage] = useState<string | null>(null);
 
+  function handleAuthenticated(nextSession: AuthSession) {
+    writeSession(nextSession);
+    setSignedOutPath("/login");
+    setSession(nextSession);
+    setIsSessionReady(true);
+    setSelectedChatMemberId(nextSession.member.id);
+  }
+
+  function handleSignOut(nextPath = "/login") {
+    clearSession();
+    setSignedOutPath(nextPath);
+    setSession(null);
+    setIsSessionReady(true);
+    setMembers([]);
+    setMembersError(null);
+    setIsChatOpen(false);
+    resetChatState();
+  }
+
+  function handleMembersChange(nextMembers: AuthMember[]) {
+    setMembers(nextMembers);
+    if (nextMembers.length > 0 && !selectedChatMemberId) {
+      setSelectedChatMemberId(nextMembers[0].id);
+    }
+  }
+
+  function resetChatState() {
+    setChatDraft("");
+    setChatMessages(initialAssistantMessages);
+    setChatToolCards([]);
+    setChatError(null);
+    setChatSession(null);
+  }
+
+  function handleChatMemberChange(memberId: string) {
+    setSelectedChatMemberId(memberId);
+    resetChatState();
+  }
+
+  useEffect(() => {
+    configureSessionManager(session, {
+      updateSession: (nextSession) => {
+        setSignedOutPath("/login");
+        setSession(nextSession);
+      },
+      clearSession: () => {
+        handleSignOut("/login");
+      },
+    });
+  }, [session]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function bootstrapSession() {
+      if (!session) {
+        setIsSessionReady(true);
+        return;
+      }
+
+      if (!shouldRefreshSession(session)) {
+        setIsSessionReady(true);
+        return;
+      }
+
+      try {
+        const refreshedSession = await refreshSession(session);
+        if (!isCancelled && refreshedSession) {
+          setSession(refreshedSession);
+          setSelectedChatMemberId((current) => current || refreshedSession.member.id);
+        }
+      } catch {
+        // Keep the current state so protected screens can surface the request failure.
+      } finally {
+        if (!isCancelled) {
+          setIsSessionReady(true);
+        }
+      }
+    }
+
+    if (session && !isSessionReady) {
+      void bootstrapSession();
+      return () => {
+        isCancelled = true;
+      };
+    }
+
+    setIsSessionReady(true);
+    return () => {
+      isCancelled = true;
+    };
+  }, [isSessionReady, session]);
+
   useEffect(() => {
     let isCancelled = false;
 
     async function loadMembers() {
-      if (!session) {
+      if (!session || !isSessionReady) {
         setMembers([]);
         setMembersError(null);
         setIsLoadingMembers(false);
@@ -92,44 +192,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedChatMemberId, session]);
-
-  function handleAuthenticated(nextSession: AuthSession) {
-    writeSession(nextSession);
-    setSignedOutPath("/login");
-    setSession(nextSession);
-    setSelectedChatMemberId(nextSession.member.id);
-  }
-
-  function handleSignOut(nextPath = "/login") {
-    clearSession();
-    setSignedOutPath(nextPath);
-    setSession(null);
-    setMembers([]);
-    setMembersError(null);
-    setIsChatOpen(false);
-    resetChatState();
-  }
-
-  function handleMembersChange(nextMembers: AuthMember[]) {
-    setMembers(nextMembers);
-    if (nextMembers.length > 0 && !selectedChatMemberId) {
-      setSelectedChatMemberId(nextMembers[0].id);
-    }
-  }
-
-  function resetChatState() {
-    setChatDraft("");
-    setChatMessages(initialAssistantMessages);
-    setChatToolCards([]);
-    setChatError(null);
-    setChatSession(null);
-  }
-
-  function handleChatMemberChange(memberId: string) {
-    setSelectedChatMemberId(memberId);
-    resetChatState();
-  }
+  }, [isSessionReady, selectedChatMemberId, session]);
 
   useEffect(() => {
     if (!isChatOpen || !queuedMessage) {
@@ -300,6 +363,10 @@ export default function App() {
   }
 
   const memberOptions = members.length > 0 ? members : session ? [session.member] : [];
+
+  if (session && !isSessionReady) {
+    return null;
+  }
 
   return (
     <>

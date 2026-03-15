@@ -41,7 +41,23 @@ function requestPath(input: RequestInfo | URL): string {
   return new URL(input.url).pathname;
 }
 
-function createSessionPayload() {
+function requestHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
+  if (input instanceof Request) {
+    return input.headers;
+  }
+  return new Headers(init?.headers);
+}
+
+function createJwt(expOffsetSeconds: number) {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = btoa(JSON.stringify({ exp: now + expOffsetSeconds }))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  return `header.${payload}.signature`;
+}
+
+function createSessionPayload(overrides?: Partial<{ accessToken: string; refreshToken: string }>) {
   return {
     user: {
       id: "user-1",
@@ -64,8 +80,8 @@ function createSessionPayload() {
       updated_at: "2026-03-15T08:00:00Z",
     },
     tokens: {
-      access_token: "access-token",
-      refresh_token: "refresh-token",
+      access_token: overrides?.accessToken ?? createJwt(3600),
+      refresh_token: overrides?.refreshToken ?? "refresh-token",
       token_type: "bearer",
     },
   };
@@ -524,5 +540,168 @@ describe("App", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+  });
+
+  it("submits remember_me when the login checkbox is selected", async () => {
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "POST" && pathname === "/api/auth/login") {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          email: "owner@example.com",
+          password: "Secret123!",
+          remember_me: true,
+        });
+        return jsonResponse(createSessionPayload());
+      }
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/login");
+
+    fireEvent.change(screen.getByLabelText("电子邮箱"), {
+      target: { value: "owner@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "Secret123!" },
+    });
+    fireEvent.click(screen.getByLabelText("记住我的登录状态"));
+    fireEvent.click(screen.getByRole("button", { name: "立即登录" }));
+
+    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+  });
+
+  it("refreshes an expired stored session before loading protected data", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(
+        createSessionPayload({
+          accessToken: createJwt(-60),
+          refreshToken: "refresh-token",
+        }),
+      ),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+      const authorization = requestHeaders(input, init).get("Authorization");
+
+      if (method === "POST" && pathname === "/api/auth/refresh") {
+        expect(JSON.parse(String(init?.body))).toEqual({ refresh_token: "refresh-token" });
+        return jsonResponse({
+          access_token: "fresh-access-token",
+          refresh_token: "fresh-refresh-token",
+          token_type: "bearer",
+        });
+      }
+      if (method === "GET" && pathname === "/api/members") {
+        expect(authorization).toBe("Bearer fresh-access-token");
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        expect(authorization).toBe("Bearer fresh-access-token");
+        return jsonResponse(createDashboard());
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+
+    const persistedSession = JSON.parse(window.localStorage.getItem(sessionStorageKey) ?? "{}");
+    expect(persistedSession.tokens.access_token).toBe("fresh-access-token");
+    expect(persistedSession.tokens.refresh_token).toBe("fresh-refresh-token");
+  });
+
+  it("retries concurrent unauthorized requests after a single refresh", async () => {
+    const staleAccessToken = createJwt(3600);
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(
+        createSessionPayload({
+          accessToken: staleAccessToken,
+          refreshToken: "refresh-token",
+        }),
+      ),
+    );
+
+    let refreshCount = 0;
+    let activeAccessToken = staleAccessToken;
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+      const authorization = requestHeaders(input, init).get("Authorization");
+
+      if (method === "POST" && pathname === "/api/auth/refresh") {
+        refreshCount += 1;
+        activeAccessToken = "fresh-access-token";
+        return jsonResponse({
+          access_token: "fresh-access-token",
+          refresh_token: "fresh-refresh-token",
+          token_type: "bearer",
+        });
+      }
+      if (method === "GET" && pathname === "/api/members") {
+        if (authorization === `Bearer ${staleAccessToken}`) {
+          return jsonResponse({ detail: "Token expired." }, 401);
+        }
+        expect(authorization).toBe(`Bearer ${activeAccessToken}`);
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        if (authorization === `Bearer ${staleAccessToken}`) {
+          return jsonResponse({ detail: "Token expired." }, 401);
+        }
+        expect(authorization).toBe(`Bearer ${activeAccessToken}`);
+        return jsonResponse(createDashboard());
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+    expect(refreshCount).toBe(1);
+  });
+
+  it("clears the stored session when refresh fails on app boot", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(
+        createSessionPayload({
+          accessToken: createJwt(-60),
+          refreshToken: "expired-refresh-token",
+        }),
+      ),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "POST" && pathname === "/api/auth/refresh") {
+        return jsonResponse({ detail: "Token expired." }, 401);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(window.localStorage.getItem(sessionStorageKey)).toBeNull();
   });
 });

@@ -9,7 +9,13 @@ from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest
 from app.services import repository
 
 
-def _token_pair(user: dict[str, str], settings: Settings) -> dict[str, str]:
+def _refresh_ttl(settings: Settings, *, remember_session: bool) -> int:
+    if remember_session:
+        return settings.remember_me_refresh_token_ttl_seconds
+    return settings.refresh_token_ttl_seconds
+
+
+def _token_pair(user: dict[str, str], settings: Settings, *, remember_session: bool = False) -> dict[str, str]:
     return {
         "access_token": create_token(
             subject=user["id"],
@@ -18,6 +24,7 @@ def _token_pair(user: dict[str, str], settings: Settings) -> dict[str, str]:
             token_type="access",
             secret=settings.jwt_secret,
             ttl_seconds=settings.access_token_ttl_seconds,
+            remember_session=remember_session,
         ),
         "refresh_token": create_token(
             subject=user["id"],
@@ -25,7 +32,8 @@ def _token_pair(user: dict[str, str], settings: Settings) -> dict[str, str]:
             role=user["role"],
             token_type="refresh",
             secret=settings.jwt_secret,
-            ttl_seconds=settings.refresh_token_ttl_seconds,
+            ttl_seconds=_refresh_ttl(settings, remember_session=remember_session),
+            remember_session=remember_session,
         ),
         "token_type": "bearer",
     }
@@ -88,7 +96,7 @@ def login_user(request: LoginRequest, database: Database, settings: Settings) ->
     return {
         "user": _public_user(user),
         "member": member,
-        "tokens": _token_pair(user, settings),
+        "tokens": _token_pair(user, settings, remember_session=request.remember_me),
     }
 
 
@@ -107,4 +115,4 @@ def refresh_tokens(request: RefreshRequest, database: Database, settings: Settin
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
 
-    return _token_pair(user, settings)
+    return _token_pair(user, settings, remember_session=bool(payload.get("remember_session", False)))

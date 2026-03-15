@@ -47,6 +47,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
       const session = await login({
         email: formState.email,
         password: formState.password,
+        remember_me: formState.rememberMe,
       });
       onAuthenticated(session);
       navigate("/app", { replace: true });

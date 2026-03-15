@@ -20,8 +20,9 @@ def _clear_app_modules() -> None:
 def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
     monkeypatch.setenv("HOMEVITAL_DB_PATH", str(tmp_path / "homevital.db"))
     monkeypatch.setenv("HOMEVITAL_JWT_SECRET", "phase-1-test-secret")
-    monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "900")
-    monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "3600")
+    monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "1800")
+    monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "1209600")
+    monkeypatch.setenv("HOMEVITAL_REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS", "2592000")
 
     _clear_app_modules()
     main_module = importlib.import_module("app.main")
@@ -79,6 +80,12 @@ def encode_jwt(payload: dict[str, Any], secret: str) -> str:
             base64.urlsafe_b64encode(signature).decode().rstrip("="),
         ]
     )
+
+
+def decode_jwt_payload(token: str) -> dict[str, Any]:
+    _header, payload, _signature = token.split(".")
+    padding = "=" * (-len(payload) % 4)
+    return json.loads(base64.urlsafe_b64decode(f"{payload}{padding}".encode()))
 
 
 def test_first_registration_creates_admin_family_space_and_member(client: TestClient) -> None:
@@ -149,6 +156,44 @@ def test_login_and_refresh_support_expired_access_tokens(client: TestClient) -> 
     )
 
     assert members_response.status_code == 200
+
+
+def test_login_with_remember_me_extends_refresh_session_to_30_days(client: TestClient) -> None:
+    register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="张小满",
+    )
+
+    regular_login_response = client.post(
+        "/api/auth/login",
+        json={"email": "owner@example.com", "password": "Secret123!", "remember_me": False},
+    )
+    assert regular_login_response.status_code == 200
+    regular_payload = regular_login_response.json()
+    regular_refresh_claims = decode_jwt_payload(regular_payload["tokens"]["refresh_token"])
+    assert regular_refresh_claims["exp"] - regular_refresh_claims["iat"] == 1_209_600
+    assert regular_refresh_claims["remember_session"] is False
+
+    remembered_login_response = client.post(
+        "/api/auth/login",
+        json={"email": "owner@example.com", "password": "Secret123!", "remember_me": True},
+    )
+    assert remembered_login_response.status_code == 200
+    remembered_payload = remembered_login_response.json()
+    remembered_refresh_claims = decode_jwt_payload(remembered_payload["tokens"]["refresh_token"])
+    assert remembered_refresh_claims["exp"] - remembered_refresh_claims["iat"] == 2_592_000
+    assert remembered_refresh_claims["remember_session"] is True
+
+    refresh_response = client.post(
+        "/api/auth/refresh",
+        json={"refresh_token": remembered_payload["tokens"]["refresh_token"]},
+    )
+    assert refresh_response.status_code == 200
+    refreshed_claims = decode_jwt_payload(refresh_response.json()["refresh_token"])
+    assert refreshed_claims["exp"] - refreshed_claims["iat"] == 2_592_000
+    assert refreshed_claims["remember_session"] is True
 
 
 def test_member_cannot_create_or_delete_other_members(client: TestClient) -> None:

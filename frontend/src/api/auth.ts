@@ -6,6 +6,7 @@ import { apiBaseUrl } from "./client";
 export type LoginPayload = {
   email: string;
   password: string;
+  remember_me?: boolean;
 };
 
 export type RegisterPayload = LoginPayload & {
