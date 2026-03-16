@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 ObservationCategory = Literal["chronic-vitals", "lifestyle", "body-vitals"]
@@ -24,6 +24,8 @@ CarePlanTimeSlot = Literal["清晨", "上午", "午后", "晚间", "睡前"]
 CarePlanStatus = Literal["active", "completed", "cancelled"]
 CarePlanGeneratedBy = Literal["ai", "manual"]
 HealthSummaryStatus = Literal["good", "warning", "alert"]
+HealthRecordActionType = Literal["create", "update", "delete"]
+HealthRecordActionResource = Literal["observations", "conditions", "medications", "encounters"]
 
 
 class ObservationBase(BaseModel):
@@ -83,6 +85,18 @@ class ObservationRead(ObservationBase):
     updated_at: str
 
 
+class HealthRecordObservationDraft(BaseModel):
+    category: ObservationCategory
+    code: str
+    display_name: str
+    value: float | None = None
+    value_string: str | None = None
+    unit: str | None = None
+    context: str | None = None
+    effective_at: str
+    notes: str | None = None
+
+
 class ConditionBase(BaseModel):
     category: ConditionCategory
     display_name: str
@@ -128,6 +142,14 @@ class ConditionRead(ConditionBase):
     member_id: str
     created_at: str
     updated_at: str
+
+
+class HealthRecordConditionDraft(BaseModel):
+    category: ConditionCategory
+    display_name: str
+    clinical_status: ConditionStatus
+    onset_date: str | None = None
+    notes: str | None = None
 
 
 class MedicationBase(BaseModel):
@@ -179,6 +201,15 @@ class MedicationRead(MedicationBase):
     updated_at: str
 
 
+class HealthRecordMedicationDraft(BaseModel):
+    name: str
+    indication: str | None = None
+    dosage_description: str | None = None
+    status: MedicationStatus
+    start_date: str | None = None
+    end_date: str | None = None
+
+
 class EncounterBase(BaseModel):
     type: EncounterType
     facility: str | None = None
@@ -208,6 +239,15 @@ class EncounterRead(EncounterBase):
     member_id: str
     created_at: str
     updated_at: str
+
+
+class HealthRecordEncounterDraft(BaseModel):
+    type: EncounterType
+    facility: str | None = None
+    department: str | None = None
+    attending_physician: str | None = None
+    date: str
+    summary: str | None = None
 
 
 class SleepRecordBase(BaseModel):
@@ -455,3 +495,70 @@ class DashboardRead(BaseModel):
     members: list[DashboardMemberSummary]
     today_reminders: list[DashboardReminder]
     reminder_groups: list[DashboardReminderGroup] = Field(default_factory=list)
+
+
+_HEALTH_RECORD_CREATE_PAYLOAD_MODELS = {
+    "observations": HealthRecordObservationDraft,
+    "conditions": HealthRecordConditionDraft,
+    "medications": HealthRecordMedicationDraft,
+    "encounters": HealthRecordEncounterDraft,
+}
+_HEALTH_RECORD_UPDATE_PAYLOAD_MODELS = {
+    "observations": ObservationUpdate,
+    "conditions": ConditionUpdate,
+    "medications": MedicationUpdate,
+    "encounters": EncounterUpdate,
+}
+
+
+class HealthRecordAction(BaseModel):
+    action: HealthRecordActionType
+    resource: HealthRecordActionResource
+    target_member_id: str
+    record_id: str | None = None
+    payload: dict[str, Any] | None = None
+
+    @field_validator("target_member_id", "record_id")
+    @classmethod
+    def validate_text_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Field is required.")
+        return cleaned
+
+    @model_validator(mode="after")
+    def validate_action_payload(self) -> "HealthRecordAction":
+        if self.action == "create":
+            if self.record_id is not None:
+                raise ValueError("record_id is not allowed for create actions.")
+            if self.payload is None:
+                raise ValueError("payload is required for create actions.")
+            payload_model = _HEALTH_RECORD_CREATE_PAYLOAD_MODELS[self.resource].model_validate(self.payload)
+            self.payload = payload_model.model_dump(exclude_none=True)
+            return self
+
+        if self.record_id is None:
+            raise ValueError("record_id is required for update and delete actions.")
+
+        if self.action == "delete":
+            if self.payload not in (None, {}):
+                raise ValueError("payload is not allowed for delete actions.")
+            self.payload = None
+            return self
+
+        if self.payload is None:
+            raise ValueError("payload is required for update actions.")
+
+        payload_model = _HEALTH_RECORD_UPDATE_PAYLOAD_MODELS[self.resource].model_validate(self.payload)
+        dumped_payload = payload_model.model_dump(exclude_unset=True)
+        if not dumped_payload:
+            raise ValueError("payload must include at least one field for update actions.")
+        self.payload = dumped_payload
+        return self
+
+
+class HealthRecordDraft(BaseModel):
+    summary: str = ""
+    actions: list[HealthRecordAction] = Field(default_factory=list)

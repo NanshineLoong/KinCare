@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
-import type { ChatToolResult, HealthRecordDraft } from "../api/chat";
+import type { ChatToolResult, HealthRecordAction, HealthRecordDraft } from "../api/chat";
 
 
 export type ChatMessage = {
@@ -36,7 +36,42 @@ type ChatOverlayProps = {
 };
 
 function countDraftItems(draft: HealthRecordDraft): number {
-  return draft.observations.length + draft.conditions.length + draft.medications.length + draft.encounters.length;
+  return draft.actions.length;
+}
+
+function actionLabel(action: HealthRecordAction): string {
+  if (action.action === "create") {
+    return "新增";
+  }
+  if (action.action === "update") {
+    return "更新";
+  }
+  return "删除";
+}
+
+function actionSummary(action: HealthRecordAction): string {
+  const payload = action.payload ?? {};
+
+  if (action.resource === "observations") {
+    const metric = payload.display_name ?? "指标记录";
+    const value =
+      payload.value != null
+        ? ` ${payload.value}${payload.unit ?? ""}`
+        : payload.value_string
+          ? ` ${payload.value_string}${payload.unit ?? ""}`
+          : "";
+    return `${metric}${value}`;
+  }
+
+  if (action.resource === "conditions") {
+    return payload.display_name ? `${payload.display_name}${payload.clinical_status ? ` · ${payload.clinical_status}` : ""}` : "健康状况";
+  }
+
+  if (action.resource === "medications") {
+    return payload.name ? `${payload.name}${payload.dosage_description ? ` ${payload.dosage_description}` : ""}` : "用药记录";
+  }
+
+  return payload.type ? `${payload.type}${payload.facility ? ` · ${payload.facility}` : ""}` : "就诊记录";
 }
 
 export function ChatOverlay({
@@ -157,50 +192,15 @@ export function ChatOverlay({
                     <div className="rounded-b-[2rem] border-t border-[#F2EDE7] bg-white/90 p-5 shadow-sm">
                       {hasDraftItems ? (
                         <div className="mb-4 space-y-2">
-                          {toolDraft.observations.map((observation, index) => (
+                          {toolDraft.actions.map((action, index) => (
                             <label
                               className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
-                              key={`obs-${index}`}
+                              key={`${action.action}-${action.resource}-${action.record_id ?? index}`}
                             >
                               <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
                               <span className="text-sm text-[#2D2926]">
-                                {observation.display_name}
-                                {observation.value != null ? ` ${observation.value}${observation.unit ?? ""}` : ""}
-                              </span>
-                            </label>
-                          ))}
-                          {toolDraft.conditions.map((condition, index) => (
-                            <label
-                              className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
-                              key={`condition-${index}`}
-                            >
-                              <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
-                              <span className="text-sm text-[#2D2926]">
-                                {condition.display_name} · {condition.clinical_status}
-                              </span>
-                            </label>
-                          ))}
-                          {toolDraft.medications.map((medication, index) => (
-                            <label
-                              className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
-                              key={`medication-${index}`}
-                            >
-                              <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
-                              <span className="text-sm text-[#2D2926]">
-                                {medication.name}
-                                {medication.dosage_description ? ` ${medication.dosage_description}` : ""}
-                              </span>
-                            </label>
-                          ))}
-                          {toolDraft.encounters.map((encounter, index) => (
-                            <label
-                              className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
-                              key={`encounter-${index}`}
-                            >
-                              <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
-                              <span className="text-sm text-[#2D2926]">
-                                {encounter.type}
-                                {encounter.facility ? ` · ${encounter.facility}` : ""}
+                                <span className="mr-1 text-[#6D8295]">{actionLabel(action)} ·</span>
+                                <span>{actionSummary(action)}</span>
                               </span>
                             </label>
                           ))}
@@ -229,7 +229,7 @@ export function ChatOverlay({
                           <span aria-hidden className="material-symbols-outlined text-[18px] text-[#4A6076]">
                             lightbulb
                           </span>
-                          <span className="text-sm text-[#2D2926]">发现 {itemCount} 条可录入数据</span>
+                          <span className="text-sm text-[#2D2926]">发现 {itemCount} 条待处理档案操作</span>
                         </div>
                       ) : null}
                     </div>

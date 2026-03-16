@@ -42,6 +42,7 @@ async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
         "- 回答健康问题前，优先调用工具查询，不要编造健康数据。",
         "- 写入健康档案必须通过工具完成，不要在文本里假装已经修改。",
         "- 高风险档案写入必须等待用户确认。",
+        "- 健康档案建议与草稿统一使用 action 结构：必须提供 action、resource、target_member_id；update/delete 还必须提供 record_id。",
         "- 用中文回答，默认简洁。",
     ]
     if ctx.deps.focus_member_id:

@@ -146,6 +146,28 @@ def create_observation(
     return response.json()
 
 
+def create_medication(
+    client: TestClient,
+    *,
+    token: str,
+    member_id: str,
+    name: str = "缬沙坦",
+) -> dict[str, Any]:
+    response = client.post(
+        f"/api/members/{member_id}/medications",
+        headers=auth_headers(token),
+        json={
+            "name": name,
+            "indication": "降压",
+            "dosage_description": "80mg 每日一次",
+            "status": "active",
+            "source": "manual",
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def create_sleep_record(client: TestClient, *, token: str, member_id: str, total_minutes: int = 460) -> dict[str, Any]:
     response = client.post(
         f"/api/members/{member_id}/sleep-records",
@@ -520,18 +542,24 @@ def test_chat_explicit_extract_emits_health_record_draft_without_care_plan_entri
         return ModelResponse(
             parts=[
                 ToolCallPart(
-                    "draft_observations",
+                    "draft_health_record_actions",
                     {
-                        "observations": [
+                        "summary": "",
+                        "actions": [
                             {
-                                "category": "body-vitals",
-                                "code": "heart-rate",
-                                "display_name": "心率",
-                                "value": 72.0,
-                                "unit": "bpm",
-                                "effective_at": "2026-03-12T08:00:00+08:00",
+                                "action": "create",
+                                "resource": "observations",
+                                "target_member_id": managed_member["id"],
+                                "payload": {
+                                    "category": "body-vitals",
+                                    "code": "heart-rate",
+                                    "display_name": "心率",
+                                    "value": 72.0,
+                                    "unit": "bpm",
+                                    "effective_at": "2026-03-12T08:00:00+08:00",
+                                },
                             }
-                        ]
+                        ],
                     },
                 )
             ]
@@ -548,10 +576,13 @@ def test_chat_explicit_extract_emits_health_record_draft_without_care_plan_entri
         )
 
     draft_event = next(item for item in events if item["event"] == "tool.draft")
-    assert draft_event["data"]["tool_name"] == "draft_observations"
+    assert draft_event["data"]["tool_name"] == "draft_health_record_actions"
     assert draft_event["data"]["requires_confirmation"] is True
-    assert draft_event["data"]["draft"]["observations"][0]["code"] == "heart-rate"
-    assert "care_plans" not in draft_event["data"]["draft"]
+    action = draft_event["data"]["draft"]["actions"][0]
+    assert action["action"] == "create"
+    assert action["resource"] == "observations"
+    assert action["target_member_id"] == managed_member["id"]
+    assert action["payload"]["code"] == "heart-rate"
 
     observations_response = client.get(
         f"/api/members/{managed_member['id']}/observations",
@@ -584,18 +615,24 @@ def test_chat_confirm_draft_writes_records_and_returns_assistant_message(client:
         return ModelResponse(
             parts=[
                 ToolCallPart(
-                    "draft_observations",
+                    "draft_health_record_actions",
                     {
-                        "observations": [
+                        "summary": "",
+                        "actions": [
                             {
-                                "category": "body-vitals",
-                                "code": "heart-rate",
-                                "display_name": "心率",
-                                "value": 72.0,
-                                "unit": "bpm",
-                                "effective_at": "2026-03-12T08:00:00+08:00",
+                                "action": "create",
+                                "resource": "observations",
+                                "target_member_id": managed_member["id"],
+                                "payload": {
+                                    "category": "body-vitals",
+                                    "code": "heart-rate",
+                                    "display_name": "心率",
+                                    "value": 72.0,
+                                    "unit": "bpm",
+                                    "effective_at": "2026-03-12T08:00:00+08:00",
+                                },
                             }
-                        ]
+                        ],
                     },
                 )
             ]
@@ -667,19 +704,21 @@ def test_chat_analysis_emits_suggestion_without_writing_records(client: TestClie
                         "suggestion_summary": "识别到一条可录入的心率记录。",
                         "draft": {
                             "summary": "建议保存心率",
-                            "observations": [
+                            "actions": [
                                 {
-                                    "category": "body-vitals",
-                                    "code": "heart-rate",
-                                    "display_name": "心率",
-                                    "value": 72.0,
-                                    "unit": "bpm",
-                                    "effective_at": "2026-03-12T08:00:00+08:00",
+                                    "action": "create",
+                                    "resource": "observations",
+                                    "target_member_id": managed_member["id"],
+                                    "payload": {
+                                        "category": "body-vitals",
+                                        "code": "heart-rate",
+                                        "display_name": "心率",
+                                        "value": 72.0,
+                                        "unit": "bpm",
+                                        "effective_at": "2026-03-12T08:00:00+08:00",
+                                    },
                                 }
                             ],
-                            "conditions": [],
-                            "medications": [],
-                            "encounters": [],
                         },
                     },
                 )
@@ -698,7 +737,11 @@ def test_chat_analysis_emits_suggestion_without_writing_records(client: TestClie
 
     suggest_event = next(item for item in events if item["event"] == "tool.suggest")
     assert suggest_event["data"]["tool_name"] == "suggest_record_update"
-    assert suggest_event["data"]["draft"]["observations"][0]["code"] == "heart-rate"
+    action = suggest_event["data"]["draft"]["actions"][0]
+    assert action["action"] == "create"
+    assert action["resource"] == "observations"
+    assert action["target_member_id"] == managed_member["id"]
+    assert action["payload"]["code"] == "heart-rate"
 
     observations_response = client.get(
         f"/api/members/{managed_member['id']}/observations",
@@ -706,6 +749,164 @@ def test_chat_analysis_emits_suggestion_without_writing_records(client: TestClie
     )
     assert observations_response.status_code == 200, observations_response.text
     assert observations_response.json() == []
+
+
+def test_chat_confirm_draft_updates_existing_record(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    observation = create_observation(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        code="heart-rate",
+        display_name="心率",
+        value=70.0,
+        unit="bpm",
+    )
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="member-profile",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("已把奶奶的心率更新为 72 bpm。")])
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "draft_health_record_actions",
+                    {
+                        "summary": "更新心率记录",
+                        "actions": [
+                            {
+                                "action": "update",
+                                "resource": "observations",
+                                "target_member_id": managed_member["id"],
+                                "record_id": observation["id"],
+                                "payload": {
+                                    "value": 72.0,
+                                    "notes": "由 AI 对话修正",
+                                },
+                            }
+                        ],
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="member-profile",
+            content="把奶奶刚才那条心率从 70 改成 72",
+        )
+        draft_event = next(item for item in events if item["event"] == "tool.draft")
+        tool_call_id = draft_event["data"]["tool_call_id"]
+
+        confirm_response = client.post(
+            f"/api/chat/{session_id}/confirm-draft",
+            headers=auth_headers(admin["tokens"]["access_token"]),
+            json={
+                "approvals": {tool_call_id: True},
+                "edits": {},
+            },
+        )
+
+    assert confirm_response.status_code == 200, confirm_response.text
+    assert "更新" in confirm_response.json()["assistant_message"]
+
+    observations_response = client.get(
+        f"/api/members/{managed_member['id']}/observations",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert observations_response.status_code == 200, observations_response.text
+    updated = next(item for item in observations_response.json() if item["id"] == observation["id"])
+    assert updated["value"] == 72.0
+    assert updated["notes"] == "由 AI 对话修正"
+
+
+def test_chat_confirm_draft_deletes_existing_record(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    medication = create_medication(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="member-profile",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("已删除这条不再使用的用药记录。")])
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "draft_health_record_actions",
+                    {
+                        "summary": "删除停用药物",
+                        "actions": [
+                            {
+                                "action": "delete",
+                                "resource": "medications",
+                                "target_member_id": managed_member["id"],
+                                "record_id": medication["id"],
+                            }
+                        ],
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="member-profile",
+            content="把奶奶已经停掉的缬沙坦从档案里删掉",
+        )
+        draft_event = next(item for item in events if item["event"] == "tool.draft")
+        tool_call_id = draft_event["data"]["tool_call_id"]
+
+        confirm_response = client.post(
+            f"/api/chat/{session_id}/confirm-draft",
+            headers=auth_headers(admin["tokens"]["access_token"]),
+            json={
+                "approvals": {tool_call_id: True},
+                "edits": {},
+            },
+        )
+
+    assert confirm_response.status_code == 200, confirm_response.text
+    assert "删除" in confirm_response.json()["assistant_message"]
+
+    medications_response = client.get(
+        f"/api/members/{managed_member['id']}/medications",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert medications_response.status_code == 200, medications_response.text
+    assert medications_response.json() == []
 
 
 def test_chat_implicit_action_creates_care_plan(client: TestClient) -> None:

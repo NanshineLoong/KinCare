@@ -21,6 +21,7 @@ from app.ai.deps import AIDeps
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
+from app.schemas.health import HealthRecordDraft
 from app.services import chat_sessions
 from app.services.health_records import ensure_member_access
 
@@ -382,7 +383,7 @@ class ChatOrchestrator:
                 {
                     "tool_name": "draft",
                     "requires_confirmation": True,
-                    "draft": {},
+                    "draft": HealthRecordDraft().model_dump(),
                     "tool_call_id": None,
                 },
             )
@@ -402,22 +403,12 @@ class ChatOrchestrator:
 
     def _draft_from_tool_call(self, call: ToolCallPart) -> dict[str, Any]:
         args = call.args_as_dict()
-        empty_draft = {
-            "summary": "",
-            "observations": [],
-            "conditions": [],
-            "medications": [],
-            "encounters": [],
-        }
-        if call.tool_name == "draft_observations":
-            empty_draft["observations"] = args.get("observations", [])
-        elif call.tool_name == "draft_conditions":
-            empty_draft["conditions"] = args.get("conditions", [])
-        elif call.tool_name == "draft_medications":
-            empty_draft["medications"] = args.get("medications", [])
-        elif call.tool_name == "draft_encounter":
-            empty_draft["encounters"] = args.get("encounters", [])
-        return empty_draft
+        return HealthRecordDraft.model_validate(
+            {
+                "summary": args.get("summary", ""),
+                "actions": args.get("actions", []),
+            }
+        ).model_dump()
 
     def _apply_edits_to_history(
         self,
@@ -435,17 +426,20 @@ class ChatOrchestrator:
         return updated
 
     def _tool_args_from_edit(self, tool_name: str, draft: dict[str, Any]) -> dict[str, Any]:
-        if tool_name == "draft_observations":
-            return {"observations": draft.get("observations", [])}
-        if tool_name == "draft_conditions":
-            return {"conditions": draft.get("conditions", [])}
-        if tool_name == "draft_medications":
-            return {"medications": draft.get("medications", [])}
-        if tool_name == "draft_encounter":
-            return {"encounters": draft.get("encounters", [])}
+        if tool_name == "draft_health_record_actions":
+            return {
+                "summary": draft.get("summary", ""),
+                "actions": draft.get("actions", []),
+            }
         return {}
 
     def _merge_created_counts(self, counts: dict[str, int], payload: dict[str, Any]) -> None:
+        resource_counts = payload.get("resource_counts")
+        if isinstance(resource_counts, dict):
+            for resource_type, count in resource_counts.items():
+                if resource_type in counts:
+                    counts[resource_type] += int(count)
+            return
         resource_type = str(payload.get("resource_type", ""))
         count = int(payload.get("count", 0))
         if resource_type in counts:
