@@ -15,42 +15,41 @@ export type ChatSession = {
   updated_at: string;
 };
 
-export type HealthRecordDraft = {
-  summary: string;
-  observations: Array<{
-    category: string;
-    code: string;
-    display_name: string;
-    value: number | null;
+export type HealthRecordAction = {
+  action: "create" | "update" | "delete";
+  resource: "observations" | "conditions" | "medications" | "encounters";
+  target_member_id: string;
+  record_id?: string | null;
+  payload?: {
+    category?: string;
+    code?: string;
+    display_name?: string;
+    value?: number | null;
     value_string?: string | null;
-    unit: string | null;
+    unit?: string | null;
     context?: string | null;
-    effective_at: string;
-    notes?: string | null;
-  }>;
-  conditions: Array<{
-    category: string;
-    display_name: string;
-    clinical_status: string;
+    effective_at?: string;
+    clinical_status?: string;
     onset_date?: string | null;
     notes?: string | null;
-  }>;
-  medications: Array<{
-    name: string;
+    name?: string;
     indication?: string | null;
     dosage_description?: string | null;
-    status: string;
+    status?: string;
     start_date?: string | null;
     end_date?: string | null;
-  }>;
-  encounters: Array<{
-    type: string;
+    type?: string;
     facility?: string | null;
     department?: string | null;
     attending_physician?: string | null;
-    date: string;
+    date?: string;
     summary?: string | null;
-  }>;
+  } | null;
+};
+
+export type HealthRecordDraft = {
+  summary: string;
+  actions: HealthRecordAction[];
 };
 
 export type ChatToolResult = {

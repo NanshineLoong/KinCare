@@ -512,25 +512,27 @@ describe("App", () => {
           {
             event: "tool.draft",
             data: {
-              tool_name: "draft_observations",
+              tool_name: "draft_health_record_actions",
               tool_call_id: "tool-1",
               requires_confirmation: true,
               content: "已生成待确认草稿。",
               draft: {
                 summary: "",
-                observations: [
+                actions: [
                   {
-                    category: "body-vitals",
-                    code: "heart-rate",
-                    display_name: "心率",
-                    value: 72,
-                    unit: "bpm",
-                    effective_at: "2026-03-15T08:00:00+08:00",
+                    action: "create",
+                    resource: "observations",
+                    target_member_id: "member-2",
+                    payload: {
+                      category: "body-vitals",
+                      code: "heart-rate",
+                      display_name: "心率",
+                      value: 72,
+                      unit: "bpm",
+                      effective_at: "2026-03-15T08:00:00+08:00",
+                    },
                   },
                 ],
-                conditions: [],
-                medications: [],
-                encounters: [],
               },
             },
           },

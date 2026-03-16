@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.schemas.health import ConditionCategory, ConditionStatus, EncounterType, MedicationStatus, ObservationCategory
+from app.schemas.health import HealthRecordDraft
 
 
 class ChatSessionCreate(BaseModel):
@@ -57,52 +57,6 @@ class ChatMessageRead(BaseModel):
     event_type: str | None = None
     metadata: dict[str, Any] | None = None
     created_at: str
-
-
-class HealthRecordObservationDraft(BaseModel):
-    category: ObservationCategory
-    code: str
-    display_name: str
-    value: float | None = None
-    value_string: str | None = None
-    unit: str | None = None
-    context: str | None = None
-    effective_at: str
-    notes: str | None = None
-
-
-class HealthRecordConditionDraft(BaseModel):
-    category: ConditionCategory
-    display_name: str
-    clinical_status: ConditionStatus
-    onset_date: str | None = None
-    notes: str | None = None
-
-
-class HealthRecordMedicationDraft(BaseModel):
-    name: str
-    indication: str | None = None
-    dosage_description: str | None = None
-    status: MedicationStatus
-    start_date: str | None = None
-    end_date: str | None = None
-
-
-class HealthRecordEncounterDraft(BaseModel):
-    type: EncounterType
-    facility: str | None = None
-    department: str | None = None
-    attending_physician: str | None = None
-    date: str
-    summary: str | None = None
-
-
-class HealthRecordDraft(BaseModel):
-    summary: str = ""
-    observations: list[HealthRecordObservationDraft] = Field(default_factory=list)
-    conditions: list[HealthRecordConditionDraft] = Field(default_factory=list)
-    medications: list[HealthRecordMedicationDraft] = Field(default_factory=list)
-    encounters: list[HealthRecordEncounterDraft] = Field(default_factory=list)
 
 
 class ChatDraftConfirmRequest(BaseModel):
