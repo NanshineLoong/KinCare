@@ -30,7 +30,7 @@ HomeVital is a locally deployed family health management system. This repository
 ```bash
 # Create local config once
 cp .env.example .env
-# Edit .env and fill HOMEVITAL_AI_BASE_URL / HOMEVITAL_AI_API_KEY as needed
+# Edit .env and fill AI / STT credentials as needed
 
 # Backend
 cd backend
@@ -54,6 +54,16 @@ Optional AI runtime configuration:
 - `HOMEVITAL_AI_BASE_URL`
 - `HOMEVITAL_AI_API_KEY`
 - `HOMEVITAL_AI_MODEL`
+- `HOMEVITAL_STT_PROVIDER` (`openai` or `local_whisper`)
+- `HOMEVITAL_STT_BASE_URL` / `HOMEVITAL_STT_API_KEY` (optional; defaults to the AI values when omitted)
+- `HOMEVITAL_STT_MODEL`
+- `HOMEVITAL_STT_LANGUAGE`
+- `HOMEVITAL_STT_PROMPT`
+- `HOMEVITAL_STT_TIMEOUT_SECONDS`
+- `HOMEVITAL_LOCAL_WHISPER_MODEL`
+- `HOMEVITAL_LOCAL_WHISPER_DEVICE`
+- `HOMEVITAL_LOCAL_WHISPER_COMPUTE_TYPE`
+- `HOMEVITAL_LOCAL_WHISPER_DOWNLOAD_ROOT`
 - `HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR`
 - `HOMEVITAL_HEALTH_SUMMARY_REFRESH_MINUTE`
 - `HOMEVITAL_CARE_PLAN_REFRESH_HOUR`
