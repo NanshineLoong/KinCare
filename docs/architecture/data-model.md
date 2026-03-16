@@ -1,14 +1,14 @@
 # HomeVital 健康数据模型
 
-> 本文档定义当前开发主线的健康数据模型。ADR-0001 保留了“FHIR 风格资源化建模”的总体方向，但其 MVP 级字段、资源集合和枚举已被 [ADR-0009](../adr/0009-simplified-health-fact-layer.md) supersede。
+> 本文档定义当前开发主线的健康数据模型。总体资源化方向继承自 ADR-0001，当前字段、权限和会话语义以 [ADR-0009](../adr/0009-simplified-health-fact-layer.md) 与 [ADR-0011](../adr/0011-three-level-member-permissions.md) 为准。
 
 ## 设计目标
 
-1. 让首页、成员档案和 AI 工具直接围绕同一组资源工作
-2. 只保留当前 MVP 真正需要的资源和字段
-3. 把时序指标、事件型记录、静态档案和 AI 摘要分开建模
-4. 避免 `FamilyMember` 与健康事实层双写同一信息
-5. 明确哪些旧资源和旧字段已经不再属于当前模型
+1. 让家庭仪表盘、成员档案和 AI 工具围绕同一组资源工作
+2. 明确区分静态档案、健康事实、AI 生成结果、权限授权和会话历史
+3. 首页聚合视图与成员概览复用同一套摘要语义和提醒语义
+4. 用显式的成员级权限模型约束读写与授权管理
+5. 不为页面维护并行专用表，不恢复旧资源链路
 
 ## 资源总览
 
@@ -22,6 +22,14 @@ FamilyMember
   ├── Encounter
   ├── HealthSummary
   └── CarePlan
+
+Support Models
+  ├── FamilySpace
+  ├── UserAccount
+  ├── MemberAccessGrant
+  ├── ChatSession
+  ├── ChatMessage
+  └── ScheduledTask
 ```
 
 ## 核心资源
@@ -44,7 +52,7 @@ FamilyMember
 | created_at | TEXT | 创建时间 |
 | updated_at | TEXT | 更新时间 |
 
-当前模型中，`allergies` 和 `medical_history` 不再属于 `FamilyMember`，统一由 `Condition` 承载。
+`allergies` 与 `medical_history` 不再属于 `FamilyMember`，统一由 `Condition` 承载。
 
 ### Observation
 
@@ -67,28 +75,6 @@ FamilyMember
 | notes | TEXT? | 备注 |
 | created_at | TEXT | 创建时间 |
 | updated_at | TEXT | 更新时间 |
-
-#### Observation 分类
-
-| category | 用途 |
-|---|---|
-| `chronic-vitals` | 慢病相关指标，如血压、血糖 |
-| `lifestyle` | 生活习惯指标，如步数、活动消耗 |
-| `body-vitals` | 生理指标，如心率、血氧、体重、压力 |
-
-#### 常用指标编码
-
-| code | display_name | unit | category |
-|---|---|---|---|
-| `bp-systolic` | 收缩压 | mmHg | `chronic-vitals` |
-| `bp-diastolic` | 舒张压 | mmHg | `chronic-vitals` |
-| `blood-glucose` | 血糖 | mmol/L | `chronic-vitals` |
-| `step-count` | 步数 | steps | `lifestyle` |
-| `energy-active` | 活动消耗 | kcal | `lifestyle` |
-| `heart-rate` | 心率 | bpm | `body-vitals` |
-| `blood-oxygen` | 血氧饱和度 | % | `body-vitals` |
-| `body-weight` | 体重 | kg | `body-vitals` |
-| `stress-level` | 压力 | score | `body-vitals` |
 
 ### SleepRecord
 
@@ -113,7 +99,7 @@ FamilyMember
 
 ### WorkoutRecord
 
-运动也是事件型数据。
+运动是独立事件型资源。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -186,36 +172,60 @@ FamilyMember
 
 ### HealthSummary
 
-首页成员卡片和概览区的 AI 摘要资源。每位成员通常保留 3 到 4 条记录。
+家庭仪表盘和成员概览区的 AI 摘要资源。每位成员每天可生成 0-N 条记录，不再固定为三类。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | id | TEXT | 主键 |
 | member_id | TEXT | FK → `FamilyMember` |
-| category | TEXT | `chronic-vitals / lifestyle / body-vitals` 或 AI 自定义主题 |
-| label | TEXT | 摘要主题 |
-| value | TEXT | 简短评价 |
-| status | TEXT | `good / warning / neutral` |
+| category | TEXT | AI 自定义主题，如睡眠、血压、情绪、依从性 |
+| label | TEXT | 摘要标题 |
+| value | TEXT | 简短评价或提示 |
+| status | TEXT | `good / warning / alert` |
 | generated_at | TEXT | AI 生成时间 |
 | created_at | TEXT | 创建时间 |
 
+`status` 是前端颜色语义的唯一真相源：`good` = 绿色、`warning` = 黄色、`alert` = 红色。
+
 ### CarePlan
 
-可操作的提醒和健康计划。
+可操作的提醒和健康计划，可被首页按时间段聚合展示。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | id | TEXT | 主键 |
-| member_id | TEXT | FK → `FamilyMember` |
-| category | TEXT | `medication-reminder / activity-reminder / checkup-reminder / health-advice / daily-tip` |
+| member_id | TEXT | FK → `FamilyMember`，所属成员上下文 |
+| assignee_member_id | TEXT? | 实际执行成员；为空时默认等于 `member_id` |
+| category | TEXT | 计划类别，如用药、运动、复查、饮食 |
+| icon_key | TEXT? | 预定义图标键 |
+| time_slot | TEXT? | 时间段，如 `清晨 / 上午 / 午后 / 晚间 / 睡前` |
 | title | TEXT | 标题 |
-| description | TEXT | 详细内容 |
+| description | TEXT | 简要说明 |
+| notes | TEXT? | 备注或补充提醒 |
 | status | TEXT | `active / completed / cancelled` |
 | scheduled_at | TEXT? | 计划时间 |
 | completed_at | TEXT? | 完成时间 |
 | generated_by | TEXT | `ai / manual` |
 | created_at | TEXT | 创建时间 |
 | updated_at | TEXT | 更新时间 |
+
+#### `icon_key` 预定义值
+
+- `medication`
+- `exercise`
+- `checkup`
+- `meal`
+- `rest`
+- `social`
+- `general`
+
+#### `time_slot` 预定义值
+
+- `清晨`
+- `上午`
+- `午后`
+- `晚间`
+- `睡前`
 
 ## 支撑模型
 
@@ -226,12 +236,50 @@ FamilyMember
 
 ### MemberAccessGrant
 
-记录普通用户对其他成员健康数据的显式授权，维持成员级权限模型。
+成员级授权模型，定义普通用户对其他成员数据的显式能力。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | TEXT | 主键 |
+| user_account_id | TEXT | 被授予权限的用户 |
+| member_id | TEXT? | 目标成员；`target_scope = 'all'` 时为空 |
+| permission_level | TEXT | `read / write / manage` |
+| target_scope | TEXT | `specific / all` |
+| created_at | TEXT | 创建时间 |
+| updated_at | TEXT | 更新时间 |
+
+规则：
+
+- `manage > write > read`
+- `write` 天然包含 `read`
+- `manage` 天然包含 `write` 和 `read`
+- `specific` 只作用于单成员
+- `all` 作用于当前家庭空间内的全部成员
 
 ### ChatSession / ChatMessage
 
-- `ChatSession`：会话级上下文、当前焦点成员、页面场景
-- `ChatMessage`：用户消息、AI 回复、工具事件和草稿确认历史
+会话历史是独立的应用级模型。
+
+#### ChatSession
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | TEXT | 主键 |
+| user_account_id | TEXT | 会话归属用户 |
+| family_space_id | TEXT | 所属家庭空间 |
+| focus_member_id | TEXT? | 当前聚焦成员 |
+| title | TEXT? | 可读标题 |
+| summary | TEXT? | 历史列表摘要 |
+| page_context | TEXT? | 触发页面上下文 |
+| created_at | TEXT | 创建时间 |
+| updated_at | TEXT | 更新时间 |
+
+`summary` 用于首页历史入口和会话恢复，不替代完整消息历史。
+
+#### ChatMessage
+
+- 保存用户消息、助手回复、工具事件和草稿确认历史
+- 用于恢复会话上下文，不作为健康事实资源
 
 ### ScheduledTask
 

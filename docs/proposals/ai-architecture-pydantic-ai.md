@@ -14,7 +14,7 @@
 
 ## Current Source of Truth
 
-- [当前开发计划](../../.cursor/plans/homevital_新开发计划_a2e4e028.plan.md)
+- [当前开发计划](../../.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md)
 - [架构总览](../architecture/overview.md)
 - [Phase 4 AI 技术设计](../architecture/phase-4-ai-design.md)
 - [ADR-0010](../adr/0010-pydantic-ai-tool-calling.md)

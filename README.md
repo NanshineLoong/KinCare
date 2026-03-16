@@ -2,27 +2,27 @@
 
 **Self-hosted family health assistant for a single household**
 
-HomeVital is a locally deployed family health management system. This repository now follows the active development baseline in `.cursor/plans/homevital_新开发计划_a2e4e028.plan.md`; superseded Phase 0-5 planning is no longer the primary source of truth.
+HomeVital is a locally deployed family health management system. This repository now follows the active development baseline in [`.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md`](./.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md). The docs intentionally describe the latest target architecture rather than preserving superseded plan history.
 
 ## Active Baseline (2026-03)
 
 - Health data model: simplified health fact layer from [ADR-0009](./docs/adr/0009-simplified-health-fact-layer.md)
-- AI runtime: in-app PydanticAI with tool-calling conversations and draft approval flow from [ADR-0010](./docs/adr/0010-pydantic-ai-tool-calling.md)
-- UI direction: Step 6 follows the 16-screen redesign referenced by the active plan, not the early `stitch-screens/` set
+- Permission model: three-level member permissions with scoped grants from [ADR-0011](./docs/adr/0011-three-level-member-permissions.md)
+- AI runtime: in-app PydanticAI with tool-calling conversations, structured actions, draft approval flow, and unified transcription entry from [ADR-0010](./docs/adr/0010-pydantic-ai-tool-calling.md)
 - Runtime baseline: local FastAPI + Vite + SQLite for current development; `docker-compose.yml` and `mcp-server/` remain future-facing skeletons
 
 ## Delivery Status
 
-- Completed baseline in the active plan: ADR finalization, PydanticAI API validation, health schema migration, AI orchestration migration, frontend page rebuild, AI daily generation, and test refresh/integration verification
-- Documentation reset: Step 9 was executed early and is now aligned with the implemented Step 6-8 baseline
-- Next product work should build on this baseline instead of restoring the superseded pre-ADR architecture
+- Step 1 of the v2 plan is complete: docs and ADRs now reflect the new permission model, richer AI outputs, session history, and transcription route
+- Next implementation tracks are `Step 2A / 2B / 2C / 3C`
+- Existing automated tests from the previous baseline remain relevant, but upcoming product work will extend backend and frontend coverage
 
 ## Product Scope
 
-- Family member management with member-level permissions
+- Family dashboard, member profile, and manual editing workflows
 - Simplified health archive around `Observation`, `SleepRecord`, `WorkoutRecord`, `Condition`, `Medication`, `Encounter`, `HealthSummary`, and `CarePlan`
-- AI conversation with controlled read/write tools, SSE streaming, and confirm-before-write drafts
-- Dashboard and member profile workflows driven by summaries, reminders, and structured health data
+- Member-level permissions with `read / write / manage` and `specific / all` scope
+- AI conversation with controlled tools, structured suggestions/drafts, session history, and voice transcription
 - Future MCP exposure after the in-app architecture stabilizes
 
 ## Quick Start
@@ -59,7 +59,7 @@ Optional AI runtime configuration:
 - `HOMEVITAL_CARE_PLAN_REFRESH_HOUR`
 - `HOMEVITAL_CARE_PLAN_REFRESH_MINUTE`
 
-The backend now automatically loads the project root `.env`, so local AI credentials can be stored there instead of being prefixed on the startup command.
+The backend automatically loads the project root `.env`, so local AI credentials can be stored there instead of being prefixed on the startup command.
 
 ## Testing
 
@@ -71,7 +71,7 @@ cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-re
 cd frontend && npm test
 ```
 
-The repository does not currently include E2E tests. The active baseline closes Step 8 with refreshed backend/frontend automated tests, but still relies on manual UI acceptance for full end-to-end coverage.
+The repository does not currently include E2E tests. For doc-only work, consistency checks are sufficient; feature steps should still run the relevant backend and frontend test suites.
 
 ## Project Structure
 
@@ -80,7 +80,7 @@ HomeVital/
 ├── AGENTS.md
 ├── README.md
 ├── .cursor/plans/
-│   └── homevital_新开发计划_a2e4e028.plan.md
+│   └── homevital_v2_开发计划_a24f52a8.plan.md
 ├── docs/
 │   ├── adr/
 │   ├── architecture/
@@ -97,7 +97,7 @@ HomeVital/
 
 | Document | Purpose |
 |---|---|
-| [Active Plan](./.cursor/plans/homevital_新开发计划_a2e4e028.plan.md) | Current development order and status |
+| [Active Plan](./.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md) | Current development order and status |
 | [Architecture Overview](./docs/architecture/overview.md) | System boundaries and runtime shape |
 | [Data Model](./docs/architecture/data-model.md) | Active health data schema baseline |
 | [Phase 4 AI Design](./docs/architecture/phase-4-ai-design.md) | Active AI orchestration design |
