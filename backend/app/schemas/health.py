@@ -19,9 +19,11 @@ CarePlanCategory = Literal[
     "health-advice",
     "daily-tip",
 ]
+CarePlanIconKey = Literal["medication", "exercise", "checkup", "meal", "rest", "social", "general"]
+CarePlanTimeSlot = Literal["清晨", "上午", "午后", "晚间", "睡前"]
 CarePlanStatus = Literal["active", "completed", "cancelled"]
 CarePlanGeneratedBy = Literal["ai", "manual"]
-HealthSummaryStatus = Literal["good", "warning", "neutral"]
+HealthSummaryStatus = Literal["good", "warning", "alert"]
 
 
 class ObservationBase(BaseModel):
@@ -301,13 +303,13 @@ class WorkoutRecordRead(WorkoutRecordBase):
 
 
 class HealthSummaryBase(BaseModel):
-    category: ObservationCategory
+    category: str
     label: str
     value: str
     status: HealthSummaryStatus
     generated_at: str
 
-    @field_validator("label", "value")
+    @field_validator("category", "label", "value")
     @classmethod
     def validate_required_text(cls, value: str) -> str:
         cleaned = value.strip()
@@ -321,13 +323,13 @@ class HealthSummaryCreate(HealthSummaryBase):
 
 
 class HealthSummaryUpdate(BaseModel):
-    category: ObservationCategory | None = None
+    category: str | None = None
     label: str | None = None
     value: str | None = None
     status: HealthSummaryStatus | None = None
     generated_at: str | None = None
 
-    @field_validator("label", "value")
+    @field_validator("category", "label", "value")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -346,16 +348,30 @@ class HealthSummaryRead(HealthSummaryBase):
 
 class CarePlanBase(BaseModel):
     category: CarePlanCategory
+    icon_key: CarePlanIconKey | None = None
+    time_slot: CarePlanTimeSlot | None = None
     title: str
     description: str
+    notes: str | None = None
     status: CarePlanStatus
     scheduled_at: str | None = None
     completed_at: str | None = None
     generated_by: CarePlanGeneratedBy
+    assignee_member_id: str | None = None
 
     @field_validator("title", "description")
     @classmethod
     def validate_required_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Field is required.")
+        return cleaned
+
+    @field_validator("notes", "assignee_member_id")
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("Field is required.")
@@ -368,14 +384,18 @@ class CarePlanCreate(CarePlanBase):
 
 class CarePlanUpdate(BaseModel):
     category: CarePlanCategory | None = None
+    icon_key: CarePlanIconKey | None = None
+    time_slot: CarePlanTimeSlot | None = None
     title: str | None = None
     description: str | None = None
+    notes: str | None = None
     status: CarePlanStatus | None = None
     scheduled_at: str | None = None
     completed_at: str | None = None
     generated_by: CarePlanGeneratedBy | None = None
+    assignee_member_id: str | None = None
 
-    @field_validator("title", "description")
+    @field_validator("title", "description", "notes", "assignee_member_id")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -426,6 +446,12 @@ class DashboardReminder(CarePlanRead):
     member_name: str
 
 
+class DashboardReminderGroup(BaseModel):
+    time_slot: CarePlanTimeSlot
+    reminders: list[DashboardReminder] = Field(default_factory=list)
+
+
 class DashboardRead(BaseModel):
     members: list[DashboardMemberSummary]
     today_reminders: list[DashboardReminder]
+    reminder_groups: list[DashboardReminderGroup] = Field(default_factory=list)

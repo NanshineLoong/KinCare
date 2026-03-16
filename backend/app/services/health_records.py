@@ -20,6 +20,20 @@ READABLE_RESOURCE_NAMES = {
     "health-summaries": "Health summary",
     "care-plans": "Care plan",
 }
+PERMISSION_LEVEL_RANK = {
+    "none": 0,
+    "read": 1,
+    "write": 2,
+    "manage": 3,
+}
+CARE_PLAN_TIME_SLOTS = ("清晨", "上午", "午后", "晚间", "睡前")
+CARE_PLAN_ICON_BY_CATEGORY = {
+    "medication-reminder": "medication",
+    "activity-reminder": "exercise",
+    "checkup-reminder": "checkup",
+    "health-advice": "general",
+    "daily-tip": "general",
+}
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -28,31 +42,192 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value)
 
 
+def _higher_permission(first: str, second: str | None) -> str:
+    if second is None:
+        return first
+    return first if PERMISSION_LEVEL_RANK[first] >= PERMISSION_LEVEL_RANK[second] else second
+
+
+def _infer_time_slot(scheduled_at: str | None) -> str | None:
+    parsed = _parse_datetime(scheduled_at)
+    if parsed is None:
+        return None
+    hour = parsed.hour
+    if hour < 9:
+        return "清晨"
+    if hour < 12:
+        return "上午"
+    if hour < 18:
+        return "午后"
+    if hour < 22:
+        return "晚间"
+    return "睡前"
+
+
+def _normalize_care_plan(care_plan: dict[str, Any], *, member_id: str) -> dict[str, Any]:
+    normalized = dict(care_plan)
+    normalized["assignee_member_id"] = normalized.get("assignee_member_id") or member_id
+    normalized["icon_key"] = normalized.get("icon_key") or CARE_PLAN_ICON_BY_CATEGORY.get(
+        normalized["category"],
+        "general",
+    )
+    normalized["time_slot"] = normalized.get("time_slot") or _infer_time_slot(normalized.get("scheduled_at"))
+    return normalized
+
+
+def _dashboard_reminder(care_plan: dict[str, Any], *, member_name: str) -> dict[str, Any]:
+    reminder = _normalize_care_plan(care_plan, member_id=care_plan["member_id"])
+    reminder["member_name"] = member_name
+    return reminder
+
+
+def _build_reminder_groups(reminders: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for reminder in reminders:
+        time_slot = reminder.get("time_slot")
+        if time_slot is None:
+            continue
+        grouped.setdefault(str(time_slot), []).append(reminder)
+
+    groups: list[dict[str, Any]] = []
+    for time_slot in CARE_PLAN_TIME_SLOTS:
+        items = grouped.get(time_slot)
+        if items:
+            groups.append({"time_slot": time_slot, "reminders": items})
+    return groups
+
+
+def resolve_member_permission_level(
+    connection: Any,
+    current_user: CurrentUser,
+    member_id: str,
+) -> str:
+    permission_level = "none"
+    if current_user.role == "admin":
+        permission_level = "manage"
+    elif current_user.member_id == member_id:
+        permission_level = "write"
+
+    granted_permission = health_repository.resolve_member_access_level(
+        connection,
+        member_id=member_id,
+        user_account_id=current_user.id,
+    )
+    return _higher_permission(permission_level, granted_permission)
+
+
+def get_member_permission_level(
+    database: Database,
+    current_user: CurrentUser,
+    member_id: str,
+) -> str:
+    with database.connection() as connection:
+        member = repository.get_member_by_id(connection, member_id)
+        if member is None or member["family_space_id"] != current_user.family_space_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found.")
+        return resolve_member_permission_level(connection, current_user, member_id)
+
+
+def _ensure_can_manage_all_permissions(connection: Any, current_user: CurrentUser) -> None:
+    if current_user.role == "admin":
+        return
+    if health_repository.has_all_scope_access_grant(
+        connection,
+        user_account_id=current_user.id,
+        required_permission="manage",
+    ):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions.")
+
+
 def ensure_member_access(
     database: Database,
     current_user: CurrentUser,
     member_id: str,
     *,
-    require_write: bool,
+    required_permission: str = "read",
 ) -> dict[str, Any]:
     with database.connection() as connection:
         member = repository.get_member_by_id(connection, member_id)
         if member is None or member["family_space_id"] != current_user.family_space_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found.")
-
-        if current_user.role == "admin":
-            return member
-        if current_user.member_id == member_id:
-            return member
-        if health_repository.has_member_access_grant(
-            connection,
-            member_id=member_id,
-            user_account_id=current_user.id,
-            require_write=require_write,
-        ):
-            return member
+        permission_level = resolve_member_permission_level(connection, current_user, member_id)
+        if PERMISSION_LEVEL_RANK[permission_level] >= PERMISSION_LEVEL_RANK[required_permission]:
+            return {
+                **member,
+                "permission_level": permission_level,
+            }
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions.")
+
+
+def list_member_permissions(
+    member_id: str,
+    database: Database,
+    current_user: CurrentUser,
+) -> list[dict[str, Any]]:
+    ensure_member_access(database, current_user, member_id, required_permission="manage")
+    with database.connection() as connection:
+        return health_repository.list_permissions_for_member(connection, member_id)
+
+
+def grant_member_permission(
+    member_id: str,
+    *,
+    user_account_id: str,
+    permission_level: str,
+    target_scope: str,
+    database: Database,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    ensure_member_access(database, current_user, member_id, required_permission="manage")
+    with database.connection() as connection:
+        member = repository.get_member_by_id(connection, member_id)
+        if member is None or member["family_space_id"] != current_user.family_space_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found.")
+
+        user = repository.get_user_by_id(connection, user_account_id)
+        if user is None or user["family_space_id"] != current_user.family_space_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+        if target_scope == "all":
+            _ensure_can_manage_all_permissions(connection, current_user)
+            stored_member_id: str | None = None
+        else:
+            stored_member_id = member_id
+
+        return health_repository.upsert_member_access_grant(
+            connection,
+            member_id=stored_member_id,
+            user_account_id=user_account_id,
+            permission_level=permission_level,
+            target_scope=target_scope,
+        )
+
+
+def revoke_member_permission(
+    member_id: str,
+    grant_id: str,
+    database: Database,
+    current_user: CurrentUser,
+) -> None:
+    ensure_member_access(database, current_user, member_id, required_permission="manage")
+    with database.connection() as connection:
+        member = repository.get_member_by_id(connection, member_id)
+        if member is None or member["family_space_id"] != current_user.family_space_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found.")
+
+        grant = health_repository.get_member_access_grant(connection, grant_id=grant_id)
+        if grant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission grant not found.")
+        if grant["target_scope"] == "all":
+            _ensure_can_manage_all_permissions(connection, current_user)
+        elif grant["member_id"] != member_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission grant not found.")
+
+        deleted = health_repository.delete_member_access_grant(connection, grant_id)
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission grant not found.")
 
 
 def list_resource(
@@ -61,7 +236,7 @@ def list_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> list[dict[str, Any]]:
-    ensure_member_access(database, current_user, member_id, require_write=False)
+    ensure_member_access(database, current_user, member_id, required_permission="read")
     with database.connection() as connection:
         return health_repository.list_resources_for_member(connection, resource, member_id=member_id)
 
@@ -73,7 +248,7 @@ def create_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    ensure_member_access(database, current_user, member_id, require_write=True)
+    ensure_member_access(database, current_user, member_id, required_permission="write")
     with database.connection() as connection:
         return health_repository.create_resource(connection, resource, member_id=member_id, values=dict(payload))
 
@@ -85,7 +260,7 @@ def get_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    ensure_member_access(database, current_user, member_id, require_write=False)
+    ensure_member_access(database, current_user, member_id, required_permission="read")
     with database.connection() as connection:
         item = health_repository.get_resource_by_id(connection, resource, resource_id)
 
@@ -105,7 +280,7 @@ def update_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    ensure_member_access(database, current_user, member_id, require_write=True)
+    ensure_member_access(database, current_user, member_id, required_permission="write")
     with database.connection() as connection:
         existing = health_repository.get_resource_by_id(connection, resource, resource_id)
         if existing is None or existing["member_id"] != member_id:
@@ -125,7 +300,7 @@ def delete_resource(
     database: Database,
     current_user: CurrentUser,
 ) -> None:
-    ensure_member_access(database, current_user, member_id, require_write=True)
+    ensure_member_access(database, current_user, member_id, required_permission="write")
     with database.connection() as connection:
         existing = health_repository.get_resource_by_id(connection, resource, resource_id)
         if existing is None or existing["member_id"] != member_id:
@@ -145,7 +320,7 @@ def get_observation_trend(
     database: Database,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    ensure_member_access(database, current_user, member_id, require_write=False)
+    ensure_member_access(database, current_user, member_id, required_permission="read")
     with database.connection() as connection:
         items = health_repository.list_observation_trend(
             connection,
@@ -222,12 +397,7 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
                     and scheduled_at is not None
                     and scheduled_at.date() == today
                 ):
-                    reminders.append(
-                        {
-                            **care_plan,
-                            "member_name": member["name"],
-                        }
-                    )
+                    reminders.append(_dashboard_reminder(care_plan, member_name=member["name"]))
 
             summaries.append(
                 {
@@ -238,7 +408,7 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
                         "avatar_url": member["avatar_url"],
                         "blood_type": member["blood_type"],
                     },
-                    "health_summaries": health_summaries[:4],
+                    "health_summaries": health_summaries,
                 }
             )
 
@@ -246,6 +416,7 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
     return {
         "members": summaries,
         "today_reminders": reminders,
+        "reminder_groups": _build_reminder_groups(reminders),
     }
 
 
@@ -325,12 +496,12 @@ def replace_generated_health_summaries(
         )
 
 
-def replace_generated_daily_care_plan(
+def replace_generated_daily_care_plans(
     connection: Any,
     *,
     member_id: str,
     now: datetime,
-    care_plan: dict[str, Any] | None,
+    care_plans: list[dict[str, Any]],
 ) -> bool:
     existing = health_repository.list_resources_for_member(connection, "care-plans", member_id=member_id)
     for item in existing:
@@ -341,22 +512,25 @@ def replace_generated_daily_care_plan(
         ):
             health_repository.delete_resource(connection, "care-plans", item["id"])
 
-    if care_plan is None:
-        return True
-
-    health_repository.create_resource(
-        connection,
-        "care-plans",
-        member_id=member_id,
-        values={
-            "category": care_plan["category"],
-            "title": care_plan["title"],
-            "description": care_plan["description"],
-            "status": "active",
-            "scheduled_at": care_plan["scheduled_at"],
-            "generated_by": "ai",
-        },
-    )
+    for care_plan in care_plans:
+        normalized = _normalize_care_plan(care_plan, member_id=member_id)
+        health_repository.create_resource(
+            connection,
+            "care-plans",
+            member_id=member_id,
+            values={
+                "assignee_member_id": normalized["assignee_member_id"],
+                "category": normalized["category"],
+                "icon_key": normalized["icon_key"],
+                "time_slot": normalized["time_slot"],
+                "title": normalized["title"],
+                "description": normalized["description"],
+                "notes": normalized.get("notes"),
+                "status": "active",
+                "scheduled_at": normalized["scheduled_at"],
+                "generated_by": "ai",
+            },
+        )
     return True
 
 

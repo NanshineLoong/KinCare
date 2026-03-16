@@ -58,20 +58,95 @@ def _resource_from_row(row: sqlite3.Row, config: ResourceConfig) -> dict[str, An
     return item
 
 
+PERMISSION_LEVEL_RANK = {
+    "read": 1,
+    "write": 2,
+    "manage": 3,
+}
+
+
+def _permission_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    return dict(row)
+
+
 def get_member_access_grant(
     connection: sqlite3.Connection,
     *,
-    member_id: str,
+    grant_id: str,
+) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT
+            mag.*,
+            ua.email AS user_email,
+            ua.role AS user_role,
+            fm_user.id AS user_member_id,
+            fm_user.name AS user_member_name
+        FROM member_access_grant AS mag
+        JOIN user_account AS ua ON ua.id = mag.user_account_id
+        LEFT JOIN family_member AS fm_user ON fm_user.user_account_id = ua.id
+        WHERE mag.id = ?
+        """,
+        (grant_id,),
+    ).fetchone()
+    return _permission_from_row(row) if row else None
+
+
+def _get_existing_member_access_grant_row(
+    connection: sqlite3.Connection,
+    *,
+    member_id: str | None,
     user_account_id: str,
+    target_scope: str,
 ) -> sqlite3.Row | None:
+    if target_scope == "all":
+        return connection.execute(
+            """
+            SELECT *
+            FROM member_access_grant
+            WHERE user_account_id = ? AND target_scope = 'all'
+            """,
+            (user_account_id,),
+        ).fetchone()
+
     return connection.execute(
         """
         SELECT *
         FROM member_access_grant
-        WHERE member_id = ? AND user_account_id = ?
+        WHERE member_id = ? AND user_account_id = ? AND target_scope = 'specific'
         """,
         (member_id, user_account_id),
     ).fetchone()
+
+
+def resolve_member_access_level(
+    connection: sqlite3.Connection,
+    *,
+    member_id: str,
+    user_account_id: str,
+) -> str | None:
+    row = connection.execute(
+        """
+        SELECT permission_level
+        FROM member_access_grant
+        WHERE user_account_id = ?
+          AND (member_id = ? OR target_scope = 'all')
+        ORDER BY CASE permission_level
+            WHEN 'manage' THEN 3
+            WHEN 'write' THEN 2
+            WHEN 'read' THEN 1
+            ELSE 0
+        END DESC,
+        CASE target_scope
+            WHEN 'specific' THEN 0
+            ELSE 1
+        END ASC,
+        created_at ASC
+        LIMIT 1
+        """,
+        (user_account_id, member_id),
+    ).fetchone()
+    return str(row["permission_level"]) if row else None
 
 
 def has_member_access_grant(
@@ -79,29 +154,195 @@ def has_member_access_grant(
     *,
     member_id: str,
     user_account_id: str,
-    require_write: bool,
+    required_permission: str,
 ) -> bool:
-    row = get_member_access_grant(
+    granted_permission = resolve_member_access_level(
         connection,
         member_id=member_id,
         user_account_id=user_account_id,
     )
+    if granted_permission is None:
+        return False
+    return PERMISSION_LEVEL_RANK[granted_permission] >= PERMISSION_LEVEL_RANK[required_permission]
+
+
+def has_all_scope_access_grant(
+    connection: sqlite3.Connection,
+    *,
+    user_account_id: str,
+    required_permission: str,
+) -> bool:
+    row = connection.execute(
+        """
+        SELECT permission_level
+        FROM member_access_grant
+        WHERE user_account_id = ? AND target_scope = 'all'
+        ORDER BY CASE permission_level
+            WHEN 'manage' THEN 3
+            WHEN 'write' THEN 2
+            WHEN 'read' THEN 1
+            ELSE 0
+        END DESC,
+        created_at ASC
+        LIMIT 1
+        """,
+        (user_account_id,),
+    ).fetchone()
     if row is None:
         return False
-    return bool(row["can_write"]) if require_write else True
+    granted_permission = str(row["permission_level"])
+    return PERMISSION_LEVEL_RANK[granted_permission] >= PERMISSION_LEVEL_RANK[required_permission]
 
 
 def list_granted_member_ids(connection: sqlite3.Connection, user_account_id: str) -> list[str]:
     rows = connection.execute(
         """
-        SELECT member_id
-        FROM member_access_grant
-        WHERE user_account_id = ?
-        ORDER BY created_at ASC
+        SELECT DISTINCT fm.id AS member_id
+        FROM family_member AS fm
+        JOIN user_account AS ua ON ua.family_space_id = fm.family_space_id
+        WHERE ua.id = ?
+          AND (
+            EXISTS (
+                SELECT 1
+                FROM member_access_grant AS mag
+                WHERE mag.user_account_id = ua.id
+                  AND mag.target_scope = 'all'
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM member_access_grant AS mag
+                WHERE mag.user_account_id = ua.id
+                  AND mag.target_scope = 'specific'
+                  AND mag.member_id = fm.id
+            )
+          )
+        ORDER BY fm.created_at ASC
         """,
         (user_account_id,),
     ).fetchall()
     return [str(row["member_id"]) for row in rows]
+
+
+def list_permissions_for_member(connection: sqlite3.Connection, member_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT
+            mag.*,
+            ua.email AS user_email,
+            ua.role AS user_role,
+            fm_user.id AS user_member_id,
+            fm_user.name AS user_member_name
+        FROM member_access_grant AS mag
+        JOIN user_account AS ua ON ua.id = mag.user_account_id
+        LEFT JOIN family_member AS fm_user ON fm_user.user_account_id = ua.id
+        JOIN family_member AS target_member ON target_member.id = ?
+        WHERE ua.family_space_id = target_member.family_space_id
+          AND (mag.member_id = target_member.id OR mag.target_scope = 'all')
+        ORDER BY CASE mag.permission_level
+            WHEN 'manage' THEN 3
+            WHEN 'write' THEN 2
+            WHEN 'read' THEN 1
+            ELSE 0
+        END DESC,
+        CASE mag.target_scope
+            WHEN 'all' THEN 0
+            ELSE 1
+        END ASC,
+        mag.created_at ASC
+        """,
+        (member_id,),
+    ).fetchall()
+    return [_permission_from_row(row) for row in rows]
+
+
+def list_permissions_for_user(connection: sqlite3.Connection, user_account_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT
+            mag.*,
+            ua.email AS user_email,
+            ua.role AS user_role,
+            fm_user.id AS user_member_id,
+            fm_user.name AS user_member_name
+        FROM member_access_grant AS mag
+        JOIN user_account AS ua ON ua.id = mag.user_account_id
+        LEFT JOIN family_member AS fm_user ON fm_user.user_account_id = ua.id
+        WHERE mag.user_account_id = ?
+        ORDER BY CASE mag.permission_level
+            WHEN 'manage' THEN 3
+            WHEN 'write' THEN 2
+            WHEN 'read' THEN 1
+            ELSE 0
+        END DESC,
+        CASE mag.target_scope
+            WHEN 'all' THEN 0
+            ELSE 1
+        END ASC,
+        mag.created_at ASC
+        """,
+        (user_account_id,),
+    ).fetchall()
+    return [_permission_from_row(row) for row in rows]
+
+
+def upsert_member_access_grant(
+    connection: sqlite3.Connection,
+    *,
+    member_id: str | None,
+    user_account_id: str,
+    permission_level: str,
+    target_scope: str,
+) -> dict[str, Any]:
+    existing = _get_existing_member_access_grant_row(
+        connection,
+        member_id=member_id,
+        user_account_id=user_account_id,
+        target_scope=target_scope,
+    )
+    if existing is None:
+        grant_id = str(uuid.uuid4())
+        connection.execute(
+            """
+            INSERT INTO member_access_grant (
+                id,
+                member_id,
+                user_account_id,
+                permission_level,
+                target_scope,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                grant_id,
+                member_id,
+                user_account_id,
+                permission_level,
+                target_scope,
+                now_iso(),
+            ),
+        )
+        return get_member_access_grant(connection, grant_id=grant_id)
+
+    connection.execute(
+        """
+        UPDATE member_access_grant
+        SET member_id = ?, permission_level = ?, target_scope = ?
+        WHERE id = ?
+        """,
+        (
+            member_id,
+            permission_level,
+            target_scope,
+            existing["id"],
+        ),
+    )
+    return get_member_access_grant(connection, grant_id=str(existing["id"]))
+
+
+def delete_member_access_grant(connection: sqlite3.Connection, grant_id: str) -> bool:
+    result = connection.execute("DELETE FROM member_access_grant WHERE id = ?", (grant_id,))
+    return result.rowcount > 0
 
 
 def create_resource(

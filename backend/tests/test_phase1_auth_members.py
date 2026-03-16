@@ -61,6 +61,16 @@ def auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def create_managed_member(client: TestClient, admin_access_token: str, name: str) -> dict[str, Any]:
+    response = client.post(
+        "/api/members",
+        json={"name": name, "gender": "female"},
+        headers=auth_headers(admin_access_token),
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def encode_jwt(payload: dict[str, Any], secret: str) -> str:
     header = {"alg": "HS256", "typ": "JWT"}
     signing_input = ".".join(
@@ -100,6 +110,7 @@ def test_first_registration_creates_admin_family_space_and_member(client: TestCl
     assert payload["user"]["role"] == "admin"
     assert payload["member"]["name"] == "王医生"
     assert payload["member"]["user_account_id"] == payload["user"]["id"]
+    assert payload["member"]["permission_level"] == "manage"
     assert payload["tokens"]["access_token"]
     assert payload["tokens"]["refresh_token"]
 
@@ -182,6 +193,7 @@ def test_login_with_remember_me_extends_refresh_session_to_30_days(client: TestC
     )
     assert remembered_login_response.status_code == 200
     remembered_payload = remembered_login_response.json()
+    assert remembered_payload["member"]["permission_level"] == "manage"
     remembered_refresh_claims = decode_jwt_payload(remembered_payload["tokens"]["refresh_token"])
     assert remembered_refresh_claims["exp"] - remembered_refresh_claims["iat"] == 2_592_000
     assert remembered_refresh_claims["remember_session"] is True
@@ -269,7 +281,9 @@ def test_admin_can_create_update_and_delete_managed_members(client: TestClient) 
         "avatar_url",
         "created_at",
         "updated_at",
+        "permission_level",
     }
+    assert created_member["permission_level"] == "manage"
 
     detail_response = client.get(
         f"/api/members/{created_member['id']}",
@@ -378,3 +392,130 @@ def test_admin_can_delete_the_entire_family_space_and_reset_registration_flow(cl
         headers=auth_headers(new_admin["tokens"]["access_token"]),
     )
     assert [item["name"] for item in members_response.json()] == ["新管理员"]
+
+
+def test_member_detail_and_list_include_permission_level_summary(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    caregiver = register_user(
+        client,
+        email="caregiver@example.com",
+        password="Secret123!",
+        name="照护者",
+    )
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+
+    members_response = client.get(
+        "/api/members",
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+
+    assert members_response.status_code == 200
+    permission_by_member = {
+        item["name"]: item["permission_level"]
+        for item in members_response.json()
+    }
+    assert permission_by_member == {
+        "管理员": "none",
+        "照护者": "write",
+        "奶奶": "none",
+    }
+
+    detail_response = client.get(
+        f"/api/members/{managed_member['id']}",
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+    assert detail_response.status_code == 403
+
+    grant_response = client.post(
+        f"/api/members/{managed_member['id']}/permissions",
+        json={
+            "user_account_id": caregiver["user"]["id"],
+            "permission_level": "read",
+            "target_scope": "specific",
+        },
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert grant_response.status_code == 201, grant_response.text
+
+    detail_response = client.get(
+        f"/api/members/{managed_member['id']}",
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+    assert detail_response.status_code == 200
+    assert detail_response.json()["permission_level"] == "read"
+
+
+def test_manage_permission_allows_listing_granting_and_revoking_member_permissions(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    caregiver = register_user(
+        client,
+        email="caregiver@example.com",
+        password="Secret123!",
+        name="照护者",
+    )
+    helper = register_user(
+        client,
+        email="helper@example.com",
+        password="Secret123!",
+        name="协助者",
+    )
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+
+    manage_response = client.post(
+        f"/api/members/{managed_member['id']}/permissions",
+        json={
+            "user_account_id": caregiver["user"]["id"],
+            "permission_level": "manage",
+            "target_scope": "specific",
+        },
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert manage_response.status_code == 201, manage_response.text
+
+    list_response = client.get(
+        f"/api/members/{managed_member['id']}/permissions",
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+    assert list_response.status_code == 200, list_response.text
+    assert list_response.json()[0]["permission_level"] == "manage"
+    assert list_response.json()[0]["user_account_id"] == caregiver["user"]["id"]
+
+    helper_grant = client.post(
+        f"/api/members/{managed_member['id']}/permissions",
+        json={
+            "user_account_id": helper["user"]["id"],
+            "permission_level": "read",
+            "target_scope": "specific",
+        },
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+    assert helper_grant.status_code == 201, helper_grant.text
+
+    helper_detail = client.get(
+        f"/api/members/{managed_member['id']}",
+        headers=auth_headers(helper["tokens"]["access_token"]),
+    )
+    assert helper_detail.status_code == 200
+    assert helper_detail.json()["permission_level"] == "read"
+
+    revoke_response = client.delete(
+        f"/api/members/{managed_member['id']}/permissions/{helper_grant.json()['id']}",
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+    assert revoke_response.status_code == 204, revoke_response.text
+
+    helper_detail = client.get(
+        f"/api/members/{managed_member['id']}",
+        headers=auth_headers(helper["tokens"]["access_token"]),
+    )
+    assert helper_detail.status_code == 403

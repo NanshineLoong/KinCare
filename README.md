@@ -13,8 +13,8 @@ HomeVital is a locally deployed family health management system. This repository
 
 ## Delivery Status
 
-- Step 1 of the v2 plan is complete: docs and ADRs now reflect the new permission model, richer AI outputs, session history, and transcription route
-- Next implementation tracks are `Step 2A / 2B / 2C / 3C`
+- Steps `1 / 2A / 2B / 2C / 3A` of the v2 plan are complete: the current mainline already includes the three-level permission model, richer dashboard data structures, upgraded daily generation output, and chat session history APIs
+- Next implementation tracks are `Step 3B / 3C / 4 / 6 / 7`
 - Existing automated tests from the previous baseline remain relevant, but upcoming product work will extend backend and frontend coverage
 
 ## Product Scope

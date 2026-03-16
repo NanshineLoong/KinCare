@@ -49,6 +49,14 @@ def _public_user(user: dict[str, str]) -> dict[str, str]:
     }
 
 
+def _member_with_permission(member: dict[str, object], *, role: str) -> dict[str, object]:
+    permission_level = "manage" if role == "admin" else "write"
+    return {
+        **member,
+        "permission_level": permission_level,
+    }
+
+
 def register_user(request: RegisterRequest, database: Database, settings: Settings) -> dict[str, object]:
     with database.connection() as connection:
         existing_user = repository.get_user_by_email(connection, request.email)
@@ -78,7 +86,7 @@ def register_user(request: RegisterRequest, database: Database, settings: Settin
 
     return {
         "user": _public_user(user),
-        "member": member,
+        "member": _member_with_permission(member, role=role),
         "tokens": _token_pair(user, settings),
     }
 
@@ -95,7 +103,7 @@ def login_user(request: LoginRequest, database: Database, settings: Settings) ->
 
     return {
         "user": _public_user(user),
-        "member": member,
+        "member": _member_with_permission(member, role=user["role"]),
         "tokens": _token_pair(user, settings, remember_session=request.remember_me),
     }
 

@@ -34,9 +34,12 @@ type ReminderGroup = {
   reminders: DashboardReminder[];
 };
 
-function dashboardChipTone(status: "good" | "warning" | "neutral" | undefined, fallback: string) {
+function dashboardChipTone(status: "good" | "warning" | "alert" | undefined, fallback: string) {
   if (status === "good") {
     return "border-[#E8F0E6] bg-soft-sage text-[#3E5C3A]";
+  }
+  if (status === "alert") {
+    return "border-[#F5D7D4] bg-[#FFF1F0] text-[#A54A45]";
   }
   if (status === "warning") {
     return "border-[#FAE6D8] bg-[#FEF5ED] text-[#A67C52]";
@@ -57,12 +60,12 @@ function readHourFromIso(value: string | null) {
 }
 
 function summarizeCondition(summary: DashboardMemberSummary | undefined): SummaryChip {
-  const chronicSummary = healthSummary(summary, "chronic-vitals");
-  if (chronicSummary) {
+  const item = healthSummary(summary, "chronic-vitals") ?? summary?.health_summaries?.[0];
+  if (item) {
     return {
-      label: "慢病管理",
-      summary: chronicSummary.value,
-      tone: dashboardChipTone(chronicSummary.status, "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray"),
+      label: item.label,
+      summary: item.value,
+      tone: dashboardChipTone(item.status, "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray"),
     };
   }
 
@@ -74,12 +77,12 @@ function summarizeCondition(summary: DashboardMemberSummary | undefined): Summar
 }
 
 function summarizeLifestyle(summary: DashboardMemberSummary | undefined): SummaryChip {
-  const lifestyleSummary = healthSummary(summary, "lifestyle");
-  if (lifestyleSummary) {
+  const item = healthSummary(summary, "lifestyle") ?? summary?.health_summaries?.[1];
+  if (item) {
     return {
-      label: "生活习惯",
-      summary: lifestyleSummary.value,
-      tone: dashboardChipTone(lifestyleSummary.status, "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray"),
+      label: item.label,
+      summary: item.value,
+      tone: dashboardChipTone(item.status, "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray"),
     };
   }
 
@@ -91,12 +94,12 @@ function summarizeLifestyle(summary: DashboardMemberSummary | undefined): Summar
 }
 
 function summarizeVitals(summary: DashboardMemberSummary | undefined): SummaryChip {
-  const bodySummary = healthSummary(summary, "body-vitals");
-  if (bodySummary) {
+  const item = healthSummary(summary, "body-vitals") ?? summary?.health_summaries?.[2];
+  if (item) {
     return {
-      label: "生理指标",
-      summary: bodySummary.value,
-      tone: dashboardChipTone(bodySummary.status, "border-[#DAE8F7] bg-gentle-blue text-[#41678B]"),
+      label: item.label,
+      summary: item.value,
+      tone: dashboardChipTone(item.status, "border-[#DAE8F7] bg-gentle-blue text-[#41678B]"),
     };
   }
 
@@ -108,6 +111,15 @@ function summarizeVitals(summary: DashboardMemberSummary | undefined): SummaryCh
 }
 
 function summarizeMood(summary: DashboardMemberSummary | undefined): SummaryChip {
+  const item = summary?.health_summaries?.[3];
+  if (item) {
+    return {
+      label: item.label,
+      summary: item.value,
+      tone: dashboardChipTone(item.status, "border-[#FAE6D8] bg-[#FEF5ED] text-[#A67C52]"),
+    };
+  }
+
   const itemCount = summary?.health_summaries?.length ?? 0;
   if (itemCount > 0) {
     return {
@@ -153,6 +165,19 @@ function groupReminders(reminders: DashboardReminder[]): ReminderGroup[] {
   };
 
   reminders.forEach((reminder) => {
+    if (reminder.time_slot === "清晨" || reminder.time_slot === "上午") {
+      buckets.morning.reminders.push(reminder);
+      return;
+    }
+    if (reminder.time_slot === "午后") {
+      buckets.afternoon.reminders.push(reminder);
+      return;
+    }
+    if (reminder.time_slot === "晚间" || reminder.time_slot === "睡前") {
+      buckets.evening.reminders.push(reminder);
+      return;
+    }
+
     const hour = readHourFromIso(reminder.scheduled_at);
     if (hour < 12) {
       buckets.morning.reminders.push(reminder);
@@ -309,8 +334,11 @@ export function HomePage({
                   </div>
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
-                    {chips.map((chip) => (
-                      <div className={`rounded-2xl border px-3 py-3 text-xs ${chip.tone}`} key={chip.label}>
+                    {chips.map((chip, chipIndex) => (
+                      <div
+                        className={`rounded-2xl border px-3 py-3 text-xs ${chip.tone}`}
+                        key={`${member.id}-${chip.label}-${chipIndex}`}
+                      >
                         <p className="font-semibold uppercase tracking-[0.2em] text-current/70">{chip.label}</p>
                         <p className="mt-2 text-sm font-bold text-current">{chip.summary}</p>
                       </div>

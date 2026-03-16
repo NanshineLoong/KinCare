@@ -16,7 +16,12 @@ def register(agent: object) -> None:
         if member_id is None:
             return {"content": "请先选择要关注的家庭成员。", "meta": {"member_id": None}}
 
-        member = ensure_member_access(ctx.deps.database, ctx.deps.current_user, member_id, require_write=False)
+        member = ensure_member_access(
+            ctx.deps.database,
+            ctx.deps.current_user,
+            member_id,
+            required_permission="read",
+        )
         with ctx.deps.database.connection() as connection:
             observations = health_repository.list_resources_for_member(connection, "observations", member_id=member_id)
             conditions = health_repository.list_resources_for_member(connection, "conditions", member_id=member_id)
@@ -56,7 +61,12 @@ def register(agent: object) -> None:
         if member_id is None:
             return {"content": "请先选择要关注的家庭成员。", "meta": {"items": []}}
 
-        ensure_member_access(ctx.deps.database, ctx.deps.current_user, member_id, require_write=False)
+        ensure_member_access(
+            ctx.deps.database,
+            ctx.deps.current_user,
+            member_id,
+            required_permission="read",
+        )
         with ctx.deps.database.connection() as connection:
             items = health_repository.list_resources_for_member(connection, "observations", member_id=member_id)
 
@@ -104,7 +114,12 @@ async def _list_resource(ctx: RunContext[AIDeps], resource: str, empty_text: str
     if member_id is None:
         return {"content": "请先选择要关注的家庭成员。", "meta": {"items": []}}
 
-    ensure_member_access(ctx.deps.database, ctx.deps.current_user, member_id, require_write=False)
+    ensure_member_access(
+        ctx.deps.database,
+        ctx.deps.current_user,
+        member_id,
+        required_permission="read",
+    )
     with ctx.deps.database.connection() as connection:
         items = health_repository.list_resources_for_member(connection, resource, member_id=member_id)
 

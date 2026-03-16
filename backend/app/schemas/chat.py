@@ -18,8 +18,17 @@ class ChatSessionRead(BaseModel):
     family_space_id: str
     member_id: str | None = None
     title: str | None = None
+    summary: str | None = None
     page_context: str | None = None
     created_at: str
+    updated_at: str
+
+
+class ChatSessionListItem(BaseModel):
+    id: str
+    member_id: str | None = None
+    title: str | None = None
+    summary: str | None = None
     updated_at: str
 
 
@@ -39,6 +48,15 @@ class ChatMessageCreate(BaseModel):
 
 class ChatTranscriptionRead(BaseModel):
     text: str
+
+
+class ChatMessageRead(BaseModel):
+    id: str
+    role: str
+    content: str
+    event_type: str | None = None
+    metadata: dict[str, Any] | None = None
+    created_at: str
 
 
 class HealthRecordObservationDraft(BaseModel):

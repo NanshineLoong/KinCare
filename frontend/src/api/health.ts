@@ -6,10 +6,10 @@ import { getAuthorized } from "./http";
 export type HealthSummaryRecord = {
   id: string;
   member_id: string;
-  category: "chronic-vitals" | "lifestyle" | "body-vitals";
+  category: string;
   label: string;
   value: string;
-  status: "good" | "warning" | "neutral";
+  status: "good" | "warning" | "alert";
   generated_at: string;
   created_at: string;
 };
@@ -17,9 +17,13 @@ export type HealthSummaryRecord = {
 export type CarePlanRecord = {
   id: string;
   member_id: string;
+  assignee_member_id: string | null;
   category: string;
+  icon_key: "medication" | "exercise" | "checkup" | "meal" | "rest" | "social" | "general" | null;
+  time_slot: "清晨" | "上午" | "午后" | "晚间" | "睡前" | null;
   title: string;
   description: string;
+  notes: string | null;
   status: "active" | "completed" | "cancelled";
   scheduled_at: string | null;
   completed_at: string | null;
@@ -30,6 +34,11 @@ export type CarePlanRecord = {
 
 export type DashboardReminder = CarePlanRecord & {
   member_name: string;
+};
+
+export type DashboardReminderGroup = {
+  time_slot: "清晨" | "上午" | "午后" | "晚间" | "睡前";
+  reminders: DashboardReminder[];
 };
 
 export type ObservationRecord = {
@@ -138,6 +147,7 @@ export type DashboardMemberSummary = {
 export type DashboardResponse = {
   members: DashboardMemberSummary[];
   today_reminders: DashboardReminder[];
+  reminder_groups?: DashboardReminderGroup[];
 };
 
 export function getDashboard(session: AuthSession) {

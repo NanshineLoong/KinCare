@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from app.core.config import Settings
-from app.schemas.health import CarePlanCategory, HealthSummaryStatus, ObservationCategory
-
-
-TimeSlot = Literal["morning", "afternoon", "evening"]
+from app.schemas.health import (
+    CarePlanCategory,
+    CarePlanIconKey,
+    CarePlanTimeSlot,
+    HealthSummaryStatus,
+)
 
 
 class DailyHealthSnapshot(BaseModel):
@@ -29,12 +31,12 @@ class DailyHealthSnapshot(BaseModel):
 
 
 class DailyHealthSummaryItem(BaseModel):
-    category: ObservationCategory
+    category: str
     label: str
     value: str
     status: HealthSummaryStatus
 
-    @field_validator("label", "value")
+    @field_validator("category", "label", "value")
     @classmethod
     def validate_text(cls, value: str) -> str:
         cleaned = value.strip()
@@ -46,24 +48,21 @@ class DailyHealthSummaryItem(BaseModel):
 class DailyHealthSummaryBundle(BaseModel):
     summaries: list[DailyHealthSummaryItem]
 
-    @model_validator(mode="after")
-    def validate_summary_categories(self) -> DailyHealthSummaryBundle:
-        categories = {item.category for item in self.summaries}
-        expected = {"chronic-vitals", "lifestyle", "body-vitals"}
-        if categories != expected or len(self.summaries) != 3:
-            raise ValueError("Daily health summaries must include exactly one item for each homepage category.")
-        return self
-
 
 class DailyCarePlanDraft(BaseModel):
     category: CarePlanCategory
+    icon_key: CarePlanIconKey | None = None
+    time_slot: CarePlanTimeSlot
+    assignee_member_id: str | None = None
     title: str
     description: str
-    time_slot: TimeSlot
+    notes: str | None = None
 
-    @field_validator("title", "description")
+    @field_validator("title", "description", "assignee_member_id", "notes")
     @classmethod
-    def validate_text(cls, value: str) -> str:
+    def validate_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("Field is required.")
@@ -71,12 +70,12 @@ class DailyCarePlanDraft(BaseModel):
 
 
 class DailyCarePlanDecision(BaseModel):
-    care_plan: DailyCarePlanDraft | None = None
+    care_plans: list[DailyCarePlanDraft] = Field(default_factory=list)
 
 
 class DailyGenerationResult(BaseModel):
     summaries: DailyHealthSummaryBundle | None = None
-    care_plan: DailyCarePlanDraft | None = None
+    care_plans: list[DailyCarePlanDraft] = Field(default_factory=list)
 
 
 class DailyGenerationService:
@@ -125,8 +124,8 @@ SUMMARY_AGENT_INSTRUCTIONS = "\n".join(
     [
         "你负责为 HomeVital 首页生成每日健康摘要。",
         "只能使用输入快照中的事实，不要补充未提供的数据。",
-        "输出必须包含且只包含 3 条摘要，类别固定为 chronic-vitals、lifestyle、body-vitals。",
-        "label 使用中文短标题，value 用一句简短中文说明，status 只能是 good、warning、neutral。",
+        "输出 2-5 条结构化摘要，category 使用中文动态主题，不要复用固定枚举。",
+        "label 使用中文短标题，value 用一句简短中文说明，status 只能是 good、warning、alert。",
         "不要输出 Markdown、列表或自由文本解释。",
     ]
 )
@@ -134,11 +133,13 @@ SUMMARY_AGENT_INSTRUCTIONS = "\n".join(
 
 CARE_PLAN_AGENT_INSTRUCTIONS = "\n".join(
     [
-        "你负责为 HomeVital 生成当天最多 1 条 AI 提醒。",
+        "你负责为 HomeVital 生成当天 0-3 条 AI 提醒。",
         "只能使用输入快照中的事实，不要编造不存在的数据。",
-        "如果今天没有明确且有价值的提醒，就返回 care_plan = null。",
-        "如果返回提醒，category 只能使用现有 CarePlan 枚举，title 与 description 用中文简洁表达。",
-        "time_slot 只能是 morning、afternoon、evening，分别表示 09:00、14:00、20:00。",
+        "如果今天没有明确且有价值的提醒，就返回 care_plans = []。",
+        "每条提醒都必须包含 category、title、description、time_slot；可选返回 icon_key、assignee_member_id、notes。",
+        "category 只能使用现有 CarePlan 枚举。",
+        "icon_key 只能使用 medication、exercise、checkup、meal、rest、social、general。",
+        "time_slot 只能使用 清晨、上午、午后、晚间、睡前。",
         "不要输出 Markdown、列表或自由文本解释。",
     ]
 )

@@ -171,15 +171,15 @@ function getNumericValue(observation?: ObservationRecord | null): number | null 
   return null;
 }
 
-function summaryTone(status: "good" | "warning" | "neutral" | "attention" | "none") {
+function summaryTone(status: "good" | "warning" | "alert" | "attention" | "none") {
   if (status === "good") {
     return "bg-emerald-500";
   }
+  if (status === "alert") {
+    return "bg-rose-500";
+  }
   if (status === "warning" || status === "attention") {
     return "bg-amber-500";
-  }
-  if (status === "neutral") {
-    return "bg-sky-500";
   }
   return "bg-gray-300";
 }
@@ -232,54 +232,68 @@ function OverviewTabContent({
   const temperatureObservation = latestObservationByCode(observations, "body-temperature");
   const heartObservation = latestObservationByCode(observations, "heart-rate");
   const summaryLookup = new Map(healthSummaries.map((item) => [item.category, item]));
+  const orderedSummaries = healthSummaries;
   const todayReminders = carePlans.filter((item) => item.status === "active" && isToday(item.scheduled_at));
+  const summaryCardValue = (
+    preferredCategory: string,
+    fallbackIndex: number,
+    fallbackLabel: string,
+    fallbackContent: string,
+    fallbackStatus: "good" | "warning" | "alert" | "attention" | "none",
+  ) => {
+    const item = summaryLookup.get(preferredCategory) ?? orderedSummaries[fallbackIndex];
+    if (item) {
+      return {
+        label: item.label,
+        content: item.value,
+        status: item.status,
+      };
+    }
+    return {
+      label: fallbackLabel,
+      content: fallbackContent,
+      status: fallbackStatus,
+    };
+  };
 
   const summaryCards = [
-    {
-      label: "慢病管理",
-      content:
-        summaryLookup.get("chronic-vitals")?.value ??
-        (activeConditions.length > 0 ? activeConditions.map((item) => item.display_name).join("、") : "期待新记录"),
-      status:
-        summaryLookup.get("chronic-vitals")?.status ??
-        (activeConditions.length > 0 ? "attention" : "none"),
-    },
-    {
-      label: "生活习惯",
-      content:
-        summaryLookup.get("lifestyle")?.value ??
-        (stepObservation || sleepObservation
-          ? [
-              stepObservation ? `步数 ${stepObservation.value ?? stepObservation.value_string ?? "—"}` : null,
-              sleepObservation ? `睡眠 ${sleepObservation.value ?? sleepObservation.value_string ?? "—"}h` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")
-          : "期待新记录"),
-      status: summaryLookup.get("lifestyle")?.status ?? (stepObservation || sleepObservation ? "good" : "none"),
-    },
-    {
-      label: "生理指标",
-      content:
-        summaryLookup.get("body-vitals")?.value ??
-        (oxygenObservation || temperatureObservation || heartObservation
-          ? [
-              heartObservation ? `心率 ${heartObservation.value ?? "—"}` : null,
-              oxygenObservation ? `血氧 ${oxygenObservation.value ?? "—"}%` : null,
-              temperatureObservation ? `体温 ${temperatureObservation.value ?? "—"}°C` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")
-          : "期待新记录"),
-      status:
-        summaryLookup.get("body-vitals")?.status ??
-        (oxygenObservation || temperatureObservation || heartObservation ? "good" : "none"),
-    },
-    {
-      label: "心理情绪",
-      content: "期待新记录",
-      status: "none",
-    },
+    summaryCardValue(
+      "chronic-vitals",
+      0,
+      "慢病管理",
+      activeConditions.length > 0 ? activeConditions.map((item) => item.display_name).join("、") : "期待新记录",
+      activeConditions.length > 0 ? "attention" : "none",
+    ),
+    summaryCardValue(
+      "lifestyle",
+      1,
+      "生活习惯",
+      stepObservation || sleepObservation
+        ? [
+            stepObservation ? `步数 ${stepObservation.value ?? stepObservation.value_string ?? "—"}` : null,
+            sleepObservation ? `睡眠 ${sleepObservation.value ?? sleepObservation.value_string ?? "—"}h` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "期待新记录",
+      stepObservation || sleepObservation ? "good" : "none",
+    ),
+    summaryCardValue(
+      "body-vitals",
+      2,
+      "生理指标",
+      oxygenObservation || temperatureObservation || heartObservation
+        ? [
+            heartObservation ? `心率 ${heartObservation.value ?? "—"}` : null,
+            oxygenObservation ? `血氧 ${oxygenObservation.value ?? "—"}%` : null,
+            temperatureObservation ? `体温 ${temperatureObservation.value ?? "—"}°C` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "期待新记录",
+      oxygenObservation || temperatureObservation || heartObservation ? "good" : "none",
+    ),
+    summaryCardValue("mood", 3, "心理情绪", "期待新记录", "none"),
   ] as const;
 
   return (
@@ -317,10 +331,10 @@ function OverviewTabContent({
           }
         />
         <div className="grid grid-cols-2 gap-4">
-          {summaryCards.map((card) => (
+          {summaryCards.map((card, cardIndex) => (
             <div
               className="flex h-28 flex-col justify-center rounded-2xl border border-gray-100/50 bg-gray-50 p-5"
-              key={card.label}
+              key={`${card.label}-${cardIndex}`}
             >
               <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">{card.label}</p>
               <div className="flex items-center gap-2">

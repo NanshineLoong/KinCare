@@ -1,24 +1,42 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from app.ai.orchestrator import ChatOrchestrator, format_sse_event
 from app.ai.transcription import transcribe_audio
-from app.core.dependencies import CurrentUser, get_current_user
+from app.core.database import Database
+from app.core.dependencies import CurrentUser, get_current_user, get_database
 from app.schemas.chat import (
     ChatDraftConfirmRequest,
     ChatDraftConfirmResult,
     ChatMessageCreate,
+    ChatMessageRead,
     ChatSessionCreate,
+    ChatSessionListItem,
     ChatSessionRead,
     ChatTranscriptionRead,
 )
+from app.services import chat_sessions
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+def _public_chat_message(message: dict[str, Any]) -> dict[str, Any]:
+    metadata = dict(message.get("metadata") or {})
+    metadata.pop("message_history", None)
+    return {
+        "id": message["id"],
+        "role": message["role"],
+        "content": message["content"],
+        "event_type": message.get("event_type"),
+        "metadata": metadata or None,
+        "created_at": message["created_at"],
+    }
 
 
 @router.post("/sessions", response_model=ChatSessionRead, status_code=status.HTTP_201_CREATED)
@@ -33,6 +51,55 @@ def create_session(
         member_id=request.member_id,
         page_context=request.page_context,
     )
+
+
+@router.get("/sessions", response_model=list[ChatSessionListItem])
+def list_sessions(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    database: Database = Depends(get_database),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    with database.connection() as connection:
+        sessions = chat_sessions.list_sessions(
+            connection,
+            user_id=current_user.id,
+            family_space_id=current_user.family_space_id,
+            limit=limit,
+            offset=offset,
+        )
+    return [
+        {
+            "id": session["id"],
+            "member_id": session["member_id"],
+            "title": session["title"],
+            "summary": session.get("summary"),
+            "updated_at": session["updated_at"],
+        }
+        for session in sessions
+    ]
+
+
+@router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageRead])
+def list_session_messages(
+    session_id: str,
+    app_request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    orchestrator: ChatOrchestrator = app_request.app.state.chat_orchestrator
+    try:
+        orchestrator.resolve_session(
+            current_user=current_user,
+            session_id=session_id,
+            member_id=None,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+
+    database: Database = app_request.app.state.database
+    with database.connection() as connection:
+        messages = chat_sessions.list_messages_for_session(connection, session_id)
+    return [_public_chat_message(message) for message in messages]
 
 
 @router.post("/transcriptions", response_model=ChatTranscriptionRead)

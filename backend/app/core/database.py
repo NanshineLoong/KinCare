@@ -46,15 +46,32 @@ ON family_member(family_space_id);
 
 CREATE TABLE IF NOT EXISTS member_access_grant (
     id TEXT PRIMARY KEY,
-    member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
+    member_id TEXT REFERENCES family_member(id) ON DELETE CASCADE,
     user_account_id TEXT NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
-    can_write INTEGER NOT NULL DEFAULT 0 CHECK (can_write IN (0, 1)),
+    permission_level TEXT NOT NULL DEFAULT 'read'
+        CHECK (permission_level IN ('read', 'write', 'manage')),
+    target_scope TEXT NOT NULL DEFAULT 'specific'
+        CHECK (target_scope IN ('specific', 'all')),
     created_at TEXT NOT NULL,
-    UNIQUE(member_id, user_account_id)
+    CHECK (
+        (target_scope = 'specific' AND member_id IS NOT NULL)
+        OR (target_scope = 'all' AND member_id IS NULL)
+    )
 );
 
 CREATE INDEX IF NOT EXISTS idx_member_access_grant_user_account_id
 ON member_access_grant(user_account_id);
+
+CREATE INDEX IF NOT EXISTS idx_member_access_grant_member_id
+ON member_access_grant(member_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_member_access_grant_specific_unique
+ON member_access_grant(member_id, user_account_id)
+WHERE target_scope = 'specific';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_member_access_grant_all_unique
+ON member_access_grant(user_account_id)
+WHERE target_scope = 'all';
 
 CREATE TABLE IF NOT EXISTS observation (
     id TEXT PRIMARY KEY,
@@ -172,10 +189,10 @@ ON workout_record(member_id, start_at DESC);
 CREATE TABLE IF NOT EXISTS health_summary (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
-    category TEXT NOT NULL CHECK (category IN ('chronic-vitals', 'lifestyle', 'body-vitals')),
+    category TEXT NOT NULL,
     label TEXT NOT NULL,
     value TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('good', 'warning', 'neutral')),
+    status TEXT NOT NULL CHECK (status IN ('good', 'warning', 'alert')),
     generated_at TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
@@ -186,9 +203,13 @@ ON health_summary(member_id);
 CREATE TABLE IF NOT EXISTS care_plan (
     id TEXT PRIMARY KEY,
     member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
+    assignee_member_id TEXT REFERENCES family_member(id) ON DELETE SET NULL,
     category TEXT NOT NULL CHECK (category IN ('medication-reminder', 'activity-reminder', 'checkup-reminder', 'health-advice', 'daily-tip')),
+    icon_key TEXT CHECK (icon_key IN ('medication', 'exercise', 'checkup', 'meal', 'rest', 'social', 'general')),
+    time_slot TEXT CHECK (time_slot IN ('清晨', '上午', '午后', '晚间', '睡前')),
     title TEXT NOT NULL,
     description TEXT NOT NULL,
+    notes TEXT,
     status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'cancelled')),
     scheduled_at TEXT,
     completed_at TEXT,
@@ -206,6 +227,7 @@ CREATE TABLE IF NOT EXISTS chat_session (
     family_space_id TEXT NOT NULL REFERENCES family_space(id) ON DELETE CASCADE,
     member_id TEXT REFERENCES family_member(id) ON DELETE SET NULL,
     title TEXT,
+    summary TEXT,
     page_context TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -253,6 +275,207 @@ LEGACY_TABLES = (
 )
 
 
+def _table_sql(connection: sqlite3.Connection, table_name: str) -> str:
+    row = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    if row is None or row[0] is None:
+        return ""
+    return str(row[0])
+
+
+def _table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {str(row[1]) for row in rows}
+
+
+def _migrate_member_access_grant(connection: sqlite3.Connection) -> None:
+    columns = _table_columns(connection, "member_access_grant")
+    if not columns or "can_write" not in columns:
+        return
+
+    connection.executescript(
+        """
+        DROP INDEX IF EXISTS idx_member_access_grant_user_account_id;
+        ALTER TABLE member_access_grant RENAME TO member_access_grant_legacy;
+
+        CREATE TABLE member_access_grant (
+            id TEXT PRIMARY KEY,
+            member_id TEXT REFERENCES family_member(id) ON DELETE CASCADE,
+            user_account_id TEXT NOT NULL REFERENCES user_account(id) ON DELETE CASCADE,
+            permission_level TEXT NOT NULL DEFAULT 'read'
+                CHECK (permission_level IN ('read', 'write', 'manage')),
+            target_scope TEXT NOT NULL DEFAULT 'specific'
+                CHECK (target_scope IN ('specific', 'all')),
+            created_at TEXT NOT NULL,
+            CHECK (
+                (target_scope = 'specific' AND member_id IS NOT NULL)
+                OR (target_scope = 'all' AND member_id IS NULL)
+            )
+        );
+
+        INSERT INTO member_access_grant (
+            id,
+            member_id,
+            user_account_id,
+            permission_level,
+            target_scope,
+            created_at
+        )
+        SELECT
+            id,
+            member_id,
+            user_account_id,
+            CASE WHEN can_write = 1 THEN 'write' ELSE 'read' END,
+            'specific',
+            created_at
+        FROM member_access_grant_legacy;
+
+        DROP TABLE member_access_grant_legacy;
+
+        CREATE INDEX idx_member_access_grant_user_account_id
+        ON member_access_grant(user_account_id);
+
+        CREATE INDEX idx_member_access_grant_member_id
+        ON member_access_grant(member_id);
+
+        CREATE UNIQUE INDEX idx_member_access_grant_specific_unique
+        ON member_access_grant(member_id, user_account_id)
+        WHERE target_scope = 'specific';
+
+        CREATE UNIQUE INDEX idx_member_access_grant_all_unique
+        ON member_access_grant(user_account_id)
+        WHERE target_scope = 'all';
+        """
+    )
+
+
+def _migrate_health_summary_schema(connection: sqlite3.Connection) -> None:
+    sql = _table_sql(connection, "health_summary")
+    if "neutral" not in sql and "category IN (" not in sql:
+        return
+
+    connection.executescript(
+        """
+        CREATE TABLE health_summary__new (
+            id TEXT PRIMARY KEY,
+            member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
+            category TEXT NOT NULL,
+            label TEXT NOT NULL,
+            value TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (status IN ('good', 'warning', 'alert')),
+            generated_at TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        INSERT INTO health_summary__new (id, member_id, category, label, value, status, generated_at, created_at)
+        SELECT
+            id,
+            member_id,
+            category,
+            label,
+            value,
+            CASE status
+                WHEN 'neutral' THEN 'warning'
+                ELSE status
+            END,
+            generated_at,
+            created_at
+        FROM health_summary;
+
+        DROP TABLE health_summary;
+        ALTER TABLE health_summary__new RENAME TO health_summary;
+        CREATE INDEX idx_health_summary_member_id
+        ON health_summary(member_id);
+        """
+    )
+
+
+def _migrate_care_plan_schema(connection: sqlite3.Connection) -> None:
+    sql = _table_sql(connection, "care_plan")
+    columns = _table_columns(connection, "care_plan")
+    if not columns:
+        return
+
+    required_columns = {"assignee_member_id", "icon_key", "time_slot", "notes"}
+    if required_columns.issubset(columns) and "icon_key TEXT CHECK" in sql and "time_slot TEXT CHECK" in sql:
+        return
+
+    connection.executescript(
+        """
+        CREATE TABLE care_plan__new (
+            id TEXT PRIMARY KEY,
+            member_id TEXT NOT NULL REFERENCES family_member(id) ON DELETE CASCADE,
+            assignee_member_id TEXT REFERENCES family_member(id) ON DELETE SET NULL,
+            category TEXT NOT NULL CHECK (category IN ('medication-reminder', 'activity-reminder', 'checkup-reminder', 'health-advice', 'daily-tip')),
+            icon_key TEXT CHECK (icon_key IN ('medication', 'exercise', 'checkup', 'meal', 'rest', 'social', 'general')),
+            time_slot TEXT CHECK (time_slot IN ('清晨', '上午', '午后', '晚间', '睡前')),
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            notes TEXT,
+            status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'cancelled')),
+            scheduled_at TEXT,
+            completed_at TEXT,
+            generated_by TEXT NOT NULL CHECK (generated_by IN ('ai', 'manual')),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        INSERT INTO care_plan__new (
+            id,
+            member_id,
+            assignee_member_id,
+            category,
+            icon_key,
+            time_slot,
+            title,
+            description,
+            notes,
+            status,
+            scheduled_at,
+            completed_at,
+            generated_by,
+            created_at,
+            updated_at
+        )
+        SELECT
+            id,
+            member_id,
+            member_id,
+            category,
+            CASE category
+                WHEN 'medication-reminder' THEN 'medication'
+                WHEN 'activity-reminder' THEN 'exercise'
+                WHEN 'checkup-reminder' THEN 'checkup'
+                ELSE 'general'
+            END,
+            NULL,
+            title,
+            description,
+            NULL,
+            status,
+            scheduled_at,
+            completed_at,
+            generated_by,
+            created_at,
+            updated_at
+        FROM care_plan;
+
+        DROP TABLE care_plan;
+        ALTER TABLE care_plan__new RENAME TO care_plan;
+        CREATE INDEX idx_care_plan_member_id_scheduled_at
+        ON care_plan(member_id, scheduled_at DESC);
+        """
+    )
+
+
+def _ensure_chat_session_summary_column(connection: sqlite3.Connection) -> None:
+    columns = _table_columns(connection, "chat_session")
+    if columns and "summary" not in columns:
+        connection.execute("ALTER TABLE chat_session ADD COLUMN summary TEXT")
+
+
 class Database:
     def __init__(self, database_path: str) -> None:
         self.database_path = Path(database_path)
@@ -262,6 +485,10 @@ class Database:
         with sqlite3.connect(self.database_path) as connection:
             for table_name in LEGACY_TABLES:
                 connection.execute(f"DROP TABLE IF EXISTS {table_name}")
+            _migrate_member_access_grant(connection)
+            _migrate_health_summary_schema(connection)
+            _migrate_care_plan_schema(connection)
+            _ensure_chat_session_summary_column(connection)
             connection.executescript(SCHEMA_SQL)
             connection.commit()
 

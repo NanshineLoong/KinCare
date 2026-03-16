@@ -24,7 +24,12 @@ def register(agent: object) -> None:
         if member_id is None:
             return {"content": "请先选择家庭成员后再创建提醒。", "meta": {"created": False}}
 
-        ensure_member_access(ctx.deps.database, ctx.deps.current_user, member_id, require_write=True)
+        ensure_member_access(
+            ctx.deps.database,
+            ctx.deps.current_user,
+            member_id,
+            required_permission="write",
+        )
         with ctx.deps.database.connection() as connection:
             record = health_repository.create_resource(
                 connection,
@@ -84,7 +89,12 @@ def register(agent: object) -> None:
         if member_id is None:
             return {"content": "请先选择家庭成员。", "meta": {"updated": False}}
 
-        ensure_member_access(ctx.deps.database, ctx.deps.current_user, member_id, require_write=True)
+        ensure_member_access(
+            ctx.deps.database,
+            ctx.deps.current_user,
+            member_id,
+            required_permission="write",
+        )
         with ctx.deps.database.connection() as connection:
             record = health_repository.get_resource_by_id(connection, "care-plans", care_plan_id)
             if record is None or record["member_id"] != member_id:

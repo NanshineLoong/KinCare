@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 import sys
-import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -54,6 +53,28 @@ def create_managed_member(client: TestClient, admin_access_token: str, name: str
         "/api/members",
         json={"name": name, "gender": "female"},
         headers=auth_headers(admin_access_token),
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def grant_permission(
+    client: TestClient,
+    *,
+    actor_access_token: str,
+    context_member_id: str,
+    user_account_id: str,
+    permission_level: str,
+    target_scope: str = "specific",
+) -> dict[str, Any]:
+    response = client.post(
+        f"/api/members/{context_member_id}/permissions",
+        json={
+            "user_account_id": user_account_id,
+            "permission_level": permission_level,
+            "target_scope": target_scope,
+        },
+        headers=auth_headers(actor_access_token),
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -221,18 +242,18 @@ RESOURCE_CASES = [
     {
         "resource": "health-summaries",
         "create_payload": {
-            "category": "lifestyle",
-            "label": "运动习惯",
-            "value": "本周步数稳定",
-            "status": "good",
+            "category": "情绪支持",
+            "label": "情绪提醒",
+            "value": "最近需要更多陪伴与休息。",
+            "status": "alert",
             "generated_at": "2026-03-11T09:00:00+00:00",
         },
         "update_payload": {
-            "value": "本周运动偏少",
+            "value": "情绪状态稍有回稳，继续观察。",
             "status": "warning",
         },
         "assert_created": lambda item, expected: (
-            item["label"] == expected["label"] and item["status"] == expected["status"]
+            item["category"] == expected["category"] and item["status"] == expected["status"]
         ),
         "assert_updated": lambda item, expected: (
             item["value"] == expected["value"] and item["status"] == expected["status"]
@@ -244,19 +265,26 @@ RESOURCE_CASES = [
             "category": "checkup-reminder",
             "title": "晚间服药",
             "description": "20:00 服用降压药",
+            "icon_key": "medication",
+            "time_slot": "晚间",
+            "notes": "饭后半小时服用",
             "status": "active",
             "scheduled_at": "2026-03-11T20:00:00+00:00",
             "generated_by": "manual",
         },
         "update_payload": {
             "status": "completed",
+            "notes": "已完成提醒",
             "completed_at": "2026-03-11T12:00:00+00:00",
         },
         "assert_created": lambda item, expected: (
-            item["title"] == expected["title"] and item["status"] == expected["status"]
+            item["title"] == expected["title"]
+            and item["icon_key"] == expected["icon_key"]
+            and item["time_slot"] == expected["time_slot"]
         ),
         "assert_updated": lambda item, expected: (
             item["status"] == expected["status"]
+            and item["notes"] == expected["notes"]
             and item["completed_at"] == expected["completed_at"]
         ),
     },
@@ -419,45 +447,82 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
         tzinfo=UTC,
     ).isoformat()
 
-    response = client.post(
-        f"/api/members/{managed_member['id']}/health-summaries",
-        json={
-            "category": "chronic-vitals",
+    for summary in [
+        {
+            "category": "血压趋势",
             "label": "血压控制",
             "value": "稳步好转",
             "status": "good",
             "generated_at": "2026-03-11T08:00:00+00:00",
         },
-        headers=headers,
-    )
-    assert response.status_code == 201, response.text
-
-    response = client.post(
-        f"/api/members/{managed_member['id']}/health-summaries",
-        json={
-            "category": "lifestyle",
+        {
+            "category": "运动恢复",
             "label": "运动习惯",
             "value": "运动偏少",
             "status": "warning",
             "generated_at": "2026-03-11T08:05:00+00:00",
         },
-        headers=headers,
-    )
-    assert response.status_code == 201, response.text
+        {
+            "category": "情绪支持",
+            "label": "情绪提醒",
+            "value": "今天更需要陪伴与休息",
+            "status": "alert",
+            "generated_at": "2026-03-11T08:10:00+00:00",
+        },
+        {
+            "category": "用药依从",
+            "label": "服药记录",
+            "value": "午后提醒仍待完成",
+            "status": "warning",
+            "generated_at": "2026-03-11T08:15:00+00:00",
+        },
+        {
+            "category": "营养状态",
+            "label": "早餐摄入",
+            "value": "早餐蛋白质摄入偏少",
+            "status": "warning",
+            "generated_at": "2026-03-11T08:20:00+00:00",
+        },
+    ]:
+        response = client.post(
+            f"/api/members/{managed_member['id']}/health-summaries",
+            json=summary,
+            headers=headers,
+        )
+        assert response.status_code == 201, response.text
 
     for care_plan in [
         {
             "category": "medication-reminder",
             "title": "早餐后服药",
             "description": "08:30 服用降压药",
+            "icon_key": "medication",
+            "time_slot": "清晨",
+            "assignee_member_id": managed_member["id"],
+            "notes": "饭后 30 分钟内完成",
             "status": "active",
             "scheduled_at": today_morning,
+            "generated_by": "manual",
+        },
+        {
+            "category": "daily-tip",
+            "title": "睡前补水",
+            "description": "睡前少量温水，避免夜间口干。",
+            "icon_key": "rest",
+            "time_slot": "晚间",
+            "assignee_member_id": managed_member["id"],
+            "notes": "控制在半杯以内",
+            "status": "active",
+            "scheduled_at": datetime(today.year, today.month, today.day, 20, 30, tzinfo=UTC).isoformat(),
             "generated_by": "manual",
         },
         {
             "category": "checkup-reminder",
             "title": "周五复诊",
             "description": "提前准备病历",
+            "icon_key": "checkup",
+            "time_slot": "上午",
+            "assignee_member_id": managed_member["id"],
             "status": "active",
             "scheduled_at": tomorrow_morning,
             "generated_by": "manual",
@@ -479,11 +544,25 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
     managed_summary = next(
         item for item in payload["members"] if item["member"]["id"] == managed_member["id"]
     )
-    assert [item["label"] for item in managed_summary["health_summaries"]] == ["运动习惯", "血压控制"]
-    assert managed_summary["health_summaries"][0]["status"] == "warning"
+    assert [item["label"] for item in managed_summary["health_summaries"]] == [
+        "早餐摄入",
+        "服药记录",
+        "情绪提醒",
+        "运动习惯",
+        "血压控制",
+    ]
+    assert managed_summary["health_summaries"][2]["status"] == "alert"
 
-    assert [item["title"] for item in payload["today_reminders"]] == ["早餐后服药"]
+    assert [item["title"] for item in payload["today_reminders"]] == ["早餐后服药", "睡前补水"]
+    assert [item["time_slot"] for item in payload["today_reminders"]] == ["清晨", "晚间"]
     assert payload["today_reminders"][0]["member_name"] == "奶奶"
+    assert payload["today_reminders"][0]["icon_key"] == "medication"
+    assert payload["today_reminders"][1]["notes"] == "控制在半杯以内"
+    assert [group["time_slot"] for group in payload["reminder_groups"]] == ["清晨", "晚间"]
+    assert [item["title"] for item in payload["reminder_groups"][0]["reminders"]] == ["早餐后服药"]
+    assert payload["reminder_groups"][0]["reminders"][0]["assignee_member_id"] == managed_member["id"]
+
+
 def test_member_health_access_requires_self_or_grant(client: TestClient) -> None:
     admin = register_user(
         client,
@@ -520,20 +599,15 @@ def test_member_health_access_requires_self_or_grant(client: TestClient) -> None
     )
     assert forbidden_list.status_code == 403, forbidden_list.text
 
-    with client.app.state.database.connection() as connection:
-        connection.execute(
-            """
-            INSERT INTO member_access_grant (id, member_id, user_account_id, can_write, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                str(uuid.uuid4()),
-                managed_member["id"],
-                caregiver["user"]["id"],
-                0,
-                datetime(2026, 3, 11, tzinfo=UTC).isoformat(),
-            ),
-        )
+    read_grant = grant_permission(
+        client,
+        actor_access_token=admin["tokens"]["access_token"],
+        context_member_id=managed_member["id"],
+        user_account_id=caregiver["user"]["id"],
+        permission_level="read",
+    )
+    assert read_grant["permission_level"] == "read"
+    assert read_grant["target_scope"] == "specific"
 
     allowed_list = client.get(
         f"/api/members/{managed_member['id']}/observations",
@@ -557,15 +631,14 @@ def test_member_health_access_requires_self_or_grant(client: TestClient) -> None
     )
     assert forbidden_create.status_code == 403, forbidden_create.text
 
-    with client.app.state.database.connection() as connection:
-        connection.execute(
-            """
-            UPDATE member_access_grant
-            SET can_write = 1
-            WHERE member_id = ? AND user_account_id = ?
-            """,
-            (managed_member["id"], caregiver["user"]["id"]),
-        )
+    write_grant = grant_permission(
+        client,
+        actor_access_token=admin["tokens"]["access_token"],
+        context_member_id=managed_member["id"],
+        user_account_id=caregiver["user"]["id"],
+        permission_level="write",
+    )
+    assert write_grant["permission_level"] == "write"
 
     allowed_create = client.post(
         f"/api/members/{managed_member['id']}/observations",
@@ -596,3 +669,59 @@ def test_member_health_access_requires_self_or_grant(client: TestClient) -> None
         headers=auth_headers(caregiver["tokens"]["access_token"]),
     )
     assert self_create.status_code == 201, self_create.text
+
+
+def test_all_scope_write_grant_applies_to_every_member_in_family_space(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    caregiver = register_user(
+        client,
+        email="caregiver@example.com",
+        password="Secret123!",
+        name="照护者",
+    )
+    grandma = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    grandpa = create_managed_member(client, admin["tokens"]["access_token"], "爷爷")
+
+    grant = grant_permission(
+        client,
+        actor_access_token=admin["tokens"]["access_token"],
+        context_member_id=grandma["id"],
+        user_account_id=caregiver["user"]["id"],
+        permission_level="write",
+        target_scope="all",
+    )
+    assert grant["target_scope"] == "all"
+    assert grant["member_id"] is None
+
+    for member in (grandma, grandpa):
+        create_response = client.post(
+            f"/api/members/{member['id']}/observations",
+            json={
+                "category": "body-vitals",
+                "code": "heart-rate",
+                "display_name": "心率",
+                "value": 72.0,
+                "unit": "bpm",
+                "effective_at": "2026-03-11T09:00:00+00:00",
+                "source": "manual",
+            },
+            headers=auth_headers(caregiver["tokens"]["access_token"]),
+        )
+        assert create_response.status_code == 201, create_response.text
+
+    permissions_response = client.get(
+        f"/api/members/{grandpa['id']}/permissions",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert permissions_response.status_code == 200, permissions_response.text
+    assert any(
+        item["user_account_id"] == caregiver["user"]["id"]
+        and item["permission_level"] == "write"
+        and item["target_scope"] == "all"
+        for item in permissions_response.json()
+    )

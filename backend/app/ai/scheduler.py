@@ -20,7 +20,7 @@ from app.services.health_records import (
     build_member_daily_generation_snapshot,
     ensure_member_access,
     list_all_members_for_scheduler,
-    replace_generated_daily_care_plan,
+    replace_generated_daily_care_plans,
     replace_generated_health_summaries,
 )
 
@@ -28,9 +28,18 @@ from app.services.health_records import (
 BUILTIN_HEALTH_SUMMARY_JOB_ID = "builtin.refresh_health_summaries"
 BUILTIN_CARE_PLAN_JOB_ID = "builtin.refresh_daily_care_plans"
 CARE_PLAN_SLOT_HOURS = {
-    "morning": 9,
-    "afternoon": 14,
-    "evening": 20,
+    "清晨": 6,
+    "上午": 9,
+    "午后": 14,
+    "晚间": 20,
+    "睡前": 22,
+}
+CARE_PLAN_ICON_BY_CATEGORY = {
+    "medication-reminder": "medication",
+    "activity-reminder": "exercise",
+    "checkup-reminder": "checkup",
+    "health-advice": "general",
+    "daily-tip": "general",
 }
 
 logger = logging.getLogger(__name__)
@@ -115,9 +124,13 @@ class HomeVitalScheduler:
                 "care-plans",
                 member_id=task["member_id"],
                 values={
+                    "assignee_member_id": task["member_id"],
                     "category": "daily-tip",
+                    "icon_key": "general",
+                    "time_slot": _label_for_scheduled_at(task["next_run_at"]),
                     "title": _title_for_task(task),
                     "description": task["prompt"],
+                    "notes": None,
                     "status": "active",
                     "scheduled_at": task["next_run_at"],
                     "generated_by": "ai",
@@ -190,20 +203,28 @@ class HomeVitalScheduler:
                     )
                     decision = asyncio.run(self._daily_generator.generate_care_plan(snapshot))
                     decision_payload = decision.model_dump() if hasattr(decision, "model_dump") else decision
-                    care_plan = None
-                    if decision_payload["care_plan"] is not None:
-                        draft = decision_payload["care_plan"]
-                        care_plan = {
-                            "category": draft["category"],
-                            "title": draft["title"],
-                            "description": draft["description"],
-                            "scheduled_at": _scheduled_at_for_slot(now, draft["time_slot"]),
-                        }
-                    replace_generated_daily_care_plan(
+                    care_plans: list[dict[str, Any]] = []
+                    for draft in decision_payload.get("care_plans", []):
+                        care_plans.append(
+                            {
+                                "assignee_member_id": draft.get("assignee_member_id") or member["id"],
+                                "category": draft["category"],
+                                "icon_key": draft.get("icon_key") or CARE_PLAN_ICON_BY_CATEGORY.get(
+                                    draft["category"],
+                                    "general",
+                                ),
+                                "time_slot": draft["time_slot"],
+                                "title": draft["title"],
+                                "description": draft["description"],
+                                "notes": draft.get("notes"),
+                                "scheduled_at": _scheduled_at_for_slot(now, draft["time_slot"]),
+                            }
+                        )
+                    replace_generated_daily_care_plans(
                         connection,
                         member_id=member["id"],
                         now=now,
-                        care_plan=care_plan,
+                        care_plans=care_plans,
                     )
                     refreshed_member_ids.append(member["id"])
                 except Exception as error:
@@ -255,6 +276,22 @@ def _scheduled_at_for_slot(now: datetime, time_slot: str) -> str:
     return now.replace(hour=hour, minute=0, second=0, microsecond=0).isoformat()
 
 
+def _label_for_scheduled_at(scheduled_at: str | None) -> str | None:
+    if scheduled_at is None:
+        return None
+    parsed = datetime.fromisoformat(scheduled_at)
+    hour = parsed.hour
+    if hour < 9:
+        return "清晨"
+    if hour < 12:
+        return "上午"
+    if hour < 18:
+        return "午后"
+    if hour < 22:
+        return "晚间"
+    return "睡前"
+
+
 def create_scheduled_task(
     *,
     database: Database,
@@ -267,7 +304,7 @@ def create_scheduled_task(
         app = getattr(database, "app", None)
         scheduler = getattr(getattr(app, "state", None), "scheduler", None)
     if member_id is not None:
-        ensure_member_access(database, current_user, member_id, require_write=True)
+        ensure_member_access(database, current_user, member_id, required_permission="write")
 
     with database.connection() as connection:
         task = scheduled_tasks.create_task(
@@ -301,7 +338,12 @@ def disable_scheduled_task(
         if task is None or task["family_space_id"] != current_user.family_space_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scheduled task not found.")
         if task["member_id"] is not None:
-            ensure_member_access(database, current_user, task["member_id"], require_write=True)
+            ensure_member_access(
+                database,
+                current_user,
+                task["member_id"],
+                required_permission="write",
+            )
         updated_task = scheduled_tasks.update_task(
             connection,
             task_id,

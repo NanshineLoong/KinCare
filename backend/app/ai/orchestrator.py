@@ -53,7 +53,12 @@ class ChatOrchestrator:
         page_context: str | None,
     ) -> dict[str, Any]:
         if member_id is not None:
-            ensure_member_access(self._database, current_user, member_id, require_write=False)
+            ensure_member_access(
+                self._database,
+                current_user,
+                member_id,
+                required_permission="read",
+            )
         with self._database.connection() as connection:
             return chat_sessions.create_session(
                 connection,
@@ -72,11 +77,20 @@ class ChatOrchestrator:
     ) -> tuple[dict[str, Any], str | None]:
         with self._database.connection() as connection:
             session = chat_sessions.get_session_by_id(connection, session_id)
-        if session is None or session["family_space_id"] != current_user.family_space_id:
+        if (
+            session is None
+            or session["family_space_id"] != current_user.family_space_id
+            or session["user_id"] != current_user.id
+        ):
             raise ValueError("Chat session not found.")
         focus_member_id = member_id or session["member_id"]
         if focus_member_id is not None:
-            ensure_member_access(self._database, current_user, focus_member_id, require_write=False)
+            ensure_member_access(
+                self._database,
+                current_user,
+                focus_member_id,
+                required_permission="read",
+            )
         return session, focus_member_id
 
     async def stream_chat(

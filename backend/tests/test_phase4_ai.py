@@ -108,7 +108,7 @@ def create_managed_member(client: TestClient, admin_access_token: str, name: str
     return response.json()
 
 
-def create_session(client: TestClient, *, token: str, member_id: str, page_context: str) -> str:
+def create_session(client: TestClient, *, token: str, member_id: str | None, page_context: str) -> str:
     response = client.post(
         "/api/chat/sessions",
         headers=auth_headers(token),
@@ -387,6 +387,118 @@ def test_chat_cannot_read_unauthorized_member_data(client: TestClient) -> None:
     )
 
     assert response.status_code == 403
+
+
+def test_chat_session_list_returns_recent_sessions_with_generated_preview(unconfigured_client: TestClient) -> None:
+    admin = register_user(unconfigured_client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(unconfigured_client, admin["tokens"]["access_token"], "奶奶")
+
+    first_session_id = create_session(
+        unconfigured_client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+    stream_chat_message(
+        unconfigured_client,
+        token=admin["tokens"]["access_token"],
+        session_id=first_session_id,
+        member_id=managed_member["id"],
+        page_context="home",
+        content="帮我回顾奶奶今天早上的血压和早餐后用药提醒",
+    )
+
+    second_session_id = create_session(
+        unconfigured_client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+    stream_chat_message(
+        unconfigured_client,
+        token=admin["tokens"]["access_token"],
+        session_id=second_session_id,
+        member_id=managed_member["id"],
+        page_context="home",
+        content="记录奶奶午睡后心率偏快，晚点继续跟进",
+    )
+
+    response = unconfigured_client.get(
+        "/api/chat/sessions",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert [item["id"] for item in payload] == [second_session_id, first_session_id]
+    assert payload[0]["member_id"] == managed_member["id"]
+    assert payload[0]["title"] == "记录奶奶午睡后心率偏快，晚点继续跟进"
+    assert payload[0]["summary"] == "记录奶奶午睡后心率偏快，晚点继续跟进"
+    assert payload[0]["updated_at"] >= payload[1]["updated_at"]
+
+
+def test_chat_session_messages_endpoint_returns_owned_history_without_internal_trace(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("奶奶最近血压稳定，早餐后服药提醒保持即可。")])
+        return ModelResponse(parts=[ToolCallPart("get_member_summary", {})])
+
+    with override_agent_model(client, function=scripted_model):
+        stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="请总结奶奶今天的血压和提醒",
+        )
+
+    response = client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert [item["role"] for item in payload] == ["user", "tool", "assistant"]
+    assert payload[0]["content"] == "请总结奶奶今天的血压和提醒"
+    assert payload[1]["event_type"] == "tool.result"
+    assert payload[2]["content"] == "奶奶最近血压稳定，早餐后服药提醒保持即可。"
+    assert "message_history" not in (payload[2]["metadata"] or {})
+
+
+def test_chat_session_messages_endpoint_rejects_other_users_session_access(unconfigured_client: TestClient) -> None:
+    admin = register_user(unconfigured_client, email="owner@example.com", password="Secret123!", name="管理员")
+    member = register_user(unconfigured_client, email="viewer@example.com", password="Secret123!", name="普通成员")
+    session_id = create_session(
+        unconfigured_client,
+        token=admin["tokens"]["access_token"],
+        member_id=None,
+        page_context="home",
+    )
+
+    response = unconfigured_client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(member["tokens"]["access_token"]),
+    )
+
+    assert response.status_code == 404
 
 
 def test_chat_explicit_extract_emits_health_record_draft_without_care_plan_entries(client: TestClient) -> None:
@@ -794,22 +906,28 @@ def test_scheduler_refreshes_ai_generated_content_and_preserves_manual_care_plan
                     {
                         "summaries": [
                             {
-                                "category": "chronic-vitals",
-                                "label": "慢病管理",
+                                "category": "血压趋势",
+                                "label": "血压波动",
                                 "value": "血压整体平稳，继续按计划监测。",
                                 "status": "good",
                             },
                             {
-                                "category": "lifestyle",
-                                "label": "生活习惯",
+                                "category": "睡眠恢复",
+                                "label": "睡眠节律",
                                 "value": "睡眠与运动节奏稳定，可以继续保持。",
                                 "status": "good",
                             },
                             {
-                                "category": "body-vitals",
-                                "label": "生理指标",
-                                "value": "心率与体征暂无明显异常。",
-                                "status": "neutral",
+                                "category": "情绪支持",
+                                "label": "情绪提醒",
+                                "value": "今天更适合轻量安排，避免额外疲劳。",
+                                "status": "warning",
+                            },
+                            {
+                                "category": "用药依从",
+                                "label": "服药观察",
+                                "value": "晚间药物提醒需要继续保持。",
+                                "status": "alert",
                             },
                         ]
                     },
@@ -825,12 +943,26 @@ def test_scheduler_refreshes_ai_generated_content_and_preserves_manual_care_plan
                 ToolCallPart(
                     output_tool.name,
                     {
-                        "care_plan": {
-                            "category": "activity-reminder",
-                            "title": "午后散步 20 分钟",
-                            "description": "午饭后安排一段轻量散步，帮助维持今天的活动量。",
-                            "time_slot": "afternoon",
-                        }
+                        "care_plans": [
+                            {
+                                "category": "activity-reminder",
+                                "icon_key": "exercise",
+                                "time_slot": "午后",
+                                "assignee_member_id": managed_member["id"],
+                                "title": "午后散步 20 分钟",
+                                "description": "午饭后安排一段轻量散步，帮助维持今天的活动量。",
+                                "notes": "以舒缓步行为主。",
+                            },
+                            {
+                                "category": "medication-reminder",
+                                "icon_key": "medication",
+                                "time_slot": "晚间",
+                                "assignee_member_id": managed_member["id"],
+                                "title": "晚间按时服药",
+                                "description": "睡前按既定计划服用降压药。",
+                                "notes": "服药后记录体感。",
+                            },
+                        ]
                     },
                 )
             ]
@@ -853,11 +985,12 @@ def test_scheduler_refreshes_ai_generated_content_and_preserves_manual_care_plan
     )
     assert summaries_response.status_code == 200, summaries_response.text
     summaries = summaries_response.json()
-    assert {item["category"] for item in summaries} == {"chronic-vitals", "lifestyle", "body-vitals"}
+    assert {item["category"] for item in summaries} == {"血压趋势", "睡眠恢复", "情绪支持", "用药依从"}
     assert {item["value"] for item in summaries} == {
         "血压整体平稳，继续按计划监测。",
         "睡眠与运动节奏稳定，可以继续保持。",
-        "心率与体征暂无明显异常。",
+        "今天更适合轻量安排，避免额外疲劳。",
+        "晚间药物提醒需要继续保持。",
     }
 
     care_plans_response = client.get(
@@ -870,10 +1003,20 @@ def test_scheduler_refreshes_ai_generated_content_and_preserves_manual_care_plan
     assert "早餐后服药" in titles
     assert "旧的 AI 提醒" not in titles
     assert "午后散步 20 分钟" in titles
+    assert "晚间按时服药" in titles
 
     generated_today = [item for item in care_plans if item["generated_by"] == "ai" and item["status"] == "active"]
-    assert len(generated_today) == 1
-    assert generated_today[0]["scheduled_at"].endswith("14:00:00+08:00")
+    assert len(generated_today) == 2
+    generated_by_title = {item["title"]: item for item in generated_today}
+    assert generated_by_title["午后散步 20 分钟"]["scheduled_at"].endswith("14:00:00+08:00")
+    assert generated_by_title["午后散步 20 分钟"]["time_slot"] == "午后"
+    assert generated_by_title["午后散步 20 分钟"]["icon_key"] == "exercise"
+    assert generated_by_title["午后散步 20 分钟"]["assignee_member_id"] == managed_member["id"]
+    assert generated_by_title["午后散步 20 分钟"]["notes"] == "以舒缓步行为主。"
+    assert generated_by_title["晚间按时服药"]["scheduled_at"].endswith("20:00:00+08:00")
+    assert generated_by_title["晚间按时服药"]["time_slot"] == "晚间"
+    assert generated_by_title["晚间按时服药"]["icon_key"] == "medication"
+    assert generated_by_title["晚间按时服药"]["notes"] == "服药后记录体感。"
 
 
 def test_scheduler_skips_unconfigured_ai_and_keeps_existing_daily_content(unconfigured_client: TestClient) -> None:
@@ -968,10 +1111,10 @@ def test_scheduler_continues_refresh_when_one_member_generation_fails(client: Te
                         {
                             "summaries": [
                                 {
-                                    "category": "unsupported",
+                                    "category": "异常信号",
                                     "label": "无效摘要",
                                     "value": "这条结果应触发校验失败。",
-                                    "status": "warning",
+                                    "status": "critical",
                                 }
                             ]
                         },
@@ -986,22 +1129,22 @@ def test_scheduler_continues_refresh_when_one_member_generation_fails(client: Te
                     {
                         "summaries": [
                             {
-                                "category": "chronic-vitals",
+                                "category": "血压趋势",
                                 "label": "慢病管理",
                                 "value": "监测计划正常。",
                                 "status": "good",
                             },
                             {
-                                "category": "lifestyle",
+                                "category": "生活节律",
                                 "label": "生活习惯",
                                 "value": "建议保持规律作息。",
-                                "status": "neutral",
+                                "status": "warning",
                             },
                             {
-                                "category": "body-vitals",
+                                "category": "恢复状态",
                                 "label": "生理指标",
                                 "value": "当前指标稳定。",
-                                "status": "neutral",
+                                "status": "good",
                             },
                         ]
                     },

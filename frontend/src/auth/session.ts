@@ -24,6 +24,7 @@ export type AuthMember = {
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
+  permission_level: "none" | "read" | "write" | "manage";
 };
 
 export type AuthSession = {

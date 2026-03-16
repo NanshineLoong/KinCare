@@ -22,7 +22,7 @@ def apply_draft_to_member(
     draft: dict[str, Any],
     source: str,
 ) -> dict[str, int]:
-    ensure_member_access(database, current_user, member_id, require_write=True)
+    ensure_member_access(database, current_user, member_id, required_permission="write")
     normalized = normalize_health_record_draft(draft)
     counts = {
         "observations": 0,

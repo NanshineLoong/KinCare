@@ -9,6 +9,7 @@ export type ChatSession = {
   family_space_id: string;
   member_id: string | null;
   title: string | null;
+  summary: string | null;
   page_context: string | null;
   created_at: string;
   updated_at: string;
