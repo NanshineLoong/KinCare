@@ -8,8 +8,9 @@ from fastapi.responses import StreamingResponse
 
 from app.ai.orchestrator import ChatOrchestrator, format_sse_event
 from app.ai.transcription import transcribe_audio
+from app.core.config import Settings
 from app.core.database import Database
-from app.core.dependencies import CurrentUser, get_current_user, get_database
+from app.core.dependencies import CurrentUser, get_current_user, get_database, get_settings
 from app.schemas.chat import (
     ChatDraftConfirmRequest,
     ChatDraftConfirmResult,
@@ -106,9 +107,15 @@ def list_session_messages(
 async def create_transcription(
     file: UploadFile = File(...),
     current_user: CurrentUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, str]:
     del current_user
-    transcript = transcribe_audio(await file.read())
+    transcript = await transcribe_audio(
+        settings,
+        content=await file.read(),
+        filename=file.filename,
+        content_type=file.content_type,
+    )
     return {"text": transcript}
 
 

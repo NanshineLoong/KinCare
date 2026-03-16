@@ -18,6 +18,17 @@ class Settings:
     ai_base_url: str | None
     ai_api_key: str | None
     ai_model: str
+    stt_provider: str
+    stt_base_url: str | None
+    stt_api_key: str | None
+    stt_model: str
+    stt_language: str | None
+    stt_prompt: str | None
+    stt_timeout_seconds: float
+    local_whisper_model: str
+    local_whisper_device: str
+    local_whisper_compute_type: str
+    local_whisper_download_root: str | None
     scheduler_enabled: bool
     scheduler_timezone: str
     health_summary_refresh_hour: int
@@ -49,6 +60,17 @@ def get_settings() -> Settings:
         ai_base_url=os.getenv("HOMEVITAL_AI_BASE_URL"),
         ai_api_key=os.getenv("HOMEVITAL_AI_API_KEY"),
         ai_model=os.getenv("HOMEVITAL_AI_MODEL", "gpt-4.1-mini"),
+        stt_provider=os.getenv("HOMEVITAL_STT_PROVIDER", "openai"),
+        stt_base_url=os.getenv("HOMEVITAL_STT_BASE_URL") or os.getenv("HOMEVITAL_AI_BASE_URL"),
+        stt_api_key=os.getenv("HOMEVITAL_STT_API_KEY") or os.getenv("HOMEVITAL_AI_API_KEY"),
+        stt_model=os.getenv("HOMEVITAL_STT_MODEL", "gpt-4o-mini-transcribe"),
+        stt_language=os.getenv("HOMEVITAL_STT_LANGUAGE", "zh"),
+        stt_prompt=os.getenv("HOMEVITAL_STT_PROMPT"),
+        stt_timeout_seconds=float(os.getenv("HOMEVITAL_STT_TIMEOUT_SECONDS", "30")),
+        local_whisper_model=os.getenv("HOMEVITAL_LOCAL_WHISPER_MODEL", "whisper-large-v3-turbo"),
+        local_whisper_device=os.getenv("HOMEVITAL_LOCAL_WHISPER_DEVICE", "auto"),
+        local_whisper_compute_type=os.getenv("HOMEVITAL_LOCAL_WHISPER_COMPUTE_TYPE", "default"),
+        local_whisper_download_root=os.getenv("HOMEVITAL_LOCAL_WHISPER_DOWNLOAD_ROOT"),
         scheduler_enabled=os.getenv("HOMEVITAL_SCHEDULER_ENABLED", "1") == "1",
         scheduler_timezone=os.getenv("HOMEVITAL_SCHEDULER_TIMEZONE", "Asia/Shanghai"),
         health_summary_refresh_hour=int(os.getenv("HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR", "5")),

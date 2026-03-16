@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
+from dataclasses import replace
 from datetime import UTC, datetime
 import importlib
 import json
@@ -823,14 +824,40 @@ def test_chat_loop_limit_returns_tool_error_when_model_exceeds_request_limit(cli
 
 def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    transcription_module = importlib.import_module("app.ai.transcription")
+    captured: dict[str, Any] = {}
+
+    class StubProvider:
+        def transcribe_audio(
+            self,
+            content: bytes,
+            *,
+            filename: str | None,
+            content_type: str | None,
+        ) -> str:
+            captured["content"] = content
+            captured["filename"] = filename
+            captured["content_type"] = content_type
+            return "奶奶今天胃口不错"
+
+    client.app.state.settings = replace(
+        client.app.state.settings,
+        stt_provider="openai",
+        stt_model="gpt-4o-mini-transcribe",
+    )
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(transcription_module, "get_transcription_provider", lambda settings: StubProvider())
 
     response = client.post(
         "/api/chat/transcriptions",
         headers=auth_headers(admin["tokens"]["access_token"]),
-        files={"file": ("voice.wav", "奶奶今天胃口不错".encode("utf-8"), "audio/wav")},
+        files={"file": ("voice.wav", b"\x00\x01binary-audio", "audio/wav")},
     )
     assert response.status_code == 200, response.text
     assert response.json()["text"] == "奶奶今天胃口不错"
+    assert captured["content"] == b"\x00\x01binary-audio"
+    assert captured["filename"] == "voice.wav"
+    assert captured["content_type"] == "audio/wav"
 
     empty_response = client.post(
         "/api/chat/transcriptions",
@@ -838,6 +865,121 @@ def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: Tes
         files={"file": ("voice.wav", b"", "audio/wav")},
     )
     assert empty_response.status_code == 400
+    monkeypatch.undo()
+
+
+def test_openai_transcription_provider_posts_multipart_request() -> None:
+    transcription_module = importlib.import_module("app.ai.transcription")
+    captured: dict[str, Any] = {}
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, str]:
+            return {"text": "奶奶今天胃口不错"}
+
+    class DummyClient:
+        def __init__(self, *, timeout: float) -> None:
+            captured["timeout"] = timeout
+
+        def __enter__(self) -> DummyClient:
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+            del exc_type, exc, tb
+
+        def post(
+            self,
+            url: str,
+            *,
+            headers: dict[str, str],
+            data: dict[str, str],
+            files: dict[str, tuple[str, bytes, str]],
+        ) -> DummyResponse:
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["data"] = data
+            captured["files"] = files
+            return DummyResponse()
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(transcription_module.httpx, "Client", DummyClient)
+
+    provider = transcription_module.OpenAITranscriptionProvider(
+        base_url="https://example.invalid/v1",
+        api_key="stt-secret",
+        model="gpt-4o-mini-transcribe",
+        language="zh",
+        prompt="常见药名：阿司匹林",
+        timeout_seconds=12.5,
+    )
+
+    result = provider.transcribe_audio(
+        b"\x00\x01binary-audio",
+        filename="voice.wav",
+        content_type="audio/wav",
+    )
+
+    assert result == "奶奶今天胃口不错"
+    assert captured["url"] == "https://example.invalid/v1/audio/transcriptions"
+    assert captured["headers"]["Authorization"] == "Bearer stt-secret"
+    assert captured["data"]["model"] == "gpt-4o-mini-transcribe"
+    assert captured["data"]["language"] == "zh"
+    assert captured["data"]["prompt"] == "常见药名：阿司匹林"
+    assert captured["files"]["file"] == ("voice.wav", b"\x00\x01binary-audio", "audio/wav")
+    assert captured["timeout"] == 12.5
+    monkeypatch.undo()
+
+
+def test_local_whisper_transcription_provider_uses_local_model(tmp_path: Any) -> None:
+    transcription_module = importlib.import_module("app.ai.transcription")
+    captured: dict[str, Any] = {}
+
+    class FakeSegment:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    class FakeWhisperModel:
+        def transcribe(
+            self,
+            audio_path: str,
+            *,
+            language: str | None = None,
+            initial_prompt: str | None = None,
+        ) -> tuple[list[FakeSegment], dict[str, str]]:
+            captured["audio_path"] = audio_path
+            captured["language"] = language
+            captured["initial_prompt"] = initial_prompt
+            return [FakeSegment("奶奶今天"), FakeSegment("胃口不错")], {"language": "zh"}
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        transcription_module,
+        "_load_local_whisper_model",
+        lambda **_: FakeWhisperModel(),
+    )
+
+    provider = transcription_module.LocalWhisperTranscriptionProvider(
+        model_name="whisper-large-v3-turbo",
+        device="cpu",
+        compute_type="int8",
+        prompt="常见药名：阿司匹林",
+        language="zh",
+        download_root=str(tmp_path),
+    )
+
+    result = provider.transcribe_audio(
+        b"\x00\x01binary-audio",
+        filename="voice.wav",
+        content_type="audio/wav",
+    )
+
+    assert result == "奶奶今天胃口不错"
+    assert captured["audio_path"].endswith(".wav")
+    assert captured["language"] == "zh"
+    assert captured["initial_prompt"] == "常见药名：阿司匹林"
+    monkeypatch.undo()
 
 
 def test_scheduler_registers_builtin_daily_refresh_jobs(custom_schedule_client: TestClient) -> None:
