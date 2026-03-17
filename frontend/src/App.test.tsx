@@ -1,10 +1,15 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { sessionStorageKey } from "./auth/session";
-
 
 function renderApp(initialPath = "/") {
   return render(
@@ -23,7 +28,9 @@ function jsonResponse(body: unknown, status = 200) {
 
 function sseResponse(events: Array<{ event: string; data: unknown }>) {
   const body = events
-    .map((item) => `event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`)
+    .map(
+      (item) => `event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`,
+    )
     .join("");
   return new Response(body, {
     status: 200,
@@ -57,7 +64,9 @@ function createJwt(expOffsetSeconds: number) {
   return `header.${payload}.signature`;
 }
 
-function createSessionPayload(overrides?: Partial<{ accessToken: string; refreshToken: string }>) {
+function createSessionPayload(
+  overrides?: Partial<{ accessToken: string; refreshToken: string }>,
+) {
   return {
     user: {
       id: "user-1",
@@ -374,7 +383,10 @@ describe("App", () => {
   });
 
   it("renders dashboard using health summaries and reminders only", async () => {
-    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
 
     fetchMock.mockImplementation(async (input) => {
       const pathname = requestPath(input);
@@ -389,14 +401,17 @@ describe("App", () => {
 
     renderApp("/app");
 
-    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+    expect(await screen.findByText("家人状态")).toBeInTheDocument();
     expect((await screen.findAllByText("慢病管理")).length).toBeGreaterThan(0);
     expect(screen.getByText("早餐后服药")).toBeInTheDocument();
     expect(screen.queryByText("等待活动记录")).not.toBeInTheDocument();
   });
 
   it("renders empty reminder state without future-phase wording", async () => {
-    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
 
     fetchMock.mockImplementation(async (input) => {
       const pathname = requestPath(input);
@@ -420,7 +435,10 @@ describe("App", () => {
   });
 
   it("opens member profile modal and loads current resources", async () => {
-    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
     const detail = createProfileDetail("member-2");
 
     fetchMock.mockImplementation(async (input) => {
@@ -463,7 +481,9 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: /张妈妈/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /查看 张妈妈 档案/ }),
+    );
 
     const dialog = await screen.findByRole("dialog", { name: "成员档案" });
     expect(within(dialog).getByText("基础信息")).toBeInTheDocument();
@@ -478,7 +498,10 @@ describe("App", () => {
   });
 
   it("streams chat draft cards and confirms them through confirm-draft endpoint", async () => {
-    window.localStorage.setItem(sessionStorageKey, JSON.stringify(createSessionPayload()));
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
 
     fetchMock.mockImplementation(async (input, init) => {
       const pathname = requestPath(input);
@@ -491,19 +514,25 @@ describe("App", () => {
         return jsonResponse(createDashboard());
       }
       if (method === "POST" && pathname === "/api/chat/sessions") {
-        return jsonResponse({
-          id: "chat-1",
-          user_id: "user-1",
-          family_space_id: "family-1",
-          member_id: "member-2",
-          title: null,
-          summary: null,
-          page_context: "home",
-          created_at: "2026-03-15T08:00:00+08:00",
-          updated_at: "2026-03-15T08:00:00+08:00",
-        }, 201);
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: "member-2",
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
       }
-      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+      if (
+        method === "POST" &&
+        pathname === "/api/chat/sessions/chat-1/messages"
+      ) {
         return sseResponse([
           {
             event: "session.started",
@@ -568,7 +597,9 @@ describe("App", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "确认保存" }));
 
-    expect(await within(dialog).findByText("已将这条心率记录保存到健康档案。")).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("已将这条心率记录保存到健康档案。"),
+    ).toBeInTheDocument();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -612,7 +643,7 @@ describe("App", () => {
     fireEvent.click(screen.getByLabelText("记住我的登录状态"));
     fireEvent.click(screen.getByRole("button", { name: "立即登录" }));
 
-    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+    expect(await screen.findByText("家人状态")).toBeInTheDocument();
   });
 
   it("refreshes an expired stored session before loading protected data", async () => {
@@ -632,7 +663,9 @@ describe("App", () => {
       const authorization = requestHeaders(input, init).get("Authorization");
 
       if (method === "POST" && pathname === "/api/auth/refresh") {
-        expect(JSON.parse(String(init?.body))).toEqual({ refresh_token: "refresh-token" });
+        expect(JSON.parse(String(init?.body))).toEqual({
+          refresh_token: "refresh-token",
+        });
         return jsonResponse({
           access_token: "fresh-access-token",
           refresh_token: "fresh-refresh-token",
@@ -653,9 +686,11 @@ describe("App", () => {
 
     renderApp("/app");
 
-    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+    expect(await screen.findByText("家人状态")).toBeInTheDocument();
 
-    const persistedSession = JSON.parse(window.localStorage.getItem(sessionStorageKey) ?? "{}");
+    const persistedSession = JSON.parse(
+      window.localStorage.getItem(sessionStorageKey) ?? "{}",
+    );
     expect(persistedSession.tokens.access_token).toBe("fresh-access-token");
     expect(persistedSession.tokens.refresh_token).toBe("fresh-refresh-token");
   });
@@ -709,7 +744,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    expect(await screen.findByText("今日贴心提醒")).toBeInTheDocument();
+    expect(await screen.findByText("家人状态")).toBeInTheDocument();
     expect(refreshCount).toBe(1);
   });
 
@@ -737,7 +772,9 @@ describe("App", () => {
 
     renderApp("/app");
 
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "登录" }),
+    ).toBeInTheDocument();
     expect(window.localStorage.getItem(sessionStorageKey)).toBeNull();
   });
 });

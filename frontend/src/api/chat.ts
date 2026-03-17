@@ -1,7 +1,13 @@
 import type { AuthSession } from "../auth/session";
 
-import { ApiError, authorizedFetch, parseResponse, sendAuthorized, sendAuthorizedFormData } from "./http";
-
+import {
+  ApiError,
+  authorizedFetch,
+  getAuthorized,
+  parseResponse,
+  sendAuthorized,
+  sendAuthorizedFormData,
+} from "./http";
 
 export type ChatSession = {
   id: string;
@@ -12,6 +18,14 @@ export type ChatSession = {
   summary: string | null;
   page_context: string | null;
   created_at: string;
+  updated_at: string;
+};
+
+export type ChatSessionListItem = {
+  id: string;
+  member_id: string | null;
+  title: string | null;
+  summary: string | null;
   updated_at: string;
 };
 
@@ -63,7 +77,10 @@ export type ChatToolResult = {
 };
 
 export type ChatStreamEvent =
-  | { event: "session.started"; data: { session_id: string; member_id: string | null } }
+  | {
+      event: "session.started";
+      data: { session_id: string; member_id: string | null };
+    }
   | { event: "tool.started"; data: { tool_name: string } }
   | { event: "tool.result"; data: ChatToolResult }
   | { event: "tool.draft"; data: ChatToolResult }
@@ -72,39 +89,56 @@ export type ChatStreamEvent =
   | { event: "message.delta"; data: { content: string } }
   | { event: "message.completed"; data: { content: string } };
 
+export function listChatSessions(
+  session: AuthSession,
+  params?: { limit?: number; offset?: number },
+): Promise<ChatSessionListItem[]> {
+  const limit = params?.limit ?? 20;
+  const offset = params?.offset ?? 0;
+  return getAuthorized<ChatSessionListItem[]>(
+    `/api/chat/sessions?limit=${limit}&offset=${offset}`,
+    session,
+  );
+}
+
 export function createChatSession(
   session: AuthSession,
   payload: { member_id?: string | null; page_context?: string | null },
 ) {
-  return sendAuthorized<ChatSession, { member_id?: string | null; page_context?: string | null }>(
-    "/api/chat/sessions",
-    session,
-    {
-      method: "POST",
-      payload,
-    },
-  );
+  return sendAuthorized<
+    ChatSession,
+    { member_id?: string | null; page_context?: string | null }
+  >("/api/chat/sessions", session, {
+    method: "POST",
+    payload,
+  });
 }
 
 export async function transcribeAudio(session: AuthSession, file: File) {
   const formData = new FormData();
   formData.append("file", file);
-  return sendAuthorizedFormData<{ text: string }>("/api/chat/transcriptions", session, formData);
+  return sendAuthorizedFormData<{ text: string }>(
+    "/api/chat/transcriptions",
+    session,
+    formData,
+  );
 }
 
 export async function confirmChatDraft(
   session: AuthSession,
   chatSessionId: string,
-  payload: { approvals: Record<string, boolean>; edits: Record<string, HealthRecordDraft> },
+  payload: {
+    approvals: Record<string, boolean>;
+    edits: Record<string, HealthRecordDraft>;
+  },
 ) {
-  return sendAuthorized<{ created_counts: Record<string, number>; assistant_message: string }, typeof payload>(
-    `/api/chat/${chatSessionId}/confirm-draft`,
-    session,
-    {
-      method: "POST",
-      payload,
-    },
-  );
+  return sendAuthorized<
+    { created_counts: Record<string, number>; assistant_message: string },
+    typeof payload
+  >(`/api/chat/${chatSessionId}/confirm-draft`, session, {
+    method: "POST",
+    payload,
+  });
 }
 
 export async function streamChatMessage(
@@ -116,13 +150,17 @@ export async function streamChatMessage(
     page_context?: string | null;
   },
 ): Promise<ChatStreamEvent[]> {
-  const response = await authorizedFetch(`/api/chat/sessions/${chatSessionId}/messages`, session, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await authorizedFetch(
+    `/api/chat/sessions/${chatSessionId}/messages`,
+    session,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
 
   if (!response.ok) {
     await parseResponse<ApiError>(response);

@@ -1,24 +1,44 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
-import { confirmChatDraft, createChatSession, streamChatMessage, transcribeAudio, type ChatSession } from "./api/chat";
+import {
+  confirmChatDraft,
+  createChatSession,
+  streamChatMessage,
+  transcribeAudio,
+  type ChatSession,
+} from "./api/chat";
 import { listMembers } from "./api/members";
 import { AppShell } from "./components/AppShell";
-import { ChatOverlay, type ChatMessage, type ChatToolCard } from "./components/ChatOverlay";
-import { MemberManagementModal } from "./components/MemberManagementModal";
+import {
+  ChatOverlay,
+  type ChatMessage,
+  type ChatToolCard,
+} from "./components/ChatOverlay";
+import { SettingsSheet } from "./components/SettingsSheet";
 import { MemberProfileModal } from "./components/MemberProfileModal";
-import { clearSession, readSession, writeSession, type AuthMember, type AuthSession } from "./auth/session";
-import { configureSessionManager, refreshSession, shouldRefreshSession } from "./auth/sessionManager";
+import {
+  clearSession,
+  readSession,
+  writeSession,
+  type AuthMember,
+  type AuthSession,
+} from "./auth/session";
+import {
+  configureSessionManager,
+  refreshSession,
+  shouldRefreshSession,
+} from "./auth/sessionManager";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
-
 
 const initialAssistantMessages: ChatMessage[] = [
   {
     id: "assistant-intro",
     role: "assistant",
-    content: "您好，我是 HomeVital 助手。请先选择成员，或直接询问当前的健康摘要与提醒。",
+    content:
+      "您好，我是 HomeVital 助手。请先选择成员，或直接询问当前的健康摘要与提醒。",
   },
 ];
 
@@ -28,7 +48,11 @@ function nextId(prefix: string) {
 
 function loadStoredSession(): AuthSession | null {
   const stored = readSession();
-  if (!stored?.user?.id || !stored?.member?.id || !stored?.tokens?.access_token) {
+  if (
+    !stored?.user?.id ||
+    !stored?.member?.id ||
+    !stored?.tokens?.access_token
+  ) {
     if (stored) {
       clearSession();
     }
@@ -48,11 +72,13 @@ export default function App() {
   const [membersError, setMembersError] = useState<string | null>(null);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [profileMemberId, setProfileMemberId] = useState<string | null>(null);
-  const [isMemberMgmtOpen, setIsMemberMgmtOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [dashboardRefreshToken, setDashboardRefreshToken] = useState(0);
   const [chatDraft, setChatDraft] = useState("");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialAssistantMessages);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(
+    initialAssistantMessages,
+  );
   const [chatToolCards, setChatToolCards] = useState<ChatToolCard[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatBusy, setIsChatBusy] = useState(false);
@@ -76,6 +102,7 @@ export default function App() {
     setMembers([]);
     setMembersError(null);
     setIsChatOpen(false);
+    setIsSettingsOpen(false);
     resetChatState();
   }
 
@@ -129,7 +156,9 @@ export default function App() {
         const refreshedSession = await refreshSession(session);
         if (!isCancelled && refreshedSession) {
           setSession(refreshedSession);
-          setSelectedChatMemberId((current) => current || refreshedSession.member.id);
+          setSelectedChatMemberId(
+            (current) => current || refreshedSession.member.id,
+          );
         }
       } catch {
         // Keep the current state so protected screens can surface the request failure.
@@ -178,7 +207,11 @@ export default function App() {
       } catch (error) {
         if (!isCancelled) {
           setMembers([]);
-          setMembersError(error instanceof Error ? error.message : "成员列表加载失败，请重试。");
+          setMembersError(
+            error instanceof Error
+              ? error.message
+              : "成员列表加载失败，请重试。",
+          );
         }
       } finally {
         if (!isCancelled) {
@@ -203,7 +236,9 @@ export default function App() {
     setQueuedMessage(null);
   }, [isChatOpen, queuedMessage]);
 
-  async function ensureChatSession(currentSession: AuthSession): Promise<ChatSession> {
+  async function ensureChatSession(
+    currentSession: AuthSession,
+  ): Promise<ChatSession> {
     const currentMemberId = selectedChatMemberId || null;
     if (
       chatSession &&
@@ -226,7 +261,8 @@ export default function App() {
       return;
     }
 
-    const contentSource = typeof initialContent === "string" ? initialContent : chatDraft;
+    const contentSource =
+      typeof initialContent === "string" ? initialContent : chatDraft;
     const content = contentSource.trim();
     if (!content) {
       return;
@@ -268,7 +304,11 @@ export default function App() {
           continue;
         }
 
-        if (event.event === "tool.result" || event.event === "tool.draft" || event.event === "tool.suggest") {
+        if (
+          event.event === "tool.result" ||
+          event.event === "tool.draft" ||
+          event.event === "tool.suggest"
+        ) {
           nextToolCards.push({
             id: nextId("tool"),
             result: event.data,
@@ -296,14 +336,21 @@ export default function App() {
         ]);
       }
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "AI 对话失败，请稍后重试。");
+      setChatError(
+        error instanceof Error ? error.message : "AI 对话失败，请稍后重试。",
+      );
     } finally {
       setIsChatBusy(false);
     }
   }
 
   async function handleConfirmToolDraft(toolCard: ChatToolCard) {
-    if (!session || !chatSession || !toolCard.result.tool_call_id || !toolCard.result.draft) {
+    if (
+      !session ||
+      !chatSession ||
+      !toolCard.result.tool_call_id ||
+      !toolCard.result.draft
+    ) {
       return;
     }
 
@@ -316,7 +363,9 @@ export default function App() {
         edits: {},
       });
 
-      setChatToolCards((current) => current.filter((item) => item.id !== toolCard.id));
+      setChatToolCards((current) =>
+        current.filter((item) => item.id !== toolCard.id),
+      );
       if (result.assistant_message) {
         setChatMessages((current) => [
           ...current,
@@ -329,7 +378,9 @@ export default function App() {
       }
       setDashboardRefreshToken((current) => current + 1);
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "草稿确认失败，请稍后重试。");
+      setChatError(
+        error instanceof Error ? error.message : "草稿确认失败，请稍后重试。",
+      );
     } finally {
       setIsChatBusy(false);
     }
@@ -344,9 +395,13 @@ export default function App() {
     setChatError(null);
     try {
       const result = await transcribeAudio(session, file);
-      setChatDraft((current) => (current ? `${current}\n${result.text}` : result.text));
+      setChatDraft((current) =>
+        current ? `${current}\n${result.text}` : result.text,
+      );
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "语音识别失败，请稍后重试。");
+      setChatError(
+        error instanceof Error ? error.message : "语音识别失败，请稍后重试。",
+      );
     } finally {
       setIsChatBusy(false);
     }
@@ -356,13 +411,32 @@ export default function App() {
     setIsChatOpen(true);
   }
 
+  function handleRestoreChatSession(sessionId: string) {
+    if (!session) return;
+    resetChatState();
+    // Construct a minimal ChatSession so ensureChatSession reuses it
+    setChatSession({
+      id: sessionId,
+      user_id: session.user.id,
+      family_space_id: session.user.family_space_id,
+      member_id: selectedChatMemberId || null,
+      title: null,
+      summary: null,
+      page_context: "home",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    setIsChatOpen(true);
+  }
+
   function handleQueueHomeMessage(message: string) {
     resetChatState();
     setQueuedMessage(message);
     setIsChatOpen(true);
   }
 
-  const memberOptions = members.length > 0 ? members : session ? [session.member] : [];
+  const memberOptions =
+    members.length > 0 ? members : session ? [session.member] : [];
 
   if (session && !isSessionReady) {
     return null;
@@ -371,17 +445,28 @@ export default function App() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<Navigate replace to={session ? "/app" : signedOutPath} />} />
+        <Route
+          path="/"
+          element={<Navigate replace to={session ? "/app" : signedOutPath} />}
+        />
         <Route
           path="/login"
           element={
-            session ? <Navigate replace to="/app" /> : <LoginPage onAuthenticated={handleAuthenticated} />
+            session ? (
+              <Navigate replace to="/app" />
+            ) : (
+              <LoginPage onAuthenticated={handleAuthenticated} />
+            )
           }
         />
         <Route
           path="/register"
           element={
-            session ? <Navigate replace to="/app" /> : <RegisterPage onAuthenticated={handleAuthenticated} />
+            session ? (
+              <Navigate replace to="/app" />
+            ) : (
+              <RegisterPage onAuthenticated={handleAuthenticated} />
+            )
           }
         />
         <Route
@@ -389,7 +474,8 @@ export default function App() {
             session ? (
               <AppShell
                 onOpenChat={handleOpenChat}
-                onOpenMemberManagement={() => setIsMemberMgmtOpen(true)}
+                onOpenSettings={() => setIsSettingsOpen(true)}
+                onRestoreChatSession={handleRestoreChatSession}
                 onSignOut={handleSignOut}
                 session={session}
               />
@@ -407,7 +493,9 @@ export default function App() {
                   members={members}
                   membersError={membersError}
                   onOpenChat={handleOpenChat}
-                  onOpenMemberProfile={(memberId) => setProfileMemberId(memberId)}
+                  onOpenMemberProfile={(memberId) =>
+                    setProfileMemberId(memberId)
+                  }
                   onQueueChatMessage={handleQueueHomeMessage}
                   refreshToken={dashboardRefreshToken}
                   session={session}
@@ -430,11 +518,11 @@ export default function App() {
       )}
 
       {session && (
-        <MemberManagementModal
+        <SettingsSheet
           members={memberOptions}
-          onClose={() => setIsMemberMgmtOpen(false)}
+          onClose={() => setIsSettingsOpen(false)}
           onMembersChange={handleMembersChange}
-          open={isMemberMgmtOpen}
+          open={isSettingsOpen}
           session={session}
         />
       )}
@@ -444,7 +532,10 @@ export default function App() {
           draft={chatDraft}
           error={chatError}
           isBusy={isChatBusy}
-          memberOptions={memberOptions.map((member) => ({ id: member.id, name: member.name }))}
+          memberOptions={memberOptions.map((member) => ({
+            id: member.id,
+            name: member.name,
+          }))}
           messages={chatMessages}
           onAudioUpload={handleAudioUpload}
           onClose={() => setIsChatOpen(false)}
