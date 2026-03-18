@@ -270,11 +270,11 @@ function OverviewTabContent({
       "生活习惯",
       stepObservation || sleepObservation
         ? [
-            stepObservation ? `步数 ${stepObservation.value ?? stepObservation.value_string ?? "—"}` : null,
-            sleepObservation ? `睡眠 ${sleepObservation.value ?? sleepObservation.value_string ?? "—"}h` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")
+          stepObservation ? `步数 ${stepObservation.value ?? stepObservation.value_string ?? "—"}` : null,
+          sleepObservation ? `睡眠 ${sleepObservation.value ?? sleepObservation.value_string ?? "—"}h` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
         : "期待新记录",
       stepObservation || sleepObservation ? "good" : "none",
     ),
@@ -284,12 +284,12 @@ function OverviewTabContent({
       "生理指标",
       oxygenObservation || temperatureObservation || heartObservation
         ? [
-            heartObservation ? `心率 ${heartObservation.value ?? "—"}` : null,
-            oxygenObservation ? `血氧 ${oxygenObservation.value ?? "—"}%` : null,
-            temperatureObservation ? `体温 ${temperatureObservation.value ?? "—"}°C` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")
+          heartObservation ? `心率 ${heartObservation.value ?? "—"}` : null,
+          oxygenObservation ? `血氧 ${oxygenObservation.value ?? "—"}%` : null,
+          temperatureObservation ? `体温 ${temperatureObservation.value ?? "—"}°C` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
         : "期待新记录",
       oxygenObservation || temperatureObservation || heartObservation ? "good" : "none",
     ),

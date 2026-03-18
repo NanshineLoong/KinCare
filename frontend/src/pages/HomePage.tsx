@@ -193,11 +193,11 @@ function buildSummaryChips(
     chips.push(
       count > 0
         ? {
-            label: "摘要状态",
-            summary: `已生成 ${count} 条摘要`,
-            tone: "border-[#FAE6D8] bg-[#FEF5ED] text-[#A67C52]",
-            status: undefined,
-          }
+          label: "摘要状态",
+          summary: `已生成 ${count} 条摘要`,
+          tone: "border-[#FAE6D8] bg-[#FEF5ED] text-[#A67C52]",
+          status: undefined,
+        }
         : fallback("摘要状态"),
     );
   }
@@ -607,9 +607,8 @@ export function HomePage({
 
                 {/* Cards grid */}
                 <div
-                  className={`grid gap-4 ${
-                    group.reminders.length > 1 ? "xl:grid-cols-2" : ""
-                  }`}
+                  className={`grid gap-4 ${group.reminders.length > 1 ? "xl:grid-cols-2" : ""
+                    }`}
                 >
                   {group.reminders.map((reminder) => {
                     const reminderIcon = resolveReminderIcon(
