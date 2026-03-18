@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, ModelMessagesTypeAdapter
-from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -15,6 +15,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
 )
 from pydantic_ai.usage import UsageLimits
+from pydantic_graph import End
 
 from app.ai.agent import create_agent
 from app.ai.deps import AIDeps
@@ -162,15 +163,21 @@ class ChatOrchestrator:
                 message_history=history,
                 usage_limits=usage_limits,
             ) as run:
-                async for node in run:
+                node = run.next_node
+                while not isinstance(node, End):
                     if Agent.is_model_request_node(node):
-                        async with node.stream(run.ctx) as request_stream:
-                            async for event in request_stream:
-                                if isinstance(event, PartDeltaEvent) and hasattr(event.delta, "content_delta"):
-                                    delta = str(event.delta.content_delta or "")
-                                    if delta:
-                                        yielded_delta = True
-                                        yield StreamEvent("message.delta", {"content": delta})
+                        try:
+                            async with node.stream(run.ctx) as request_stream:
+                                async for event in request_stream:
+                                    if isinstance(event, PartDeltaEvent) and hasattr(event.delta, "content_delta"):
+                                        delta = str(event.delta.content_delta or "")
+                                        if delta:
+                                            yielded_delta = True
+                                            yield StreamEvent("message.delta", {"content": delta})
+                        except Exception as error:
+                            if not self._is_empty_stream_error(error):
+                                raise
+                            await node.run(run.ctx)
                     elif Agent.is_call_tools_node(node):
                         async with node.stream(run.ctx) as tool_stream:
                             async for event in tool_stream:
@@ -180,6 +187,7 @@ class ChatOrchestrator:
                                     tool_event = self._tool_result_event(event)
                                     self._persist_tool_message(session_id, tool_event)
                                     yield tool_event
+                    node = await run.next(node)
 
                 result = run.result
         except UsageLimitExceeded as error:
@@ -447,6 +455,13 @@ class ChatOrchestrator:
 
     def _serialize_history(self, history_json: bytes) -> list[dict[str, Any]]:
         return list(json.loads(history_json.decode("utf-8")))
+
+    def _is_empty_stream_error(self, error: Exception) -> bool:
+        if isinstance(error, UnexpectedModelBehavior):
+            return "Streamed response ended without content or tool calls" in str(error)
+        if isinstance(error, ValueError):
+            return "Stream function must return at least one item" in str(error)
+        return False
 
 
 def format_sse_event(event: StreamEvent) -> str:

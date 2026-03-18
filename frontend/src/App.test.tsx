@@ -38,6 +38,38 @@ function sseResponse(events: Array<{ event: string; data: unknown }>) {
   });
 }
 
+function chunkedSseResponse(
+  firstEvents: Array<{ event: string; data: unknown }>,
+  restEvents: Array<{ event: string; data: unknown }>,
+  waitForRest: Promise<void>,
+) {
+  const encoder = new TextEncoder();
+  const firstChunk = firstEvents
+    .map(
+      (item) => `event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`,
+    )
+    .join("");
+  const restChunk = restEvents
+    .map(
+      (item) => `event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`,
+    )
+    .join("");
+
+  const body = new ReadableStream({
+    async start(controller) {
+      controller.enqueue(encoder.encode(firstChunk));
+      await waitForRest;
+      controller.enqueue(encoder.encode(restChunk));
+      controller.close();
+    },
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
 function requestPath(input: RequestInfo | URL): string {
   if (typeof input === "string") {
     return new URL(input).pathname;
@@ -584,7 +616,8 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "对话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
     const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
 
     fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
@@ -607,6 +640,129 @@ describe("App", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+  });
+
+  it("renders assistant text before the SSE stream completes", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    let releaseStream!: () => void;
+    const waitForRest = new Promise<void>((resolve) => {
+      releaseStream = resolve;
+    });
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: "member-2",
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (
+        method === "POST" &&
+        pathname === "/api/chat/sessions/chat-1/messages"
+      ) {
+        return chunkedSseResponse(
+          [
+            {
+              event: "session.started",
+              data: { session_id: "chat-1", member_id: "member-2" },
+            },
+            {
+              event: "message.delta",
+              data: { content: "奶奶今天血压整体稳定，" },
+            },
+          ],
+          [
+            {
+              event: "message.delta",
+              data: { content: "晚间继续按时服药即可。" },
+            },
+            {
+              event: "message.completed",
+              data: { content: "奶奶今天血压整体稳定，晚间继续按时服药即可。" },
+            },
+          ],
+          waitForRest,
+        );
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "总结一下奶奶今天情况" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(await within(dialog).findByText("奶奶今天血压整体稳定，")).toBeInTheDocument();
+    expect(within(dialog).queryByText("晚间继续按时服药即可。")).not.toBeInTheDocument();
+
+    releaseStream();
+
+    expect(
+      await within(dialog).findByText("奶奶今天血压整体稳定，晚间继续按时服药即可。"),
+    ).toBeInTheDocument();
+  });
+
+  it("opens chat without a preset assistant intro message", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+    await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    expect(
+      screen.queryByText(
+        "您好，我是 HomeVital 助手。请先选择成员，或直接询问当前的健康摘要与提醒。",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("submits remember_me when the login checkbox is selected", async () => {

@@ -2,16 +2,19 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import type { ChatToolResult, HealthRecordAction, HealthRecordDraft } from "../api/chat";
 import { ChatInput } from "./ChatInput";
+import { MarkdownContent } from "./MarkdownContent";
 
 export type ChatMessage = {
   id: string;
   role: "assistant" | "user";
   content: string;
+  sortKey: number;
 };
 
 export type ChatToolCard = {
   id: string;
   result: ChatToolResult;
+  sortKey: number;
 };
 
 type MemberOption = {
@@ -108,11 +111,18 @@ export function ChatOverlay({
 
   const visibleToolCards = toolCards.filter((toolCard) => !dismissedToolIds.has(toolCard.id));
 
-  // Merge messages and tool cards chronologically by ID (assuming ID reflects creation order natively)
   const chronologicalItems = [
-    ...messages.map((m) => ({ type: "message" as const, id: m.id, payload: m })),
-    ...visibleToolCards.map((t) => ({ type: "tool" as const, id: t.id, payload: t })),
-  ].sort((a, b) => a.id.localeCompare(b.id));
+    ...messages.map((message) => ({
+      type: "message" as const,
+      sortKey: message.sortKey,
+      payload: message,
+    })),
+    ...visibleToolCards.map((toolCard) => ({
+      type: "tool" as const,
+      sortKey: toolCard.sortKey,
+      payload: toolCard,
+    })),
+  ].sort((a, b) => a.sortKey - b.sortKey);
 
   return (
     <div
@@ -227,7 +237,10 @@ export function ChatOverlay({
             return message.role === "assistant" ? (
               <div className="flex max-w-[85%] items-start gap-4" key={message.id}>
                 <div className="rounded-[2rem] rounded-tl-none bg-transparent p-4">
-                  <p className="whitespace-pre-wrap text-[16px] leading-relaxed text-[#2D2926]">{message.content}</p>
+                  <MarkdownContent
+                    className="text-[16px] leading-relaxed text-[#2D2926]"
+                    content={message.content}
+                  />
                 </div>
               </div>
             ) : (

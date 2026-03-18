@@ -149,7 +149,8 @@ export async function streamChatMessage(
     member_id?: string | null;
     page_context?: string | null;
   },
-): Promise<ChatStreamEvent[]> {
+  onEvent: (event: ChatStreamEvent) => void | Promise<void>,
+): Promise<void> {
   const response = await authorizedFetch(
     `/api/chat/sessions/${chatSessionId}/messages`,
     session,
@@ -166,27 +167,63 @@ export async function streamChatMessage(
     await parseResponse<ApiError>(response);
   }
 
-  const rawText = await response.text();
-  const blocks = rawText.split("\n\n").filter((item) => item.trim().length > 0);
-  const events: ChatStreamEvent[] = [];
+  if (!response.body) {
+    const rawText = await response.text();
+    await emitParsedBlocks(rawText, onEvent);
+    return;
+  }
 
-  for (const block of blocks) {
-    let eventName = "";
-    let dataText = "";
-    for (const line of block.split("\n")) {
-      if (line.startsWith("event:")) {
-        eventName = line.slice("event:".length).trim();
-      } else if (line.startsWith("data:")) {
-        dataText = line.slice("data:".length).trim();
-      }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
     }
-    if (!eventName || !dataText) {
+    buffer += decoder.decode(value, { stream: true });
+    const segments = buffer.split("\n\n");
+    buffer = segments.pop() ?? "";
+    await emitParsedBlocks(segments.join("\n\n"), onEvent);
+  }
+
+  buffer += decoder.decode();
+  await emitParsedBlocks(buffer, onEvent);
+}
+
+async function emitParsedBlocks(
+  rawText: string,
+  onEvent: (event: ChatStreamEvent) => void | Promise<void>,
+) {
+  const blocks = rawText.split("\n\n").filter((item) => item.trim().length > 0);
+  for (const block of blocks) {
+    const parsed = parseSseBlock(block);
+    if (!parsed) {
       continue;
     }
-    events.push({
-      event: eventName,
-      data: JSON.parse(dataText),
-    } as ChatStreamEvent);
+    await onEvent(parsed);
   }
-  return events;
+}
+
+function parseSseBlock(block: string): ChatStreamEvent | null {
+  let eventName = "";
+  let dataText = "";
+
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) {
+      eventName = line.slice("event:".length).trim();
+    } else if (line.startsWith("data:")) {
+      dataText = line.slice("data:".length).trim();
+    }
+  }
+
+  if (!eventName || !dataText) {
+    return null;
+  }
+
+  return {
+    event: eventName,
+    data: JSON.parse(dataText),
+  } as ChatStreamEvent;
 }

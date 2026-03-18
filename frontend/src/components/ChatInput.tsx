@@ -174,6 +174,7 @@ export function ChatInput({
           </div>
         ) : (
           <textarea
+            aria-label="对话输入框"
             ref={inputRef}
             className="min-h-[24px] w-full resize-none border-none bg-transparent py-2 text-[16px] text-[#2D2926] outline-none placeholder:text-[#B8B0A9]"
             placeholder={placeholder}

@@ -506,6 +506,116 @@ def test_chat_session_messages_endpoint_returns_owned_history_without_internal_t
     assert "message_history" not in (payload[2]["metadata"] or {})
 
 
+def test_chat_follow_up_message_falls_back_when_stream_returns_empty(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        return ModelResponse(parts=[TextPart(f"已回复：{latest_part.content}")])
+
+    async def scripted_stream_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if latest_part.content == "再补充一下今天晚上的情况":
+            if False:
+                yield ""
+            return
+        yield str(f"已回复：{latest_part.content}")
+
+    with override_agent_model(
+        client,
+        function=scripted_model,
+        stream_function=scripted_stream_model,
+    ):
+        first_events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="先总结一下今天白天的情况",
+        )
+        second_events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="再补充一下今天晚上的情况",
+        )
+
+    assert first_events[-1]["event"] == "message.completed"
+    assert first_events[-1]["data"]["content"] == "已回复：先总结一下今天白天的情况"
+    assert second_events[-1]["event"] == "message.completed"
+    assert second_events[-1]["data"]["content"] == "已回复：再补充一下今天晚上的情况"
+
+    response = client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert [item["role"] for item in payload] == ["user", "assistant", "user", "assistant"]
+    assert payload[-1]["content"] == "已回复：再补充一下今天晚上的情况"
+
+
+def test_chat_stream_emits_delta_for_single_text_chunk(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        return ModelResponse(parts=[TextPart("奶奶今天整体情况稳定。")])
+
+    async def scripted_stream_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        yield "奶奶今天整体情况稳定。"
+
+    with override_agent_model(
+        client,
+        function=scripted_model,
+        stream_function=scripted_stream_model,
+    ):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="总结一下奶奶今天的情况",
+        )
+
+    assert [item["event"] for item in events] == [
+        "session.started",
+        "message.delta",
+        "message.completed",
+    ]
+    assert events[1]["data"]["content"] == "奶奶今天整体情况稳定。"
+    assert events[2]["data"]["content"] == "奶奶今天整体情况稳定。"
+
+
 def test_chat_session_messages_endpoint_rejects_other_users_session_access(unconfigured_client: TestClient) -> None:
     admin = register_user(unconfigured_client, email="owner@example.com", password="Secret123!", name="管理员")
     member = register_user(unconfigured_client, email="viewer@example.com", password="Secret123!", name="普通成员")

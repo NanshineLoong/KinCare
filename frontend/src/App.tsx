@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import {
@@ -33,15 +33,6 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 
-const initialAssistantMessages: ChatMessage[] = [
-  {
-    id: "assistant-intro",
-    role: "assistant",
-    content:
-      "您好，我是 HomeVital 助手。请先选择成员，或直接询问当前的健康摘要与提醒。",
-  },
-];
-
 function nextId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -62,6 +53,7 @@ function loadStoredSession(): AuthSession | null {
 }
 
 export default function App() {
+  const timelineSequenceRef = useRef(0);
   const [session, setSession] = useState<AuthSession | null>(loadStoredSession);
   const [isSessionReady, setIsSessionReady] = useState(() => {
     const stored = loadStoredSession();
@@ -76,15 +68,18 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [dashboardRefreshToken, setDashboardRefreshToken] = useState(0);
   const [chatDraft, setChatDraft] = useState("");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(
-    initialAssistantMessages,
-  );
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatToolCards, setChatToolCards] = useState<ChatToolCard[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatBusy, setIsChatBusy] = useState(false);
   const [selectedChatMemberId, setSelectedChatMemberId] = useState("");
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
   const [queuedMessage, setQueuedMessage] = useState<string | null>(null);
+
+  function nextTimelineSortKey() {
+    timelineSequenceRef.current += 1;
+    return timelineSequenceRef.current;
+  }
 
   function handleAuthenticated(nextSession: AuthSession) {
     writeSession(nextSession);
@@ -114,8 +109,9 @@ export default function App() {
   }
 
   function resetChatState() {
+    timelineSequenceRef.current = 0;
     setChatDraft("");
-    setChatMessages(initialAssistantMessages);
+    setChatMessages([]);
     setChatToolCards([]);
     setChatError(null);
     setChatSession(null);
@@ -274,6 +270,7 @@ export default function App() {
         id: nextId("user"),
         role: "user",
         content,
+        sortKey: nextTimelineSortKey(),
       },
     ]);
     if (typeof initialContent !== "string") {
@@ -284,24 +281,52 @@ export default function App() {
 
     try {
       const currentChatSession = await ensureChatSession(session);
-      const events = await streamChatMessage(session, currentChatSession.id, {
+      const assistantMessageId = nextId("assistant");
+      const assistantSortKey = nextTimelineSortKey();
+      let assistantMessageCreated = false;
+      let assistantContent = "";
+
+      const syncAssistantMessage = (contentValue: string) => {
+        if (!contentValue) {
+          return;
+        }
+        if (!assistantMessageCreated) {
+          assistantMessageCreated = true;
+          setChatMessages((current) => [
+            ...current,
+            {
+              id: assistantMessageId,
+              role: "assistant",
+              content: contentValue,
+              sortKey: assistantSortKey,
+            },
+          ]);
+          return;
+        }
+        setChatMessages((current) =>
+          current.map((message) =>
+            message.id === assistantMessageId
+              ? { ...message, content: contentValue }
+              : message,
+          ),
+        );
+      };
+
+      await streamChatMessage(session, currentChatSession.id, {
         content,
         member_id: selectedChatMemberId || null,
         page_context: "home",
-      });
-
-      let assistantContent = "";
-      const nextToolCards: ChatToolCard[] = [];
-
-      for (const event of events) {
+      }, (event) => {
         if (event.event === "message.delta") {
           assistantContent += event.data.content;
-          continue;
+          syncAssistantMessage(assistantContent);
+          return;
         }
 
         if (event.event === "message.completed") {
           assistantContent = event.data.content || assistantContent;
-          continue;
+          syncAssistantMessage(assistantContent);
+          return;
         }
 
         if (
@@ -309,32 +334,21 @@ export default function App() {
           event.event === "tool.draft" ||
           event.event === "tool.suggest"
         ) {
-          nextToolCards.push({
-            id: nextId("tool"),
-            result: event.data,
-          });
-          continue;
+          setChatToolCards((current) => [
+            ...current,
+            {
+              id: nextId("tool"),
+              result: event.data,
+              sortKey: nextTimelineSortKey(),
+            },
+          ]);
+          return;
         }
 
         if (event.event === "tool.error") {
           setChatError(event.data.error);
         }
-      }
-
-      if (nextToolCards.length > 0) {
-        setChatToolCards((current) => [...current, ...nextToolCards]);
-      }
-
-      if (assistantContent) {
-        setChatMessages((current) => [
-          ...current,
-          {
-            id: nextId("assistant"),
-            role: "assistant",
-            content: assistantContent,
-          },
-        ]);
-      }
+      });
     } catch (error) {
       setChatError(
         error instanceof Error ? error.message : "AI 对话失败，请稍后重试。",
@@ -373,6 +387,7 @@ export default function App() {
             id: nextId("assistant"),
             role: "assistant",
             content: result.assistant_message,
+            sortKey: nextTimelineSortKey(),
           },
         ]);
       }
