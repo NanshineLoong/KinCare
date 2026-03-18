@@ -138,8 +138,8 @@ export function AppShell({
           <div className="flex min-w-0 shrink-0 items-center">
             <img
               alt="KinCare"
-              className="h-28 w-auto object-contain sm:h-32"
-              src="/KinCare.png"
+              className="h-14 w-auto object-contain sm:h-16"
+              src="/KinCare.svg"
             />
           </div>
 
