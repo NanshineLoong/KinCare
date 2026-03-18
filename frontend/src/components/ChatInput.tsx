@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useVoiceVisualizer } from "react-voice-visualizer";
+import { useVoiceVisualizer, VoiceVisualizer } from "react-voice-visualizer";
 
 type MemberOption = {
   id: string;
@@ -53,6 +53,11 @@ export function ChatInput({
     });
   }, [isRecording, stopRecording, clearCanvas]);
 
+  const handleStartVoiceRecording = useCallback(() => {
+    setIsVoiceMode(true);
+    startRecording();
+  }, [startRecording]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd/Ctrl + M to toggle voice mode
@@ -97,31 +102,29 @@ export function ChatInput({
     clearCanvas();
   };
 
-  const currentIcon = isVoiceMode
-    ? isRecording
-      ? "stop"
-      : "mic"
-    : "mic";
-
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-[1.5rem] border border-[#F2EDE7] bg-white p-3 shadow-sm transition-all focus-within:border-apple-blue/50 focus-within:shadow-md">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-[1.5rem] border border-[#F2EDE7] bg-white p-3 shadow-sm transition-all focus-within:border-[#4A443F]/50 focus-within:shadow-md">
       {/* Row 1: Text Input or Voice Visualizer */}
       <div className="flex min-h-[48px] items-center px-2">
         {isVoiceMode ? (
-          <div className="flex min-w-0 flex-1 items-center gap-4">
+          <div className="flex min-w-0 flex-1 items-center">
             {voiceError ? (
               <p className="text-sm text-red-500">无法访问麦克风: {voiceError.message}</p>
             ) : (
-              <div className="h-10 w-full overflow-hidden rounded-lg bg-[#F8F6F3]">
-                {/* VoiceVisualizer needs a library or custom canvas. The react-voice-visualizer package provides a component usually called VoiceVisualizer. We will render it if it was imported correctly. Note: The package exports `VoiceVisualizer` component. */}
-                {/* We'll import it dynamically or assume it's available. We need to import VoiceVisualizer from 'react-voice-visualizer' */}
+              <div className="h-10 min-w-0 flex-1 overflow-hidden rounded-lg bg-[#F8F6F3]">
+                <VoiceVisualizer
+                  controls={voiceVisualizer}
+                  height={40}
+                  width="100%"
+                  fullscreen
+                  isControlPanelShown={false}
+                  isDefaultUIShown={false}
+                  onlyRecording
+                  mainBarColor="#4A443F"
+                  secondaryBarColor="#B8B0A9"
+                  backgroundColor="transparent"
+                />
               </div>
-            )}
-            {!isRecording && !voiceError && (
-              <p className="animate-pulse text-sm text-apple-blue">点击确认开始录音</p>
-            )}
-             {isRecording && (
-              <p className="animate-pulse text-sm text-apple-blue">正在录音...</p>
             )}
           </div>
         ) : (
@@ -154,7 +157,7 @@ export function ChatInput({
           {/* Add button for attachments */}
           <button
             aria-label="添加附件"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F8F6F3] hover:text-apple-blue"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F8F6F3] hover:text-[#4A443F]"
             onClick={() => document.getElementById('chat-attachment-input')?.click()}
             type="button"
           >
@@ -178,7 +181,7 @@ export function ChatInput({
           <div className="relative flex items-center">
              <span aria-hidden className="material-symbols-outlined absolute left-2 text-[16px] text-warm-gray pointer-events-none">person</span>
             <select
-              className="appearance-none rounded-full border border-[#F2EDE7] bg-[#F8F6F3] py-1.5 pl-8 pr-8 text-xs font-medium text-[#4A443F] outline-none transition hover:bg-[#F2EDE7] focus:border-apple-blue/50"
+              className="appearance-none rounded-full border border-[#F2EDE7] bg-[#F8F6F3] py-1.5 pl-8 pr-8 text-xs font-medium text-[#4A443F] outline-none transition hover:bg-[#F2EDE7] focus:border-[#4A443F]/50"
               onChange={(e) => onMemberChange(e.target.value)}
               value={selectedMemberId}
               disabled={isVoiceMode}
@@ -206,27 +209,21 @@ export function ChatInput({
                 <span aria-hidden className="material-symbols-outlined text-[18px]">close</span>
               </button>
               <button
-                aria-label={isRecording ? "结束录音并发送" : "开始录音"}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-apple-blue text-white transition hover:bg-blue-600"
-                onClick={() => {
-                  if (isRecording) {
-                    stopRecording();
-                  } else {
-                    startRecording();
-                  }
-                }}
+                aria-label="结束录音并发送"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-black"
+                onClick={() => stopRecording()}
                 disabled={isBusy}
                 type="button"
               >
-                <span aria-hidden className="material-symbols-outlined text-[18px]">{isRecording ? "check" : "mic"}</span>
+                <span aria-hidden className="material-symbols-outlined text-[18px]">check</span>
               </button>
             </>
           ) : (
             <>
                <button
                 aria-label="语音输入"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8F6F3] text-apple-blue transition hover:bg-[#F2EDE7]"
-                onClick={() => setIsVoiceMode(true)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8F6F3] text-[#4A443F] transition hover:bg-[#F2EDE7]"
+                onClick={handleStartVoiceRecording}
                 type="button"
               >
                 <span aria-hidden className="material-symbols-outlined text-[18px]">mic</span>

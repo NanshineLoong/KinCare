@@ -177,14 +177,17 @@ export function AppShell({
                       历史会话
                     </p>
                     <button
-                      className="rounded-md px-2 py-0.5 text-[11px] text-apple-blue transition hover:bg-[#F5F0EA]"
+                      aria-label="新建会话"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4A443F] transition hover:bg-[#F5F0EA]"
                       onClick={() => {
                         setHistoryOpen(false);
                         onOpenChat?.();
                       }}
                       type="button"
                     >
-                      新建会话
+                      <span className="material-symbols-outlined text-[20px]">
+                        add
+                      </span>
                     </button>
                   </div>
 

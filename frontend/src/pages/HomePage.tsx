@@ -332,6 +332,7 @@ export function HomePage({
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState("");
 
   const visibleMembers = members.length > 0 ? members : [session.member];
   const memberSummaries = new Map(
@@ -485,7 +486,7 @@ export function HomePage({
                     </button>
                     <button
                       aria-label={`刷新 ${member.name} 的数据`}
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-apple-blue"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#4A443F]"
                       onClick={() => void loadDashboardData()}
                       type="button"
                     >
@@ -520,7 +521,7 @@ export function HomePage({
               </p>
             </div>
             <button
-              className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-apple-blue shadow-soft transition hover:shadow-md"
+              className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-[#4A443F] shadow-soft transition hover:shadow-md"
               onClick={() => void loadDashboardData()}
               type="button"
             >
@@ -528,7 +529,7 @@ export function HomePage({
                 className={`text-sm ${isLoadingDashboard ? "animate-spin" : ""}`}
                 name="event_repeat"
               />
-              {isLoadingDashboard ? "刷新中…" : "刷新进度"}
+              {isLoadingDashboard ? "刷新中…" : "刷新"}
             </button>
           </div>
 
@@ -675,14 +676,10 @@ export function HomePage({
             isBusy={isLoadingDashboard}
             memberOptions={visibleMembers.map(m => ({ id: m.id, name: m.name }))}
             onDraftChange={setComposerValue}
-            // Use undefined instead of empty string since we removed it from state
-            onMemberChange={(_) => {
-              // Usually handled in ChatOverlay for now, keeping it no-op in home
-              // Or could update a local SelectedMember state if needed later
-            }}
+            onMemberChange={setSelectedMemberId}
             onSend={handleSendHomeMessage}
             onAudioUpload={onAudioUpload}
-            selectedMemberId=""
+            selectedMemberId={selectedMemberId}
             placeholder="说说今天家人的健康情况..."
           />
         </div>
