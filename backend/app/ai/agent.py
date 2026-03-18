@@ -10,6 +10,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from app.ai.deps import AIDeps
 from app.ai.tools import register_tools
 from app.core.config import Settings
+from app.services import repository
 
 
 AgentOutput = str | DeferredToolRequests
@@ -46,7 +47,12 @@ async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
         "- 用中文回答，默认简洁。",
     ]
     if ctx.deps.focus_member_id:
-        parts.append(f"当前关注成员 ID：{ctx.deps.focus_member_id}")
+        with ctx.deps.database.connection() as conn:
+            member = repository.get_member_by_id(conn, ctx.deps.focus_member_id)
+        if member:
+            parts.append(f"当前关注成员：{member['name']}")
+        else:
+            parts.append(f"当前关注成员 ID：{ctx.deps.focus_member_id}")
     if ctx.deps.page_context:
         parts.append(f"当前页面上下文：{ctx.deps.page_context}")
     return "\n".join(parts)

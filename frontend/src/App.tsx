@@ -87,7 +87,6 @@ export default function App() {
     setSignedOutPath("/login");
     setSession(nextSession);
     setIsSessionReady(true);
-    setSelectedChatMemberId(nextSession.member.id);
   }
 
   function handleSignOut(nextPath = "/login") {
@@ -104,9 +103,6 @@ export default function App() {
 
   function handleMembersChange(nextMembers: AuthMember[]) {
     setMembers(nextMembers);
-    if (nextMembers.length > 0 && !selectedChatMemberId) {
-      setSelectedChatMemberId(nextMembers[0].id);
-    }
   }
 
   function resetChatState() {
@@ -153,9 +149,6 @@ export default function App() {
         const refreshedSession = await refreshSession(session);
         if (!isCancelled && refreshedSession) {
           setSession(refreshedSession);
-          setSelectedChatMemberId(
-            (current) => current || refreshedSession.member.id,
-          );
         }
       } catch {
         // Keep the current state so protected screens can surface the request failure.
@@ -197,9 +190,6 @@ export default function App() {
         const nextMembers = await listMembers(session);
         if (!isCancelled) {
           setMembers(nextMembers);
-          if (!selectedChatMemberId) {
-            setSelectedChatMemberId(nextMembers[0]?.id ?? session.member.id);
-          }
         }
       } catch (error) {
         if (!isCancelled) {
@@ -222,7 +212,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [isSessionReady, selectedChatMemberId, session]);
+  }, [isSessionReady, session]);
 
   useEffect(() => {
     if (!isChatOpen || !queuedMessage) {
@@ -274,9 +264,7 @@ export default function App() {
         sortKey: nextTimelineSortKey(),
       },
     ]);
-    if (typeof initialContent !== "string") {
-      setChatDraft("");
-    }
+    setChatDraft("");
     setChatError(null);
     setIsChatBusy(true);
 

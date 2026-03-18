@@ -65,6 +65,7 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 - 成员档案、手动编辑与权限管理面板
 - 统一输入区、语音采集、SSE 消息流和草稿确认交互
 - 会话历史列表与会话恢复
+- 设置 Sheet：语言切换（zh/en，localStorage 持久化）+ 管理员模型配置表单（AI / STT 运行参数）
 
 ### API Server
 
@@ -72,6 +73,7 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 - Dashboard 聚合、成员详情与会话历史查询
 - AI 会话入口、SSE 流式输出、草稿确认和音频转写接口
 - 定时任务触发与健康摘要 / 提醒写入
+- 管理员系统配置 API（`GET/PUT /api/admin/settings`）：读写 `system_config` 表，AI / STT 运行时参数覆盖 `.env` 默认值
 
 ### AI Runtime（API Server 内部模块）
 

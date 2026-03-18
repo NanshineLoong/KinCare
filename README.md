@@ -14,7 +14,7 @@ HomeVital is a locally deployed family health management system. This repository
 ## Delivery Status
 
 - Steps `1 / 2A / 2B / 2C / 3A / 3B / 3C` of the v2 plan are complete: the current mainline already includes the three-level permission model, richer dashboard data structures, unified `HealthRecordAction` draft actions, real STT-backed transcription, upgraded daily generation output, and chat session history APIs
-- Next implementation tracks are `Step 4 / 5 / 6 / 7`
+- Next implementation tracks are `Step 4 / 5 / 6 / 7` (Step 7 now encompasses `7A` permissions UI + settings sheet, `7B` session history, `7C` language settings, and `7D` model configuration)
 - Existing automated tests from the previous baseline remain relevant, but upcoming product work will extend backend and frontend coverage
 
 ## Product Scope
@@ -23,6 +23,7 @@ HomeVital is a locally deployed family health management system. This repository
 - Simplified health archive around `Observation`, `SleepRecord`, `WorkoutRecord`, `Condition`, `Medication`, `Encounter`, `HealthSummary`, and `CarePlan`
 - Member-level permissions with `read / write / manage` and `specific / all` scope
 - AI conversation with controlled tools, structured suggestions/drafts, session history, and voice transcription
+- Settings sheet with language toggle (zh/en) and admin-only model configuration (AI + STT runtime parameters via UI, persisted to `system_config` table)
 - Future MCP exposure after the in-app architecture stabilizes
 
 ## Quick Start
