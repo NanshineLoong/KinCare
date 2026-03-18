@@ -51,6 +51,7 @@ type HomePageProps = {
   onOpenChat?: () => void;
   onOpenMemberProfile?: (memberId: string) => void;
   onQueueChatMessage?: (message: string) => void;
+  onAudioUpload?: (file: File) => void;
   refreshToken?: number;
   session: AuthSession;
 };
@@ -313,6 +314,8 @@ function permissionLabel(
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
+import { ChatInput } from "../components/ChatInput";
+
 export function HomePage({
   isLoadingMembers,
   members,
@@ -320,6 +323,7 @@ export function HomePage({
   onOpenChat,
   onOpenMemberProfile,
   onQueueChatMessage,
+  onAudioUpload,
   refreshToken = 0,
   session,
 }: HomePageProps) {
@@ -664,44 +668,23 @@ export function HomePage({
       </div>
 
       {/* ── Fixed bottom composer bar ─────────────────────────────────── */}
-      <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-warm-cream via-warm-cream/80 to-transparent px-5 py-5 sm:px-6 sm
-:py-7"
-      >
-        <div className="pointer-events-auto mx-auto flex max-w-3xl items-center gap-3 rounded-[2.5rem] border border-white/80 bg-white px-3 py-3 shadow-card">
-          <button
-            aria-label="打开 AI 对话"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F7F3EE] hover:text-apple-blue"
-            onClick={handleOpenChat}
-            type="button"
-          >
-            <MaterialIcon className="text-2xl" name="add" />
-          </button>
-          <input
-            className="h-12 min-w-0 flex-1 rounded-full border-none bg-transparent px-2 text-base text-[#2D2926] outline-none placeholder:text-[#B8B0A9]"
-            onChange={(e) => setComposerValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) handleSendHomeMessage();
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-warm-cream via-warm-cream/80 to-transparent px-5 py-5 sm:px-6 sm:py-7">
+        <div className="pointer-events-auto w-full">
+          <ChatInput
+            draft={composerValue}
+            isBusy={isLoadingDashboard}
+            memberOptions={visibleMembers.map(m => ({ id: m.id, name: m.name }))}
+            onDraftChange={setComposerValue}
+            // Use undefined instead of empty string since we removed it from state
+            onMemberChange={(_) => {
+              // Usually handled in ChatOverlay for now, keeping it no-op in home
+              // Or could update a local SelectedMember state if needed later
             }}
+            onSend={handleSendHomeMessage}
+            onAudioUpload={onAudioUpload}
+            selectedMemberId=""
             placeholder="说说今天家人的健康情况..."
-            value={composerValue}
           />
-          <button
-            aria-label="语音输入"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#F2EDE7] bg-warm-cream text-apple-blue transition hover:bg-white"
-            onClick={handleOpenChat}
-            type="button"
-          >
-            <MaterialIcon className="text-xl" name="mic" />
-          </button>
-          <button
-            aria-label="发送 AI 消息"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-black"
-            onClick={handleSendHomeMessage}
-            type="button"
-          >
-            <MaterialIcon className="text-xl" name="arrow_upward" />
-          </button>
         </div>
       </div>
     </section>
