@@ -23,7 +23,7 @@ HomeVital is a locally deployed family health management system. This repository
 - Simplified health archive around `Observation`, `SleepRecord`, `WorkoutRecord`, `Condition`, `Medication`, `Encounter`, `HealthSummary`, and `CarePlan`
 - Member-level permissions with `read / write / manage` and `specific / all` scope
 - AI conversation with controlled tools, structured suggestions/drafts, session history, and voice transcription
-- Settings sheet with language toggle (zh/en) and admin-only model configuration (AI + STT runtime parameters via UI, persisted to `system_config` table)
+- Settings sheet with three tabs: **Preferences** (language zh/en, daily refresh times for admin, dark/light/system theme) and **AI Config** (admin-only voice transcription and chat model parameters, persisted to `system_config` table)
 - Future MCP exposure after the in-app architecture stabilizes
 
 ## Quick Start
