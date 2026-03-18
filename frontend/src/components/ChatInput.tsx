@@ -30,6 +30,8 @@ export function ChatInput({
   placeholder = "说说今天家人的健康情况...",
 }: ChatInputProps) {
   const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [hasStartedVoiceUpload, setHasStartedVoiceUpload] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const voiceVisualizer = useVoiceVisualizer();
@@ -38,20 +40,27 @@ export function ChatInput({
     stopRecording,
     isRecordingInProgress: isRecording,
     clearCanvas,
-    recordedBlob,
+    mediaRecorder,
     error: voiceError,
   } = voiceVisualizer;
 
   const handleToggleVoiceMode = useCallback(() => {
+    let shouldStartRecording = false;
     setIsVoiceMode((prev) => {
       const next = !prev;
       if (!next && isRecording) {
         stopRecording();
         clearCanvas();
       }
+      if (next) {
+        shouldStartRecording = true; // 进入语音模式时需启动麦克风
+      }
       return next;
     });
-  }, [isRecording, stopRecording, clearCanvas]);
+    if (shouldStartRecording) {
+      startRecording();
+    }
+  }, [isRecording, stopRecording, clearCanvas, startRecording]);
 
   const handleStartVoiceRecording = useCallback(() => {
     setIsVoiceMode(true);
@@ -60,8 +69,8 @@ export function ChatInput({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + M to toggle voice mode
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "m") {
+      // Ctrl+M to toggle voice/text mode (Mac and Windows/Linux both use Ctrl)
+      if (e.ctrlKey && e.key.toLowerCase() === "m") {
         e.preventDefault();
         handleToggleVoiceMode();
       }
@@ -71,16 +80,42 @@ export function ChatInput({
   }, [handleToggleVoiceMode]);
 
   useEffect(() => {
-    if (recordedBlob && onAudioUpload && isVoiceMode) {
-      // Create a file from the blob
-      const file = new File([recordedBlob], "voice-message.webm", {
-        type: recordedBlob.type || "audio/webm",
-      });
-      onAudioUpload(file);
-      setIsVoiceMode(false);
-      clearCanvas();
+    if (!isProcessingVoice || !hasStartedVoiceUpload || isBusy) {
+      return;
     }
-  }, [recordedBlob, onAudioUpload, isVoiceMode, clearCanvas]);
+    setIsProcessingVoice(false);
+    setHasStartedVoiceUpload(false);
+    setIsVoiceMode(false);
+  }, [hasStartedVoiceUpload, isBusy, isProcessingVoice]);
+
+  useEffect(() => {
+    if (!mediaRecorder || !onAudioUpload) {
+      return;
+    }
+
+    const handleDataAvailable = (event: BlobEvent) => {
+      const audioBlob = event.data;
+      if (!audioBlob || audioBlob.size === 0) {
+        setIsProcessingVoice(false);
+        setHasStartedVoiceUpload(false);
+        setIsVoiceMode(false);
+        clearCanvas();
+        return;
+      }
+
+      const file = new File([audioBlob], "voice-message.webm", {
+        type: audioBlob.type || "audio/webm",
+      });
+      setHasStartedVoiceUpload(true);
+      onAudioUpload(file);
+      clearCanvas();
+    };
+
+    mediaRecorder.addEventListener("dataavailable", handleDataAvailable);
+    return () => {
+      mediaRecorder.removeEventListener("dataavailable", handleDataAvailable);
+    };
+  }, [clearCanvas, mediaRecorder, onAudioUpload]);
 
   const handleSendOrConfirm = () => {
     if (isVoiceMode) {
@@ -96,10 +131,20 @@ export function ChatInput({
 
   const handleCancelVoice = () => {
     setIsVoiceMode(false);
+    setIsProcessingVoice(false);
+    setHasStartedVoiceUpload(false);
     if (isRecording) {
       stopRecording();
     }
     clearCanvas();
+  };
+
+  const handleCompleteVoiceRecording = () => {
+    if (!isRecording) {
+      return;
+    }
+    setIsProcessingVoice(true);
+    stopRecording();
   };
 
   return (
@@ -211,11 +256,18 @@ export function ChatInput({
               <button
                 aria-label="结束录音并发送"
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-black"
-                onClick={() => stopRecording()}
-                disabled={isBusy}
+                onClick={handleCompleteVoiceRecording}
+                disabled={isBusy || isProcessingVoice}
                 type="button"
               >
-                <span aria-hidden className="material-symbols-outlined text-[18px]">check</span>
+                {isProcessingVoice ? (
+                  <span
+                    aria-hidden
+                    className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                  />
+                ) : (
+                  <span aria-hidden className="material-symbols-outlined text-[18px]">check</span>
+                )}
               </button>
             </>
           ) : (

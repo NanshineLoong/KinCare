@@ -6,6 +6,7 @@ import {
   type DashboardReminder,
   type DashboardResponse,
 } from "../api/health";
+import { transcribeAudio } from "../api/chat";
 import type { AuthMember, AuthSession } from "../auth/session";
 
 // ─── Tiny helpers ──────────────────────────────────────────────────────────────
@@ -330,6 +331,7 @@ export function HomePage({
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const [isTranscribingComposer, setIsTranscribingComposer] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState("");
@@ -377,6 +379,22 @@ export function HomePage({
     }
     onQueueChatMessage?.(trimmed);
     setComposerValue("");
+  }
+
+  async function handleComposerAudioUpload(file: File) {
+    setIsTranscribingComposer(true);
+    try {
+      const result = await transcribeAudio(session, file);
+      setComposerValue((current) =>
+        current ? `${current}\n${result.text}` : result.text,
+      );
+    } catch (error) {
+      setDashboardError(
+        error instanceof Error ? error.message : "语音识别失败，请稍后重试。",
+      );
+    } finally {
+      setIsTranscribingComposer(false);
+    }
   }
 
   return (
@@ -673,12 +691,12 @@ export function HomePage({
         <div className="pointer-events-auto w-full">
           <ChatInput
             draft={composerValue}
-            isBusy={isLoadingDashboard}
+            isBusy={isLoadingDashboard || isTranscribingComposer}
             memberOptions={visibleMembers.map(m => ({ id: m.id, name: m.name }))}
             onDraftChange={setComposerValue}
             onMemberChange={setSelectedMemberId}
             onSend={handleSendHomeMessage}
-            onAudioUpload={onAudioUpload}
+            onAudioUpload={handleComposerAudioUpload}
             selectedMemberId={selectedMemberId}
             placeholder="说说今天家人的健康情况..."
           />
