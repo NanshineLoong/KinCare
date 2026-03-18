@@ -89,6 +89,25 @@ export type ChatStreamEvent =
   | { event: "message.delta"; data: { content: string } }
   | { event: "message.completed"; data: { content: string } };
 
+export type ChatMessageRead = {
+  id: string;
+  role: string;
+  content: string;
+  event_type?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export function listChatMessages(
+  session: AuthSession,
+  sessionId: string,
+): Promise<ChatMessageRead[]> {
+  return getAuthorized<ChatMessageRead[]>(
+    `/api/chat/sessions/${sessionId}/messages`,
+    session,
+  );
+}
+
 export function listChatSessions(
   session: AuthSession,
   params?: { limit?: number; offset?: number },

@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import {
   confirmChatDraft,
   createChatSession,
+  listChatMessages,
   streamChatMessage,
   transcribeAudio,
   type ChatSession,
@@ -426,9 +427,12 @@ export default function App() {
     setIsChatOpen(true);
   }
 
-  function handleRestoreChatSession(sessionId: string) {
+  const restoringSessionIdRef = useRef<string | null>(null);
+
+  async function handleRestoreChatSession(sessionId: string) {
     if (!session) return;
     resetChatState();
+    restoringSessionIdRef.current = sessionId;
     // Construct a minimal ChatSession so ensureChatSession reuses it
     setChatSession({
       id: sessionId,
@@ -442,6 +446,29 @@ export default function App() {
       updated_at: new Date().toISOString(),
     });
     setIsChatOpen(true);
+
+    try {
+      const messages = await listChatMessages(session, sessionId);
+      if (restoringSessionIdRef.current !== sessionId) return;
+      setChatMessages(
+        messages
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m, i) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            sortKey: i + 1,
+          })),
+      );
+    } catch {
+      if (restoringSessionIdRef.current === sessionId) {
+        setChatError("加载历史消息失败，请稍后重试。");
+      }
+    } finally {
+      if (restoringSessionIdRef.current === sessionId) {
+        restoringSessionIdRef.current = null;
+      }
+    }
   }
 
   function handleQueueHomeMessage(message: string) {
