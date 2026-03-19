@@ -933,4 +933,95 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(window.localStorage.getItem(sessionStorageKey)).toBeNull();
   });
+
+  it("handles edit mode permissions and CRUD operations for MemberProfileModal", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    let createSleepCount = 0;
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/members/member-2") {
+        return jsonResponse(createMembers()[1]);
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "GET" && (
+        pathname.endsWith("/observations") ||
+        pathname.endsWith("/sleep-records") ||
+        pathname.endsWith("/workout-records") ||
+        pathname.endsWith("/conditions") ||
+        pathname.endsWith("/medications") ||
+        pathname.endsWith("/encounters") ||
+        pathname.endsWith("/health-summaries") ||
+        pathname.endsWith("/care-plans")
+      )) {
+        return jsonResponse([]);
+      }
+      if (method === "POST" && pathname.endsWith("/sleep-records")) {
+        createSleepCount += 1;
+        return jsonResponse({ id: "sleep-1" });
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    // Click member card to open Profile
+    const openProfileBtn = await screen.findByRole("button", { name: "查看 张妈妈 档案" });
+    fireEvent.click(openProfileBtn);
+    
+    // Await for dialog to open
+    let dialog: HTMLElement;
+    try {
+      dialog = await screen.findByRole("dialog", { name: "成员档案" });
+    } catch (e) {
+      screen.debug();
+      throw e;
+    }
+    expect(dialog).toBeInTheDocument();
+
+    // The user 'owner@example.com' has role='admin' and member 'member-1' has permission 'manage'
+    // Edit mode toggle should be visible
+    const editToggle = await within(dialog).findByRole("checkbox");
+    expect(editToggle).toBeInTheDocument();
+
+    // Activate edit mode
+    fireEvent.click(editToggle);
+
+    // Navigate to Health Data tab
+    fireEvent.click(within(dialog).getByText("健康数据"));
+
+    // Find the add button inside the sleep section
+    const addButton = await within(dialog).findAllByRole("button", { name: /新增/ });
+    fireEvent.click(addButton[0]);
+
+    // ResourceFormModal opens
+    const formDialog = await screen.findByRole("dialog", { name: /新增.*记录/ });
+    expect(formDialog).toBeInTheDocument();
+
+    // Fill the inputs (start, end)
+    const inputs = formDialog.querySelectorAll('input[type="datetime-local"]');
+    if (inputs.length >= 2) {
+      fireEvent.change(inputs[0], { target: { value: "2026-03-15T22:00" } });
+      fireEvent.change(inputs[1], { target: { value: "2026-03-16T06:00" } });
+    }
+
+    // Submit form
+    fireEvent.click(within(formDialog).getByRole("button", { name: "保存" }));
+
+    // Verify API called
+    await waitFor(() => {
+      expect(createSleepCount).toBe(1);
+    });
+  });
 });
