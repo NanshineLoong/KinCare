@@ -63,6 +63,9 @@ class HomeVitalScheduler:
         self._started = False
         self._load_builtin_refresh_schedule()
 
+    def update_runtime_settings(self, settings: Settings) -> None:
+        self._daily_generator = DailyGenerationService(settings)
+
     def start(self) -> None:
         if self._started:
             return

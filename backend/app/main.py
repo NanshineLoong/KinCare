@@ -24,12 +24,14 @@ from app.api.routes.health_records import (
 from app.api.routes.members import router as members_router
 from app.core.config import Settings, get_settings
 from app.core.database import Database
+from app.services.system_config import load_runtime_settings
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    resolved_settings = settings or get_settings()
-    database = Database(resolved_settings.database_path)
+    base_settings = settings or get_settings()
+    database = Database(base_settings.database_path)
     database.initialize()
+    resolved_settings = load_runtime_settings(database, base_settings)
     scheduler = HomeVitalScheduler(database, settings=resolved_settings)
     orchestrator = ChatOrchestrator(
         database=database,
@@ -47,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             scheduler.shutdown()
 
     app = FastAPI(title="HomeVital API", lifespan=lifespan)
+    app.state.base_settings = base_settings
     app.state.settings = resolved_settings
     app.state.database = database
     app.state.scheduler = scheduler

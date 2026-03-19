@@ -1179,6 +1179,89 @@ def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: Tes
     monkeypatch.undo()
 
 
+def test_admin_ai_settings_apply_to_following_transcription_requests(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    transcription_module = importlib.import_module("app.ai.transcription")
+    captured: dict[str, Any] = {}
+
+    class StubProvider:
+        def transcribe_audio(
+            self,
+            content: bytes,
+            *,
+            filename: str | None,
+            content_type: str | None,
+        ) -> str:
+            captured["content"] = content
+            captured["filename"] = filename
+            captured["content_type"] = content_type
+            return "local whisper text"
+
+    def capture_provider(settings: Any) -> StubProvider:
+        captured["provider"] = settings.stt_provider
+        captured["ai_base_url"] = settings.ai_base_url
+        captured["ai_api_key"] = settings.ai_api_key
+        captured["ai_model"] = settings.ai_model
+        captured["stt_language"] = settings.stt_language
+        captured["stt_timeout_seconds"] = settings.stt_timeout_seconds
+        captured["local_whisper_model"] = settings.local_whisper_model
+        captured["local_whisper_device"] = settings.local_whisper_device
+        captured["local_whisper_compute_type"] = settings.local_whisper_compute_type
+        captured["local_whisper_download_root"] = settings.local_whisper_download_root
+        return StubProvider()
+
+    monkeypatch.setattr(transcription_module, "get_transcription_provider", capture_provider)
+
+    update_response = client.put(
+        "/api/admin/settings",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+        json={
+            "transcription": {
+                "provider": "local_whisper",
+                "language": "en",
+                "timeout": 9.5,
+                "local_whisper_model": "whisper-small",
+                "local_whisper_device": "cpu",
+                "local_whisper_compute_type": "int8",
+                "local_whisper_download_root": "/tmp/whisper-cache",
+            },
+            "chat_model": {
+                "base_url": "https://override.invalid/v1",
+                "api_key": "override-key",
+                "model": "override-model",
+            },
+        },
+    )
+    assert update_response.status_code == 200, update_response.text
+
+    response = client.post(
+        "/api/chat/transcriptions",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+        files={"file": ("voice.wav", b"audio-bytes", "audio/wav")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"text": "local whisper text"}
+    assert captured == {
+        "provider": "local_whisper",
+        "ai_base_url": "https://override.invalid/v1",
+        "ai_api_key": "override-key",
+        "ai_model": "override-model",
+        "stt_language": "en",
+        "stt_timeout_seconds": 9.5,
+        "local_whisper_model": "whisper-small",
+        "local_whisper_device": "cpu",
+        "local_whisper_compute_type": "int8",
+        "local_whisper_download_root": "/tmp/whisper-cache",
+        "content": b"audio-bytes",
+        "filename": "voice.wav",
+        "content_type": "audio/wav",
+    }
+
+
 def test_openai_transcription_provider_posts_multipart_request() -> None:
     transcription_module = importlib.import_module("app.ai.transcription")
     captured: dict[str, Any] = {}

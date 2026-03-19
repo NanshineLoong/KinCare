@@ -21,6 +21,8 @@ class Settings:
     stt_provider: str
     stt_base_url: str | None
     stt_api_key: str | None
+    stt_base_url_uses_ai_fallback: bool
+    stt_api_key_uses_ai_fallback: bool
     stt_model: str
     stt_language: str | None
     stt_prompt: str | None
@@ -48,6 +50,11 @@ def get_settings() -> Settings:
         "http://localhost:5173,http://127.0.0.1:5173",
     )
 
+    raw_ai_base_url = os.getenv("HOMEVITAL_AI_BASE_URL")
+    raw_ai_api_key = os.getenv("HOMEVITAL_AI_API_KEY")
+    raw_stt_base_url = os.getenv("HOMEVITAL_STT_BASE_URL")
+    raw_stt_api_key = os.getenv("HOMEVITAL_STT_API_KEY")
+
     return Settings(
         database_path=os.getenv("HOMEVITAL_DB_PATH", str(default_database_path)),
         jwt_secret=os.getenv("HOMEVITAL_JWT_SECRET", "change-me-in-production"),
@@ -57,12 +64,14 @@ def get_settings() -> Settings:
             os.getenv("HOMEVITAL_REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS", "2592000")
         ),
         cors_origins=tuple(origin.strip() for origin in cors_origins.split(",") if origin.strip()),
-        ai_base_url=os.getenv("HOMEVITAL_AI_BASE_URL"),
-        ai_api_key=os.getenv("HOMEVITAL_AI_API_KEY"),
+        ai_base_url=raw_ai_base_url,
+        ai_api_key=raw_ai_api_key,
         ai_model=os.getenv("HOMEVITAL_AI_MODEL", "gpt-4.1-mini"),
         stt_provider=os.getenv("HOMEVITAL_STT_PROVIDER", "openai"),
-        stt_base_url=os.getenv("HOMEVITAL_STT_BASE_URL") or os.getenv("HOMEVITAL_AI_BASE_URL"),
-        stt_api_key=os.getenv("HOMEVITAL_STT_API_KEY") or os.getenv("HOMEVITAL_AI_API_KEY"),
+        stt_base_url=raw_stt_base_url or raw_ai_base_url,
+        stt_api_key=raw_stt_api_key or raw_ai_api_key,
+        stt_base_url_uses_ai_fallback=raw_stt_base_url is None,
+        stt_api_key_uses_ai_fallback=raw_stt_api_key is None,
         stt_model=os.getenv("HOMEVITAL_STT_MODEL", "gpt-4o-mini-transcribe"),
         stt_language=os.getenv("HOMEVITAL_STT_LANGUAGE", "zh"),
         stt_prompt=os.getenv("HOMEVITAL_STT_PROMPT"),

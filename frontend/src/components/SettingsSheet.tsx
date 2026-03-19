@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   getAdminSettings,
   updateAdminSettings,
+  type AdminSettings,
 } from "../api/adminSettings";
 import {
   createMember,
@@ -58,6 +59,8 @@ type PermissionPickerProps = {
   onToggleMember: (memberId: string) => void;
   onToggleOpen: () => void;
 };
+
+type TranscriptionProvider = AdminSettings["transcription"]["provider"];
 
 const TAB_DEFINITIONS: Array<{
   key: SettingsTab;
@@ -868,6 +871,21 @@ export function SettingsSheet({
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [isLoadingAdminSettings, setIsLoadingAdminSettings] = useState(false);
   const [isSavingAdminSettings, setIsSavingAdminSettings] = useState(false);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
+  const [sttProvider, setSttProvider] = useState<TranscriptionProvider>("openai");
+  const [sttApiKey, setSttApiKey] = useState("");
+  const [sttModel, setSttModel] = useState("gpt-4o-mini-transcribe");
+  const [sttLanguage, setSttLanguage] = useState("zh");
+  const [sttTimeout, setSttTimeout] = useState("30");
+  const [localWhisperModel, setLocalWhisperModel] = useState("whisper-large-v3-turbo");
+  const [localWhisperDevice, setLocalWhisperDevice] = useState("auto");
+  const [localWhisperComputeType, setLocalWhisperComputeType] = useState("default");
+  const [localWhisperDownloadRoot, setLocalWhisperDownloadRoot] = useState("");
+  const [chatBaseUrl, setChatBaseUrl] = useState("");
+  const [chatApiKey, setChatApiKey] = useState("");
+  const [chatModel, setChatModel] = useState("gpt-4.1-mini");
 
   const isAdmin = session.user.role === "admin";
   const visibleTabs = TAB_DEFINITIONS.filter((tab) => !tab.adminOnly || isAdmin);
@@ -888,14 +906,35 @@ export function SettingsSheet({
     setAddError(null);
     setSettingsNotice(null);
     setSettingsError(null);
+    setAiNotice(null);
+    setAiError(null);
 
     return () => {
       document.body.style.overflow = "";
     };
   }, [open]);
 
+  function applyAdminSettings(nextSettings: AdminSettings) {
+    setHealthSummaryRefreshTime(nextSettings.health_summary_refresh_time);
+    setCarePlanRefreshTime(nextSettings.care_plan_refresh_time);
+    setSttProvider(nextSettings.transcription.provider);
+    setSttApiKey(nextSettings.transcription.api_key ?? "");
+    setSttModel(nextSettings.transcription.model);
+    setSttLanguage(nextSettings.transcription.language ?? "");
+    setSttTimeout(String(nextSettings.transcription.timeout));
+    setLocalWhisperModel(nextSettings.transcription.local_whisper_model);
+    setLocalWhisperDevice(nextSettings.transcription.local_whisper_device);
+    setLocalWhisperComputeType(nextSettings.transcription.local_whisper_compute_type);
+    setLocalWhisperDownloadRoot(
+      nextSettings.transcription.local_whisper_download_root ?? "",
+    );
+    setChatBaseUrl(nextSettings.chat_model.base_url ?? "");
+    setChatApiKey(nextSettings.chat_model.api_key ?? "");
+    setChatModel(nextSettings.chat_model.model);
+  }
+
   useEffect(() => {
-    if (!open || activeTab !== "preferences" || !isAdmin) {
+    if (!open || !isAdmin || (activeTab !== "preferences" && activeTab !== "ai")) {
       return;
     }
 
@@ -903,19 +942,30 @@ export function SettingsSheet({
 
     async function loadAdminSettings() {
       setIsLoadingAdminSettings(true);
-      setSettingsError(null);
+      if (activeTab === "preferences") {
+        setSettingsError(null);
+      } else {
+        setAiError(null);
+      }
       try {
         const nextSettings = await getAdminSettings(session);
         if (cancelled) {
           return;
         }
-        setHealthSummaryRefreshTime(nextSettings.health_summary_refresh_time);
-        setCarePlanRefreshTime(nextSettings.care_plan_refresh_time);
+        applyAdminSettings(nextSettings);
       } catch (error) {
         if (!cancelled) {
-          setSettingsError(
-            error instanceof Error ? error.message : t("settingsTimeLoadError"),
-          );
+          const message =
+            error instanceof Error
+              ? error.message
+              : activeTab === "preferences"
+                ? t("settingsTimeLoadError")
+                : t("settingsAiLoadError");
+          if (activeTab === "preferences") {
+            setSettingsError(message);
+          } else {
+            setAiError(message);
+          }
         }
       } finally {
         if (!cancelled) {
@@ -948,6 +998,38 @@ export function SettingsSheet({
       );
     } finally {
       setIsSavingAdminSettings(false);
+    }
+  }
+
+  async function handleSaveAiSettings() {
+    setIsSavingAiSettings(true);
+    setAiError(null);
+    setAiNotice(null);
+    try {
+      const nextSettings = await updateAdminSettings(session, {
+        transcription: {
+          provider: sttProvider,
+          api_key: sttApiKey || null,
+          model: sttModel || null,
+          language: sttLanguage || null,
+          timeout: Number(sttTimeout),
+          local_whisper_model: localWhisperModel || null,
+          local_whisper_device: localWhisperDevice || null,
+          local_whisper_compute_type: localWhisperComputeType || null,
+          local_whisper_download_root: localWhisperDownloadRoot || null,
+        },
+        chat_model: {
+          base_url: chatBaseUrl || null,
+          api_key: chatApiKey || null,
+          model: chatModel || null,
+        },
+      });
+      applyAdminSettings(nextSettings);
+      setAiNotice(t("settingsAiSaved"));
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : t("settingsAiSaveError"));
+    } finally {
+      setIsSavingAiSettings(false);
     }
   }
 
@@ -1258,16 +1340,216 @@ export function SettingsSheet({
           )}
 
           {activeTab === "ai" && isAdmin && (
-            <div className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#7D746D]">
-                AI 配置
-              </p>
-              <h3 className="mt-3 text-xl font-semibold text-[#2D2926]">
-                AI 配置入口已预留
-              </h3>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-[#7D746D]">
-                Step 7D 会在这里接入系统配置 API 和语音转录、对话模型参数表单。当前步骤仅保留管理员入口。
-              </p>
+            <div className="mx-auto max-w-5xl space-y-6">
+              <div className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#7D746D]">
+                  {t("settingsAiEyebrow")}
+                </p>
+                <h3 className="mt-3 text-xl font-semibold text-[#2D2926]">
+                  {t("settingsAiTitle")}
+                </h3>
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-[#7D746D]">
+                  {t("settingsAiDescription")}
+                </p>
+              </div>
+
+              {aiError && (
+                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {aiError}
+                </p>
+              )}
+              {aiNotice && (
+                <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {aiNotice}
+                </p>
+              )}
+
+              <div className="grid gap-5 xl:grid-cols-2">
+                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
+                  <h3 className="text-xl font-semibold text-[#2D2926]">
+                    {t("settingsAiSectionTranscription")}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
+                    {t("settingsAiSectionTranscriptionDescription")}
+                  </p>
+                  <div className="mt-5 space-y-4">
+                    <label className="block text-sm font-medium text-[#2D2926]">
+                      {t("settingsAiTranscriptionProvider")}
+                      <select
+                        aria-label={t("settingsAiTranscriptionProvider")}
+                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                        disabled={isLoadingAdminSettings || isSavingAiSettings}
+                        onChange={(event) =>
+                          setSttProvider(event.target.value as TranscriptionProvider)
+                        }
+                        value={sttProvider}
+                      >
+                        <option value="openai">openai</option>
+                        <option value="local_whisper">local_whisper</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm font-medium text-[#2D2926]">
+                      {t("settingsAiTranscriptionApiKey")}
+                      <input
+                        aria-label={t("settingsAiTranscriptionApiKey")}
+                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                        disabled={isLoadingAdminSettings || isSavingAiSettings}
+                        onChange={(event) => setSttApiKey(event.target.value)}
+                        type="password"
+                        value={sttApiKey}
+                      />
+                    </label>
+                    <label className="block text-sm font-medium text-[#2D2926]">
+                      {t("settingsAiTranscriptionModel")}
+                      <input
+                        aria-label={t("settingsAiTranscriptionModel")}
+                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                        disabled={isLoadingAdminSettings || isSavingAiSettings}
+                        onChange={(event) => setSttModel(event.target.value)}
+                        type="text"
+                        value={sttModel}
+                      />
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="block text-sm font-medium text-[#2D2926]">
+                        {t("settingsAiTranscriptionLanguage")}
+                        <input
+                          aria-label={t("settingsAiTranscriptionLanguage")}
+                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                          disabled={isLoadingAdminSettings || isSavingAiSettings}
+                          onChange={(event) => setSttLanguage(event.target.value)}
+                          type="text"
+                          value={sttLanguage}
+                        />
+                      </label>
+                      <label className="block text-sm font-medium text-[#2D2926]">
+                        {t("settingsAiTranscriptionTimeout")}
+                        <input
+                          aria-label={t("settingsAiTranscriptionTimeout")}
+                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                          disabled={isLoadingAdminSettings || isSavingAiSettings}
+                          min="0.1"
+                          onChange={(event) => setSttTimeout(event.target.value)}
+                          step="0.1"
+                          type="number"
+                          value={sttTimeout}
+                        />
+                      </label>
+                    </div>
+
+                    {sttProvider === "local_whisper" && (
+                      <div className="space-y-4 rounded-[1.5rem] border border-[#E7DFD4] bg-[#FBF8F5] p-4">
+                        <label className="block text-sm font-medium text-[#2D2926]">
+                          {t("settingsAiLocalWhisperModel")}
+                          <input
+                            aria-label={t("settingsAiLocalWhisperModel")}
+                            className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                            disabled={isLoadingAdminSettings || isSavingAiSettings}
+                            onChange={(event) => setLocalWhisperModel(event.target.value)}
+                            type="text"
+                            value={localWhisperModel}
+                          />
+                        </label>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label className="block text-sm font-medium text-[#2D2926]">
+                            {t("settingsAiLocalWhisperDevice")}
+                            <input
+                              aria-label={t("settingsAiLocalWhisperDevice")}
+                              className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                              disabled={isLoadingAdminSettings || isSavingAiSettings}
+                              onChange={(event) => setLocalWhisperDevice(event.target.value)}
+                              type="text"
+                              value={localWhisperDevice}
+                            />
+                          </label>
+                          <label className="block text-sm font-medium text-[#2D2926]">
+                            {t("settingsAiLocalWhisperComputeType")}
+                            <input
+                              aria-label={t("settingsAiLocalWhisperComputeType")}
+                              className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                              disabled={isLoadingAdminSettings || isSavingAiSettings}
+                              onChange={(event) =>
+                                setLocalWhisperComputeType(event.target.value)
+                              }
+                              type="text"
+                              value={localWhisperComputeType}
+                            />
+                          </label>
+                        </div>
+                        <label className="block text-sm font-medium text-[#2D2926]">
+                          {t("settingsAiLocalWhisperDownloadRoot")}
+                          <input
+                            aria-label={t("settingsAiLocalWhisperDownloadRoot")}
+                            className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                            disabled={isLoadingAdminSettings || isSavingAiSettings}
+                            onChange={(event) =>
+                              setLocalWhisperDownloadRoot(event.target.value)
+                            }
+                            placeholder="/models/whisper"
+                            type="text"
+                            value={localWhisperDownloadRoot}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
+                  <h3 className="text-xl font-semibold text-[#2D2926]">
+                    {t("settingsAiSectionChatModel")}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
+                    {t("settingsAiSectionChatModelDescription")}
+                  </p>
+                  <div className="mt-5 space-y-4">
+                    <label className="block text-sm font-medium text-[#2D2926]">
+                      {t("settingsAiChatBaseUrl")}
+                      <input
+                        aria-label={t("settingsAiChatBaseUrl")}
+                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                        disabled={isLoadingAdminSettings || isSavingAiSettings}
+                        onChange={(event) => setChatBaseUrl(event.target.value)}
+                        type="text"
+                        value={chatBaseUrl}
+                      />
+                    </label>
+                    <label className="block text-sm font-medium text-[#2D2926]">
+                      {t("settingsAiChatApiKey")}
+                      <input
+                        aria-label={t("settingsAiChatApiKey")}
+                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                        disabled={isLoadingAdminSettings || isSavingAiSettings}
+                        onChange={(event) => setChatApiKey(event.target.value)}
+                        type="password"
+                        value={chatApiKey}
+                      />
+                    </label>
+                    <label className="block text-sm font-medium text-[#2D2926]">
+                      {t("settingsAiChatModel")}
+                      <input
+                        aria-label={t("settingsAiChatModel")}
+                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                        disabled={isLoadingAdminSettings || isSavingAiSettings}
+                        onChange={(event) => setChatModel(event.target.value)}
+                        type="text"
+                        value={chatModel}
+                      />
+                    </label>
+                  </div>
+                </section>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  className="rounded-2xl bg-[#2D2926] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1F1C19] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isLoadingAdminSettings || isSavingAiSettings}
+                  onClick={() => void handleSaveAiSettings()}
+                  type="button"
+                >
+                  {isSavingAiSettings ? t("settingsAiSaving") : t("settingsAiSave")}
+                </button>
+              </div>
             </div>
           )}
         </div>

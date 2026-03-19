@@ -103,6 +103,27 @@ const members: AuthMember[] = [
   },
 ];
 
+const defaultAdminSettings = {
+  health_summary_refresh_time: "05:00",
+  care_plan_refresh_time: "06:00",
+  transcription: {
+    provider: "openai",
+    api_key: "stt-key",
+    model: "gpt-4o-mini-transcribe",
+    language: "zh",
+    timeout: 30,
+    local_whisper_model: "whisper-large-v3-turbo",
+    local_whisper_device: "auto",
+    local_whisper_compute_type: "default",
+    local_whisper_download_root: null,
+  },
+  chat_model: {
+    base_url: "https://example.invalid/v1",
+    api_key: "chat-key",
+    model: "gpt-4.1-mini",
+  },
+};
+
 type PermissionStore = {
   allScope: MemberPermissionGrant[];
   specific: Record<string, MemberPermissionGrant[]>;
@@ -223,11 +244,19 @@ describe("SettingsSheet", () => {
     revokeMemberPermissionMock.mockReset();
     getAdminSettingsMock.mockReset();
     updateAdminSettingsMock.mockReset();
-    getAdminSettingsMock.mockResolvedValue({
-      health_summary_refresh_time: "05:00",
-      care_plan_refresh_time: "06:00",
-    });
-    updateAdminSettingsMock.mockImplementation(async (_session, payload) => payload);
+    getAdminSettingsMock.mockResolvedValue(defaultAdminSettings);
+    updateAdminSettingsMock.mockImplementation(async (_session, payload) => ({
+      ...defaultAdminSettings,
+      ...payload,
+      transcription: {
+        ...defaultAdminSettings.transcription,
+        ...(payload.transcription ?? {}),
+      },
+      chat_model: {
+        ...defaultAdminSettings.chat_model,
+        ...(payload.chat_model ?? {}),
+      },
+    }));
   });
 
   it("shows all Step 7A tabs for admin and hides AI config for non-admin users", () => {
@@ -377,5 +406,59 @@ describe("SettingsSheet", () => {
     expect(await screen.findByText("仅管理员可配置每日刷新时间。")).toBeInTheDocument();
     expect(screen.queryByLabelText("每日健康状态刷新时间")).not.toBeInTheDocument();
     expect(getAdminSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("loads and saves Step 7D AI settings for admin users", async () => {
+    renderSheet();
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 配置" }));
+
+    expect(await screen.findByRole("heading", { name: "语音转录" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "对话模型" })).toBeInTheDocument();
+
+    const providerSelect = screen.getByLabelText("转录 Provider");
+    const sttModelInput = screen.getByLabelText("转录模型");
+    const timeoutInput = screen.getByLabelText("转录超时时间（秒）");
+    const chatBaseUrlInput = screen.getByLabelText("对话 Base URL");
+    const chatApiKeyInput = screen.getByLabelText("对话 API Key");
+    const chatModelInput = screen.getByLabelText("对话模型");
+
+    expect(providerSelect).toHaveValue("openai");
+    expect(sttModelInput).toHaveValue("gpt-4o-mini-transcribe");
+    expect(timeoutInput).toHaveValue(30);
+    expect(chatBaseUrlInput).toHaveValue("https://example.invalid/v1");
+    expect(chatApiKeyInput).toHaveValue("chat-key");
+    expect(chatModelInput).toHaveValue("gpt-4.1-mini");
+
+    fireEvent.change(providerSelect, { target: { value: "local_whisper" } });
+    fireEvent.change(sttModelInput, { target: { value: "whisper-small" } });
+    fireEvent.change(timeoutInput, { target: { value: "9.5" } });
+    fireEvent.change(chatBaseUrlInput, {
+      target: { value: "https://override.invalid/v1" },
+    });
+    fireEvent.change(chatApiKeyInput, { target: { value: "override-key" } });
+    fireEvent.change(chatModelInput, { target: { value: "gpt-4.1-nano" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存 AI 配置" }));
+
+    await waitFor(() => {
+      expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
+        transcription: {
+          provider: "local_whisper",
+          model: "whisper-small",
+          language: "zh",
+          timeout: 9.5,
+          api_key: "stt-key",
+          local_whisper_model: "whisper-large-v3-turbo",
+          local_whisper_device: "auto",
+          local_whisper_compute_type: "default",
+          local_whisper_download_root: null,
+        },
+        chat_model: {
+          base_url: "https://override.invalid/v1",
+          api_key: "override-key",
+          model: "gpt-4.1-nano",
+        },
+      });
+    });
   });
 });

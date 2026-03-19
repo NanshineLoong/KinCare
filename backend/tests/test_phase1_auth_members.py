@@ -23,6 +23,10 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
     monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "1800")
     monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "1209600")
     monkeypatch.setenv("HOMEVITAL_REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS", "2592000")
+    monkeypatch.setenv("HOMEVITAL_SKIP_DOTENV", "1")
+    monkeypatch.setenv("HOMEVITAL_AI_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("HOMEVITAL_AI_API_KEY", "test-key")
+    monkeypatch.setenv("HOMEVITAL_AI_MODEL", "test-model")
 
     _clear_app_modules()
     main_module = importlib.import_module("app.main")
@@ -543,6 +547,22 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
     assert read_response.json() == {
         "health_summary_refresh_time": "05:00",
         "care_plan_refresh_time": "06:00",
+        "transcription": {
+            "provider": "openai",
+            "api_key": "test-key",
+            "model": "gpt-4o-mini-transcribe",
+            "language": "zh",
+            "timeout": 30.0,
+            "local_whisper_model": "whisper-large-v3-turbo",
+            "local_whisper_device": "auto",
+            "local_whisper_compute_type": "default",
+            "local_whisper_download_root": None,
+        },
+        "chat_model": {
+            "base_url": "https://example.invalid/v1",
+            "api_key": "test-key",
+            "model": "test-model",
+        },
     }
 
     forbidden_response = client.get(
@@ -556,6 +576,20 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         json={
             "health_summary_refresh_time": "07:30",
             "care_plan_refresh_time": "08:45",
+            "transcription": {
+                "provider": "local_whisper",
+                "language": "en",
+                "timeout": 12.5,
+                "local_whisper_model": "whisper-small",
+                "local_whisper_device": "cpu",
+                "local_whisper_compute_type": "int8",
+                "local_whisper_download_root": "/tmp/whisper-cache",
+            },
+            "chat_model": {
+                "base_url": "https://llm.example/v1",
+                "api_key": "new-ai-key",
+                "model": "gpt-4.1-nano",
+            },
         },
         headers=auth_headers(admin["tokens"]["access_token"]),
     )
@@ -563,6 +597,22 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
     assert update_response.json() == {
         "health_summary_refresh_time": "07:30",
         "care_plan_refresh_time": "08:45",
+        "transcription": {
+            "provider": "local_whisper",
+            "api_key": "new-ai-key",
+            "model": "gpt-4o-mini-transcribe",
+            "language": "en",
+            "timeout": 12.5,
+            "local_whisper_model": "whisper-small",
+            "local_whisper_device": "cpu",
+            "local_whisper_compute_type": "int8",
+            "local_whisper_download_root": "/tmp/whisper-cache",
+        },
+        "chat_model": {
+            "base_url": "https://llm.example/v1",
+            "api_key": "new-ai-key",
+            "model": "gpt-4.1-nano",
+        },
     }
 
     scheduler = client.app.state.scheduler
@@ -574,6 +624,16 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
     assert "minute='30'" in str(summary_job.trigger)
     assert "hour='8'" in str(care_plan_job.trigger)
     assert "minute='45'" in str(care_plan_job.trigger)
+    assert client.app.state.settings.ai_base_url == "https://llm.example/v1"
+    assert client.app.state.settings.ai_api_key == "new-ai-key"
+    assert client.app.state.settings.ai_model == "gpt-4.1-nano"
+    assert client.app.state.settings.stt_provider == "local_whisper"
+    assert client.app.state.settings.stt_language == "en"
+    assert client.app.state.settings.stt_timeout_seconds == 12.5
+    assert client.app.state.settings.local_whisper_model == "whisper-small"
+    assert client.app.state.settings.local_whisper_device == "cpu"
+    assert client.app.state.settings.local_whisper_compute_type == "int8"
+    assert client.app.state.settings.local_whisper_download_root == "/tmp/whisper-cache"
 
     saved_response = client.get(
         "/api/admin/settings",
@@ -583,4 +643,20 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
     assert saved_response.json() == {
         "health_summary_refresh_time": "07:30",
         "care_plan_refresh_time": "08:45",
+        "transcription": {
+            "provider": "local_whisper",
+            "api_key": "new-ai-key",
+            "model": "gpt-4o-mini-transcribe",
+            "language": "en",
+            "timeout": 12.5,
+            "local_whisper_model": "whisper-small",
+            "local_whisper_device": "cpu",
+            "local_whisper_compute_type": "int8",
+            "local_whisper_download_root": "/tmp/whisper-cache",
+        },
+        "chat_model": {
+            "base_url": "https://llm.example/v1",
+            "api_key": "new-ai-key",
+            "model": "gpt-4.1-nano",
+        },
     }

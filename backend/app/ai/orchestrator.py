@@ -47,6 +47,10 @@ class ChatOrchestrator:
         self._agent = create_agent(settings)
         self._request_limit = 8
 
+    def update_settings(self, settings: Settings) -> None:
+        self._settings = settings
+        self._agent = create_agent(settings)
+
     def create_session(
         self,
         *,

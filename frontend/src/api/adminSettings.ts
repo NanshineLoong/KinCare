@@ -6,6 +6,33 @@ import { getAuthorized, sendAuthorized } from "./http";
 export type AdminSettings = {
   health_summary_refresh_time: string;
   care_plan_refresh_time: string;
+  transcription: {
+    provider: "openai" | "local_whisper";
+    api_key: string | null;
+    model: string;
+    language: string | null;
+    timeout: number;
+    local_whisper_model: string;
+    local_whisper_device: string;
+    local_whisper_compute_type: string;
+    local_whisper_download_root: string | null;
+  };
+  chat_model: {
+    base_url: string | null;
+    api_key: string | null;
+    model: string;
+  };
+};
+
+type NullablePatch<T> = {
+  [K in keyof T]?: T[K] | null;
+};
+
+export type AdminSettingsUpdate = Partial<
+  Pick<AdminSettings, "health_summary_refresh_time" | "care_plan_refresh_time">
+> & {
+  transcription?: NullablePatch<AdminSettings["transcription"]>;
+  chat_model?: NullablePatch<AdminSettings["chat_model"]>;
 };
 
 export function getAdminSettings(session: AuthSession): Promise<AdminSettings> {
@@ -14,9 +41,9 @@ export function getAdminSettings(session: AuthSession): Promise<AdminSettings> {
 
 export function updateAdminSettings(
   session: AuthSession,
-  payload: AdminSettings,
+  payload: AdminSettingsUpdate,
 ): Promise<AdminSettings> {
-  return sendAuthorized<AdminSettings, AdminSettings>(
+  return sendAuthorized<AdminSettings, AdminSettingsUpdate>(
     "/api/admin/settings",
     session,
     {
