@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PreferencesProvider } from "../preferences";
 import { ChatInput } from "./ChatInput";
 
 const voiceVisualizerState = vi.hoisted(() => ({
@@ -56,16 +57,18 @@ describe("ChatInput", () => {
   it("uploads the recorded audio after completing voice input and returns to text mode", async () => {
     const handleAudioUpload = vi.fn();
     const { rerender } = render(
-      <ChatInput
-        draft=""
-        isBusy={false}
-        memberOptions={[]}
-        onAudioUpload={handleAudioUpload}
-        onDraftChange={() => {}}
-        onMemberChange={() => {}}
-        onSend={() => {}}
-        selectedMemberId=""
-      />,
+      <PreferencesProvider>
+        <ChatInput
+          draft=""
+          isBusy={false}
+          memberOptions={[]}
+          onAudioUpload={handleAudioUpload}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
     );
     
     fireEvent.click(screen.getByRole("button", { name: "语音输入" }));
@@ -80,28 +83,32 @@ describe("ChatInput", () => {
     await waitFor(() => expect(handleAudioUpload).toHaveBeenCalledTimes(1));
 
     rerender(
-      <ChatInput
-        draft=""
-        isBusy
-        memberOptions={[]}
-        onAudioUpload={handleAudioUpload}
-        onDraftChange={() => {}}
-        onMemberChange={() => {}}
-        onSend={() => {}}
-        selectedMemberId=""
-      />
+      <PreferencesProvider>
+        <ChatInput
+          draft=""
+          isBusy
+          memberOptions={[]}
+          onAudioUpload={handleAudioUpload}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>
     );
     rerender(
-      <ChatInput
-        draft="识别后的文字"
-        isBusy={false}
-        memberOptions={[]}
-        onAudioUpload={handleAudioUpload}
-        onDraftChange={() => {}}
-        onMemberChange={() => {}}
-        onSend={() => {}}
-        selectedMemberId=""
-      />
+      <PreferencesProvider>
+        <ChatInput
+          draft="识别后的文字"
+          isBusy={false}
+          memberOptions={[]}
+          onAudioUpload={handleAudioUpload}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>
     );
 
     expect(voiceVisualizerState.stopRecording).toHaveBeenCalledTimes(1);
@@ -110,16 +117,18 @@ describe("ChatInput", () => {
 
   it("shows a spinner on the complete button while processing recorded audio", () => {
     render(
-      <ChatInput
-        draft=""
-        isBusy={false}
-        memberOptions={[]}
-        onAudioUpload={() => {}}
-        onDraftChange={() => {}}
-        onMemberChange={() => {}}
-        onSend={() => {}}
-        selectedMemberId=""
-      />,
+      <PreferencesProvider>
+        <ChatInput
+          draft=""
+          isBusy={false}
+          memberOptions={[]}
+          onAudioUpload={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "语音输入" }));

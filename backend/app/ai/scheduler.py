@@ -45,6 +45,11 @@ CARE_PLAN_ICON_BY_CATEGORY = {
 logger = logging.getLogger(__name__)
 
 
+def _parse_time_value(value: str) -> tuple[int, int]:
+    hour_text, minute_text = value.split(":", maxsplit=1)
+    return int(hour_text), int(minute_text)
+
+
 class HomeVitalScheduler:
     def __init__(self, database: Database, *, settings: Settings) -> None:
         self.database = database
@@ -56,6 +61,7 @@ class HomeVitalScheduler:
         self._care_plan_refresh_hour = settings.care_plan_refresh_hour
         self._care_plan_refresh_minute = settings.care_plan_refresh_minute
         self._started = False
+        self._load_builtin_refresh_schedule()
 
     def start(self) -> None:
         if self._started:
@@ -256,6 +262,47 @@ class HomeVitalScheduler:
             ),
             id=BUILTIN_CARE_PLAN_JOB_ID,
             replace_existing=True,
+        )
+
+    def update_builtin_refresh_schedule(
+        self,
+        *,
+        health_summary_refresh_time: str,
+        care_plan_refresh_time: str,
+    ) -> None:
+        (
+            self._health_summary_refresh_hour,
+            self._health_summary_refresh_minute,
+        ) = _parse_time_value(health_summary_refresh_time)
+        self._care_plan_refresh_hour, self._care_plan_refresh_minute = _parse_time_value(
+            care_plan_refresh_time,
+        )
+        if self._started:
+            self._register_builtin_jobs()
+
+    def _load_builtin_refresh_schedule(self) -> None:
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT key, value
+                FROM system_config
+                WHERE key IN (?, ?)
+                """,
+                ("health_summary_refresh_time", "care_plan_refresh_time"),
+            ).fetchall()
+
+        values = {str(row["key"]): str(row["value"]) for row in rows}
+        summary_time = values.get(
+            "health_summary_refresh_time",
+            f"{self._health_summary_refresh_hour:02d}:{self._health_summary_refresh_minute:02d}",
+        )
+        care_plan_time = values.get(
+            "care_plan_refresh_time",
+            f"{self._care_plan_refresh_hour:02d}:{self._care_plan_refresh_minute:02d}",
+        )
+        self.update_builtin_refresh_schedule(
+            health_summary_refresh_time=summary_time,
+            care_plan_refresh_time=care_plan_time,
         )
 
 

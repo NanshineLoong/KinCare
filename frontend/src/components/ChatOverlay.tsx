@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import type { ChatToolResult, HealthRecordAction, HealthRecordDraft } from "../api/chat";
+import { usePreferences } from "../preferences";
 import { ChatInput } from "./ChatInput";
 import { MarkdownContent } from "./MarkdownContent";
 
@@ -92,6 +93,7 @@ export function ChatOverlay({
   selectedMemberId,
   toolCards,
 }: ChatOverlayProps) {
+  const { t } = usePreferences();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const [dismissedToolIds, setDismissedToolIds] = useState<Set<string>>(new Set());
@@ -126,13 +128,13 @@ export function ChatOverlay({
 
   return (
     <div
-      aria-label="AI 健康助手"
+      aria-label={t("chatOverlayLabel")}
       aria-modal="true"
       className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#f6f1ea]/85 backdrop-blur-xl"
       role="dialog"
     >
       <input
-        aria-label="上传语音"
+        aria-label={t("chatOverlayUploadAudio")}
         className="hidden"
         onChange={handleAudioChange}
         ref={audioInputRef}
@@ -143,7 +145,7 @@ export function ChatOverlay({
       <div className="flex flex-1 flex-col overflow-hidden px-5 py-6 sm:px-6 sm:py-8">
         <div className="flex items-start justify-end gap-4">
           <button
-            aria-label="关闭 AI 对话"
+            aria-label={t("chatOverlayClose")}
             className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/40 shadow-2xl backdrop-blur-xl"
             onClick={onClose}
             type="button"
@@ -175,7 +177,9 @@ export function ChatOverlay({
                   <div className="min-w-0 flex-1 rounded-[2rem] rounded-tl-none border border-white/40 bg-[rgba(235,242,247,0.45)] p-0 shadow-sm backdrop-blur-lg">
                     <div className="p-6">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6D8295]">
-                        {toolCard.result.requires_confirmation ? "待确认草稿" : "分析结果"}
+                        {toolCard.result.requires_confirmation
+                          ? t("chatOverlayDraft")
+                          : t("chatOverlayAnalysis")}
                       </p>
                       <p className="text-[16px] leading-relaxed text-[#2D2926]">{toolCard.result.content}</p>
                       {toolCard.result.suggestion_summary ? (

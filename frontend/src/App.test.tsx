@@ -10,12 +10,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { sessionStorageKey } from "./auth/session";
+import { PreferencesProvider } from "./preferences";
 
 function renderApp(initialPath = "/") {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <App />
-    </MemoryRouter>,
+    <PreferencesProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <App />
+      </MemoryRouter>
+    </PreferencesProvider>,
   );
 }
 
@@ -464,6 +467,46 @@ describe("App", () => {
     expect(await screen.findByText("今天还没有待办提醒")).toBeInTheDocument();
     expect(screen.queryByText(/后续 AI 阶段/)).not.toBeInTheDocument();
     expect(screen.getByText(/每日刷新时同步最新 AI 提醒/)).toBeInTheDocument();
+  });
+
+  it("switches language and theme from preferences with immediate app-wide effect", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      if (pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (pathname === "/api/admin/settings" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({
+          health_summary_refresh_time: "05:00",
+          care_plan_refresh_time: "06:00",
+        });
+      }
+      throw new Error(`Unhandled request: ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    expect(await screen.findByText("家人状态")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "用户菜单" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /设置/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "偏好" }));
+    fireEvent.click(await screen.findByRole("button", { name: "English" }));
+
+    expect(await screen.findByText("Family Dashboard")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Language" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
   it("opens member profile modal and loads current resources", async () => {

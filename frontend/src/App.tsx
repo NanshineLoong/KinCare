@@ -197,7 +197,7 @@ export default function App() {
           setMembersError(
             error instanceof Error
               ? error.message
-              : "成员列表加载失败，请重试。",
+              : "Failed to load members. Please try again later.",
           );
         }
       } finally {
@@ -340,7 +340,7 @@ export default function App() {
       });
     } catch (error) {
       setChatError(
-        error instanceof Error ? error.message : "AI 对话失败，请稍后重试。",
+        error instanceof Error ? error.message : "AI chat failed. Please try again later.",
       );
     } finally {
       setIsChatBusy(false);
@@ -383,7 +383,7 @@ export default function App() {
       setDashboardRefreshToken((current) => current + 1);
     } catch (error) {
       setChatError(
-        error instanceof Error ? error.message : "草稿确认失败，请稍后重试。",
+        error instanceof Error ? error.message : "Failed to confirm the draft. Please try again later.",
       );
     } finally {
       setIsChatBusy(false);
@@ -404,7 +404,7 @@ export default function App() {
       );
     } catch (error) {
       setChatError(
-        error instanceof Error ? error.message : "语音识别失败，请稍后重试。",
+        error instanceof Error ? error.message : "Voice transcription failed. Please try again later.",
       );
     } finally {
       setIsChatBusy(false);

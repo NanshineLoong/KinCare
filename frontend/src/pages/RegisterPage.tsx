@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { register } from "../api/auth";
 import type { AuthSession } from "../auth/session";
 import { AuthField, AuthLayout, LockIcon, MailIcon, UserIcon } from "../components/AuthLayout";
+import { usePreferences } from "../preferences";
 
 
 type RegisterPageProps = {
@@ -25,6 +26,7 @@ const initialState: RegisterFormState = {
 };
 
 export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
+  const { t } = usePreferences();
   const navigate = useNavigate();
   const [formState, setFormState] = useState(initialState);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
     setErrorMessage(null);
 
     if (formState.password !== formState.confirmPassword) {
-      setErrorMessage("两次输入的密码不一致。");
+      setErrorMessage(t("registerPasswordMismatch"));
       return;
     }
 
@@ -55,7 +57,7 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
       onAuthenticated(session);
       navigate("/app", { replace: true });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "注册失败，请重试。");
+      setErrorMessage(error instanceof Error ? error.message : t("registerFallbackError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -63,15 +65,15 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
 
   return (
     <AuthLayout
-      alternateAction="返回登录"
+      alternateAction={t("registerAlternateAction")}
       alternateHref="/login"
-      alternateLabel="已经有账号？"
-      description="创建属于您家庭的健康管理空间"
+      alternateLabel={t("registerAlternateLabel")}
+      description={t("registerDescription")}
       errorMessage={errorMessage}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
-      submitLabel="创建账号"
-      title="注册"
+      submitLabel={t("registerSubmit")}
+      title={t("registerTitle")}
     >
       <AuthField
         id="register-name"
@@ -83,13 +85,13 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
             id="register-name"
             name="name"
             onChange={updateField}
-            placeholder="例如：李阿姨"
+            placeholder={t("registerNamePlaceholder")}
             required
             type="text"
             value={formState.name}
           />
         }
-        label="家庭成员昵称"
+        label={t("registerName")}
       />
       <AuthField
         id="register-email"
@@ -101,13 +103,13 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
             id="register-email"
             name="email"
             onChange={updateField}
-            placeholder="请输入您的邮箱地址"
+            placeholder={t("registerEmailPlaceholder")}
             required
             type="email"
             value={formState.email}
           />
         }
-        label="电子邮箱"
+        label={t("registerEmail")}
       />
       <AuthField
         id="register-password"
@@ -119,13 +121,13 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
             id="register-password"
             name="password"
             onChange={updateField}
-            placeholder="至少 8 位密码"
+            placeholder={t("registerPasswordPlaceholder")}
             required
             type="password"
             value={formState.password}
           />
         }
-        label="密码"
+        label={t("registerPassword")}
       />
       <AuthField
         id="register-confirm-password"
@@ -137,13 +139,13 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
             id="register-confirm-password"
             name="confirmPassword"
             onChange={updateField}
-            placeholder="请再次输入密码"
+            placeholder={t("registerConfirmPasswordPlaceholder")}
             required
             type="password"
             value={formState.confirmPassword}
           />
         }
-        label="确认密码"
+        label={t("registerConfirmPassword")}
       />
     </AuthLayout>
   );

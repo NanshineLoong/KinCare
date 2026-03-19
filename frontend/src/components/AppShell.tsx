@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 
 import { listChatSessions, type ChatSessionListItem } from "../api/chat";
 import type { AuthSession } from "../auth/session";
+import { usePreferences, type TranslationKey } from "../preferences";
 
 type AppShellProps = {
   onSignOut: () => void;
@@ -12,14 +13,17 @@ type AppShellProps = {
   onRestoreChatSession?: (sessionId: string) => void;
 };
 
-function resolvePageLabel(pathname: string) {
+function resolvePageLabel(
+  pathname: string,
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+) {
   if (pathname.startsWith("/app/members/")) {
-    return "成员档案";
+    return t("appShellMemberProfile");
   }
   if (pathname === "/app" || pathname === "/app/") {
-    return "家庭仪表盘";
+    return t("appShellFamilyDashboard");
   }
-  return "家庭仪表盘";
+  return t("appShellFamilyDashboard");
 }
 
 function getAvatarColor(name: string): string {
@@ -40,7 +44,11 @@ function getAvatarColor(name: string): string {
   return palette[Math.abs(hash) % palette.length];
 }
 
-function formatRelativeTime(value: string): string {
+function formatRelativeTime(
+  value: string,
+  language: "zh" | "en",
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+): string {
   const date = new Date(value);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -48,12 +56,15 @@ function formatRelativeTime(value: string): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 1) return "刚刚";
-  if (diffMins < 60) return `${diffMins} 分钟前`;
-  if (diffHours < 24) return `${diffHours} 小时前`;
-  if (diffDays === 1) return "昨天";
-  if (diffDays < 7) return `${diffDays} 天前`;
-  return date.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+  if (diffMins < 1) return t("appShellJustNow");
+  if (diffMins < 60) return t("appShellMinutesAgo", { count: diffMins });
+  if (diffHours < 24) return t("appShellHoursAgo", { count: diffHours });
+  if (diffDays === 1) return t("appShellYesterday");
+  if (diffDays < 7) return t("appShellDaysAgo", { count: diffDays });
+  return date.toLocaleDateString(language === "en" ? "en-US" : "zh-CN", {
+    month: "numeric",
+    day: "numeric",
+  });
 }
 
 export function AppShell({
@@ -63,6 +74,7 @@ export function AppShell({
   onOpenChat,
   onRestoreChatSession,
 }: AppShellProps) {
+  const { language, t } = usePreferences();
   const location = useLocation();
 
   // User dropdown
@@ -146,7 +158,7 @@ export function AppShell({
           {/* Center: page title pill */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="rounded-full bg-[#F5F0EA] px-6 py-2 text-sm font-semibold text-[#2D2926]">
-              {resolvePageLabel(location.pathname)}
+              {resolvePageLabel(location.pathname, t)}
             </div>
           </div>
 
@@ -157,7 +169,7 @@ export function AppShell({
               <button
                 aria-expanded={historyOpen}
                 aria-haspopup="listbox"
-                aria-label="历史会话"
+                aria-label={t("appShellHistory")}
                 className="relative flex h-10 w-10 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#2D2926]"
                 onClick={handleToggleHistory}
                 type="button"
@@ -174,10 +186,10 @@ export function AppShell({
                 >
                   <div className="flex items-center justify-between px-4 pb-2 pt-1">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-warm-gray">
-                      历史会话
+                      {t("appShellHistory")}
                     </p>
                     <button
-                      aria-label="新建会话"
+                      aria-label={t("appShellNewSession")}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4A443F] transition hover:bg-[#F5F0EA]"
                       onClick={() => {
                         setHistoryOpen(false);
@@ -195,13 +207,13 @@ export function AppShell({
 
                   {isLoadingSessions && (
                     <div className="px-4 py-4 text-center text-sm text-warm-gray">
-                      加载中...
+                      {t("appShellLoading")}
                     </div>
                   )}
 
                   {!isLoadingSessions && sessions.length === 0 && (
                     <div className="px-4 py-4 text-center text-sm text-warm-gray">
-                      暂无历史会话
+                      {t("appShellNoSessions")}
                     </div>
                   )}
 
@@ -216,10 +228,10 @@ export function AppShell({
                             type="button"
                           >
                             <p className="truncate text-sm font-semibold text-[#2D2926]">
-                              {item.title ?? "未命名会话"}
+                              {item.title ?? t("appShellUntitledSession")}
                             </p>
                             <p className="text-[11px] text-warm-gray">
-                              {formatRelativeTime(item.updated_at)}
+                              {formatRelativeTime(item.updated_at, language, t)}
                             </p>
                           </button>
                         </li>
@@ -237,16 +249,16 @@ export function AppShell({
               <button
                 aria-expanded={userMenuOpen}
                 aria-haspopup="menu"
-                aria-label="用户菜单"
+                aria-label={t("appShellUserMenu")}
                 className="flex items-center gap-3 rounded-xl py-1 pr-1 transition hover:bg-[#F5F0EA]/50"
                 onClick={() => setUserMenuOpen((c) => !c)}
                 type="button"
               >
                 <div className="hidden text-right sm:block">
                   <p className="text-sm font-bold text-[#2D2926]">
-                    {session.member.name} 的家
+                    {`${session.member.name}${t("appShellHomeSuffix")}`}
                   </p>
-                  <p className="text-[11px] text-warm-gray">今日温馨守护中</p>
+                  <p className="text-[11px] text-warm-gray">{t("appShellTodayCare")}</p>
                 </div>
                 <div
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
@@ -277,7 +289,9 @@ export function AppShell({
                         {session.member.name}
                       </p>
                       <p className="text-[11px] text-warm-gray">
-                        {session.user.role === "admin" ? "管理员" : "家庭成员"}
+                        {session.user.role === "admin"
+                          ? t("appShellAdmin")
+                          : t("appShellMember")}
                       </p>
                     </div>
                   </div>
@@ -299,7 +313,7 @@ export function AppShell({
                         settings
                       </span>
                     </span>
-                    设置
+                    {t("appShellSettings")}
                   </button>
 
                   <div className="my-1.5 border-t border-[#F2EDE7]" />
@@ -319,7 +333,7 @@ export function AppShell({
                         logout
                       </span>
                     </span>
-                    退出登录
+                    {t("appShellSignOut")}
                   </button>
                 </div>
               )}

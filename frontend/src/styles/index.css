@@ -16,10 +16,27 @@
   --forest-green: #2d4f3e;
   --elegant-blue: #4a6076;
   --apple-border: #f2f2f7;
+  --app-bg: #fcf9f5;
+  --app-text: #2d2926;
+  --surface-primary: #ffffff;
+  --surface-secondary: #fbf8f5;
+  --surface-overlay: rgba(255, 255, 255, 0.8);
+  --border-soft: #f2ede7;
+  --text-muted: #7d746d;
 
   color: #2d2926;
   background-color: var(--warm-cream);
   font-family: "Quicksand", "Inter", "Noto Sans SC", sans-serif;
+}
+
+:root[data-theme="dark"] {
+  --app-bg: #11161d;
+  --app-text: #f4efe7;
+  --surface-primary: #18202a;
+  --surface-secondary: #212b37;
+  --surface-overlay: rgba(24, 32, 42, 0.84);
+  --border-soft: #2d3947;
+  --text-muted: #b6c0cb;
 }
 
 * {
@@ -27,16 +44,48 @@
 }
 
 html {
-  background: var(--warm-cream);
+  background: var(--app-bg);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--app-text);
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 #root {
   min-height: 100vh;
+}
+
+:root[data-theme="dark"] .theme-surface,
+:root[data-theme="dark"] .theme-surface-muted,
+:root[data-theme="dark"] .theme-surface-overlay,
+:root[data-theme="dark"] .theme-text {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.theme-surface {
+  background: var(--surface-primary);
+  border-color: var(--border-soft);
+}
+
+.theme-surface-muted {
+  background: var(--surface-secondary);
+  border-color: var(--border-soft);
+}
+
+.theme-surface-overlay {
+  background: var(--surface-overlay);
+}
+
+.theme-text {
+  color: var(--app-text);
+}
+
+.theme-text-muted {
+  color: var(--text-muted);
 }
 
 /* Material Symbols */

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { FormEvent, ReactNode, SVGProps } from "react";
 
+import { usePreferences } from "../preferences";
 
 type AuthLayoutProps = {
   title: string;
@@ -97,6 +98,7 @@ export function AuthLayout({
   children,
   extra,
 }: AuthLayoutProps) {
+  const { t } = usePreferences();
   return (
     <div className="relative min-h-screen overflow-hidden bg-warm-cream text-warm-gray">
       <div className="absolute inset-0 opacity-40">
@@ -110,7 +112,7 @@ export function AuthLayout({
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue">
               <span aria-hidden className="material-symbols-outlined text-[22px]">health_and_safety</span>
             </div>
-            <p className="text-sm font-bold tracking-tight text-warm-gray">家庭健康管理助手</p>
+            <p className="text-sm font-bold tracking-tight text-warm-gray">{t("authBrand")}</p>
           </div>
           <button
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue transition hover:bg-apple-blue/15"
@@ -162,7 +164,7 @@ export function AuthLayout({
                 disabled={isSubmitting}
                 type="submit"
               >
-                <span>{isSubmitting ? "处理中..." : submitLabel}</span>
+                <span>{isSubmitting ? t("authSubmitting") : submitLabel}</span>
                 <span aria-hidden className="material-symbols-outlined text-[20px]">arrow_forward</span>
               </button>
             </form>
@@ -178,7 +180,7 @@ export function AuthLayout({
       </main>
 
       <footer className="relative z-10 px-4 pb-6 text-center text-xs text-warm-gray/60">
-        © 2026 家庭健康管理助手. 您的健康，我们的承诺.
+        {t("authFooter")}
       </footer>
     </div>
   );

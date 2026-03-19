@@ -8,6 +8,7 @@ import {
 } from "../api/health";
 import { transcribeAudio } from "../api/chat";
 import type { AuthMember, AuthSession } from "../auth/session";
+import { usePreferences } from "../preferences";
 
 // ─── Tiny helpers ──────────────────────────────────────────────────────────────
 
@@ -328,6 +329,7 @@ export function HomePage({
   refreshToken = 0,
   session,
 }: HomePageProps) {
+  const { t } = usePreferences();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
@@ -407,7 +409,7 @@ export function HomePage({
           <div className="flex shrink-0 items-center justify-between">
             <h2 className="flex items-center gap-2 text-lg font-bold text-[#2D2926]">
               <MaterialIcon className="text-xl text-rose-400" name="group" />
-              家人状态
+              {t("homeFamilyStatus")}
             </h2>
             <span className="rounded-full border border-[#F2EDE7] bg-white px-3 py-1 text-xs font-semibold text-warm-gray shadow-soft">
               {visibleMembers.length} 位成员
@@ -527,7 +529,7 @@ export function HomePage({
                   className="text-xl text-amber-400"
                   name="event_note"
                 />
-                今日提醒
+                {t("homeTodayReminders")}
               </h2>
               <p className="mt-0.5 text-xs text-warm-gray">
                 {totalReminders > 0
@@ -547,7 +549,7 @@ export function HomePage({
                 className={`text-sm ${isLoadingDashboard ? "animate-spin" : ""}`}
                 name="event_repeat"
               />
-              {isLoadingDashboard ? "刷新中…" : "刷新"}
+              {isLoadingDashboard ? t("homeRefreshing") : t("homeRefresh")}
             </button>
           </div>
 
@@ -697,7 +699,7 @@ export function HomePage({
             onSend={handleSendHomeMessage}
             onAudioUpload={handleComposerAudioUpload}
             selectedMemberId={selectedMemberId}
-            placeholder="说说今天家人的健康情况..."
+            placeholder={t("homeComposerPlaceholder")}
           />
         </div>
       </div>

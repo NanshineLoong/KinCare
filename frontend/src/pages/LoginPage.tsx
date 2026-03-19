@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 import type { AuthSession } from "../auth/session";
 import { AuthField, AuthLayout } from "../components/AuthLayout";
+import { usePreferences } from "../preferences";
 
 
 type LoginPageProps = {
@@ -23,6 +24,7 @@ const initialState: LoginFormState = {
 };
 
 export function LoginPage({ onAuthenticated }: LoginPageProps) {
+  const { t } = usePreferences();
   const navigate = useNavigate();
   const [formState, setFormState] = useState(initialState);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
       onAuthenticated(session);
       navigate("/app", { replace: true });
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "登录失败，请重试。");
+      setErrorMessage(error instanceof Error ? error.message : t("loginFallbackError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -60,10 +62,10 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
 
   return (
     <AuthLayout
-      alternateAction="免费注册"
+      alternateAction={t("loginAlternateAction")}
       alternateHref="/register"
-      alternateLabel="还没有账号？"
-      description="欢迎回到您的个人健康中心"
+      alternateLabel={t("loginAlternateLabel")}
+      description={t("loginDescription")}
       errorMessage={errorMessage}
       extra={
         <label className="flex cursor-pointer items-center gap-2">
@@ -74,13 +76,13 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
             onChange={updateField}
             type="checkbox"
           />
-          <span className="text-sm text-warm-gray">记住我的登录状态</span>
+          <span className="text-sm text-warm-gray">{t("loginRemember")}</span>
         </label>
       }
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
-      submitLabel="立即登录"
-      title="登录"
+      submitLabel={t("loginSubmit")}
+      title={t("loginTitle")}
     >
       <AuthField
         iconName="mail"
@@ -92,18 +94,18 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
             id="login-email"
             name="email"
             onChange={updateField}
-            placeholder="请输入您的邮箱地址"
+            placeholder={t("loginEmailPlaceholder")}
             required
             type="email"
             value={formState.email}
           />
         }
-        label="电子邮箱"
+        label={t("loginEmail")}
       />
       <AuthField
         aside={
           <Link className="text-xs font-medium text-apple-blue hover:underline" to="/forgot-password">
-            忘记密码？
+            Forgot password?
           </Link>
         }
         iconName="lock"
@@ -115,16 +117,16 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
             id="login-password"
             name="password"
             onChange={updateField}
-            placeholder="请输入您的登录密码"
+            placeholder={t("loginPasswordPlaceholder")}
             required
             type={showPassword ? "text" : "password"}
             value={formState.password}
           />
         }
-        label="密码"
+        label={t("loginPassword")}
         trailing={
           <button
-            aria-label={showPassword ? "隐藏密码" : "显示密码"}
+            aria-label={showPassword ? t("loginHidePassword") : t("loginShowPassword")}
             className="text-warm-gray/55 hover:text-warm-gray"
             onClick={() => setShowPassword((v) => !v)}
             type="button"

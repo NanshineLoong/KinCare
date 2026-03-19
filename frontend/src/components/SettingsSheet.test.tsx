@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PreferencesProvider } from "../preferences";
 import type { MemberPermissionGrant } from "../api/members";
 import type { AuthMember, AuthSession } from "../auth/session";
 import { SettingsSheet } from "./SettingsSheet";
@@ -9,12 +10,19 @@ const createMemberMock = vi.fn();
 const listMemberPermissionsMock = vi.fn();
 const grantMemberPermissionMock = vi.fn();
 const revokeMemberPermissionMock = vi.fn();
+const getAdminSettingsMock = vi.fn();
+const updateAdminSettingsMock = vi.fn();
 
 vi.mock("../api/members", () => ({
   createMember: (...args: unknown[]) => createMemberMock(...args),
   listMemberPermissions: (...args: unknown[]) => listMemberPermissionsMock(...args),
   grantMemberPermission: (...args: unknown[]) => grantMemberPermissionMock(...args),
   revokeMemberPermission: (...args: unknown[]) => revokeMemberPermissionMock(...args),
+}));
+
+vi.mock("../api/adminSettings", () => ({
+  getAdminSettings: (...args: unknown[]) => getAdminSettingsMock(...args),
+  updateAdminSettings: (...args: unknown[]) => updateAdminSettingsMock(...args),
 }));
 
 const adminSession: AuthSession = {
@@ -195,13 +203,15 @@ function installPermissionMocks(store: PermissionStore) {
 
 function renderSheet(session: AuthSession = adminSession) {
   return render(
-    <SettingsSheet
-      members={members}
-      onClose={() => {}}
-      onMembersChange={() => {}}
-      open
-      session={session}
-    />,
+    <PreferencesProvider>
+      <SettingsSheet
+        members={members}
+        onClose={() => {}}
+        onMembersChange={() => {}}
+        open
+        session={session}
+      />
+    </PreferencesProvider>,
   );
 }
 
@@ -211,17 +221,26 @@ describe("SettingsSheet", () => {
     listMemberPermissionsMock.mockReset();
     grantMemberPermissionMock.mockReset();
     revokeMemberPermissionMock.mockReset();
+    getAdminSettingsMock.mockReset();
+    updateAdminSettingsMock.mockReset();
+    getAdminSettingsMock.mockResolvedValue({
+      health_summary_refresh_time: "05:00",
+      care_plan_refresh_time: "06:00",
+    });
+    updateAdminSettingsMock.mockImplementation(async (_session, payload) => payload);
   });
 
   it("shows all Step 7A tabs for admin and hides AI config for non-admin users", () => {
     const { rerender } = render(
-      <SettingsSheet
-        members={members}
-        onClose={() => {}}
-        onMembersChange={() => {}}
-        open
-        session={adminSession}
-      />,
+      <PreferencesProvider>
+        <SettingsSheet
+          members={members}
+          onClose={() => {}}
+          onMembersChange={() => {}}
+          open
+          session={adminSession}
+        />
+      </PreferencesProvider>,
     );
 
     expect(screen.getByRole("button", { name: /成员管理/ })).toBeInTheDocument();
@@ -229,13 +248,15 @@ describe("SettingsSheet", () => {
     expect(screen.getByRole("button", { name: /AI 配置/ })).toBeInTheDocument();
 
     rerender(
-      <SettingsSheet
-        members={members}
-        onClose={() => {}}
-        onMembersChange={() => {}}
-        open
-        session={memberSession}
-      />,
+      <PreferencesProvider>
+        <SettingsSheet
+          members={members}
+          onClose={() => {}}
+          onMembersChange={() => {}}
+          open
+          session={memberSession}
+        />
+      </PreferencesProvider>,
     );
 
     expect(screen.getByRole("button", { name: /成员管理/ })).toBeInTheDocument();
@@ -320,5 +341,41 @@ describe("SettingsSheet", () => {
     ).toBeDisabled();
     expect(within(readSection).getByText("所有人")).toBeInTheDocument();
     expect(within(writeSection).getAllByText("所有人").length).toBeGreaterThan(0);
+  });
+
+  it("renders Step 7C preference sections and lets admins save refresh times", async () => {
+    renderSheet();
+
+    fireEvent.click(screen.getByRole("button", { name: "偏好" }));
+
+    expect(await screen.findByRole("heading", { name: "语言" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "时间" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "外观" })).toBeInTheDocument();
+
+    const summaryTimeInput = await screen.findByLabelText("每日健康状态刷新时间");
+    const carePlanTimeInput = screen.getByLabelText("每日提醒刷新时间");
+    expect(summaryTimeInput).toHaveValue("05:00");
+    expect(carePlanTimeInput).toHaveValue("06:00");
+
+    fireEvent.change(summaryTimeInput, { target: { value: "07:30" } });
+    fireEvent.change(carePlanTimeInput, { target: { value: "08:45" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存时间设置" }));
+
+    await waitFor(() => {
+      expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
+        health_summary_refresh_time: "07:30",
+        care_plan_refresh_time: "08:45",
+      });
+    });
+  });
+
+  it("keeps time configuration read-only for non-admin users", async () => {
+    renderSheet(memberSession);
+
+    fireEvent.click(screen.getByRole("button", { name: "偏好" }));
+
+    expect(await screen.findByText("仅管理员可配置每日刷新时间。")).toBeInTheDocument();
+    expect(screen.queryByLabelText("每日健康状态刷新时间")).not.toBeInTheDocument();
+    expect(getAdminSettingsMock).not.toHaveBeenCalled();
   });
 });

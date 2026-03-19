@@ -519,3 +519,68 @@ def test_manage_permission_allows_listing_granting_and_revoking_member_permissio
         headers=auth_headers(helper["tokens"]["access_token"]),
     )
     assert helper_detail.status_code == 403
+
+
+def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    member = register_user(
+        client,
+        email="member@example.com",
+        password="Secret123!",
+        name="普通成员",
+    )
+
+    read_response = client.get(
+        "/api/admin/settings",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert read_response.status_code == 200, read_response.text
+    assert read_response.json() == {
+        "health_summary_refresh_time": "05:00",
+        "care_plan_refresh_time": "06:00",
+    }
+
+    forbidden_response = client.get(
+        "/api/admin/settings",
+        headers=auth_headers(member["tokens"]["access_token"]),
+    )
+    assert forbidden_response.status_code == 403
+
+    update_response = client.put(
+        "/api/admin/settings",
+        json={
+            "health_summary_refresh_time": "07:30",
+            "care_plan_refresh_time": "08:45",
+        },
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert update_response.status_code == 200, update_response.text
+    assert update_response.json() == {
+        "health_summary_refresh_time": "07:30",
+        "care_plan_refresh_time": "08:45",
+    }
+
+    scheduler = client.app.state.scheduler
+    summary_job = scheduler.get_job("builtin.refresh_health_summaries")
+    care_plan_job = scheduler.get_job("builtin.refresh_daily_care_plans")
+    assert summary_job is not None
+    assert care_plan_job is not None
+    assert "hour='7'" in str(summary_job.trigger)
+    assert "minute='30'" in str(summary_job.trigger)
+    assert "hour='8'" in str(care_plan_job.trigger)
+    assert "minute='45'" in str(care_plan_job.trigger)
+
+    saved_response = client.get(
+        "/api/admin/settings",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert saved_response.status_code == 200, saved_response.text
+    assert saved_response.json() == {
+        "health_summary_refresh_time": "07:30",
+        "care_plan_refresh_time": "08:45",
+    }

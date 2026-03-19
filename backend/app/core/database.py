@@ -268,6 +268,12 @@ CREATE TABLE IF NOT EXISTS scheduled_task (
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_task_family_space_enabled
 ON scheduled_task(family_space_id, enabled, next_run_at);
+
+CREATE TABLE IF NOT EXISTS system_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 LEGACY_TABLES = (
     "document_reference",

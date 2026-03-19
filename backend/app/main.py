@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.ai.orchestrator import ChatOrchestrator
 from app.ai.scheduler import HomeVitalScheduler
+from app.api.routes.admin_settings import router as admin_settings_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.family_space import router as family_space_router
@@ -59,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(admin_settings_router)
     app.include_router(auth_router)
     app.include_router(chat_router)
     app.include_router(family_space_router)

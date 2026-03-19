@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { PreferencesProvider } from "../preferences";
 import { ChatOverlay, type ChatMessage } from "./ChatOverlay";
 
 vi.mock("./ChatInput", () => ({
@@ -9,21 +10,23 @@ vi.mock("./ChatInput", () => ({
 
 function renderOverlay(messages: ChatMessage[]) {
   return render(
-    <ChatOverlay
-      draft=""
-      error={null}
-      isBusy={false}
-      memberOptions={[]}
-      messages={messages}
-      onAudioUpload={() => {}}
-      onClose={() => {}}
-      onConfirmToolDraft={() => {}}
-      onDraftChange={() => {}}
-      onMemberChange={() => {}}
-      onSend={() => {}}
-      selectedMemberId=""
-      toolCards={[]}
-    />,
+    <PreferencesProvider>
+      <ChatOverlay
+        draft=""
+        error={null}
+        isBusy={false}
+        memberOptions={[]}
+        messages={messages}
+        onAudioUpload={() => {}}
+        onClose={() => {}}
+        onConfirmToolDraft={() => {}}
+        onDraftChange={() => {}}
+        onMemberChange={() => {}}
+        onSend={() => {}}
+        selectedMemberId=""
+        toolCards={[]}
+      />
+    </PreferencesProvider>,
   );
 }
 

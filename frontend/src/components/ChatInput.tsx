@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useVoiceVisualizer, VoiceVisualizer } from "react-voice-visualizer";
 
+import { usePreferences } from "../preferences";
+
 type MemberOption = {
   id: string;
   name: string;
@@ -27,8 +29,10 @@ export function ChatInput({
   onSend,
   onAudioUpload,
   selectedMemberId,
-  placeholder = "说说今天家人的健康情况...",
+  placeholder,
 }: ChatInputProps) {
+  const { t } = usePreferences();
+  const resolvedPlaceholder = placeholder ?? t("homeComposerPlaceholder");
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [hasStartedVoiceUpload, setHasStartedVoiceUpload] = useState(false);
@@ -154,7 +158,9 @@ export function ChatInput({
         {isVoiceMode ? (
           <div className="flex min-w-0 flex-1 items-center">
             {voiceError ? (
-              <p className="text-sm text-red-500">无法访问麦克风: {voiceError.message}</p>
+              <p className="text-sm text-red-500">
+                {t("chatInputMicError", { message: voiceError.message })}
+              </p>
             ) : (
               <div className="h-10 min-w-0 flex-1 overflow-hidden rounded-lg bg-[#F8F6F3]">
                 <VoiceVisualizer
@@ -174,10 +180,10 @@ export function ChatInput({
           </div>
         ) : (
           <textarea
-            aria-label="对话输入框"
+            aria-label={t("chatInputLabel")}
             ref={inputRef}
             className="min-h-[24px] w-full resize-none border-none bg-transparent py-2 text-[16px] text-[#2D2926] outline-none placeholder:text-[#B8B0A9]"
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             value={draft}
             onChange={(e) => {
               onDraftChange(e.target.value);
@@ -202,7 +208,7 @@ export function ChatInput({
         <div className="flex items-center gap-2">
           {/* Add button for attachments */}
           <button
-            aria-label="添加附件"
+            aria-label={t("chatInputAddAttachment")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F8F6F3] hover:text-[#4A443F]"
             onClick={() => document.getElementById('chat-attachment-input')?.click()}
             type="button"
@@ -232,7 +238,7 @@ export function ChatInput({
               value={selectedMemberId}
               disabled={isVoiceMode}
             >
-              <option value="">暂不指定成员</option>
+              <option value="">{t("chatInputNoMember")}</option>
               {memberOptions.map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
@@ -247,7 +253,7 @@ export function ChatInput({
           {isVoiceMode ? (
             <>
               <button
-                aria-label="取消录音"
+                aria-label={t("chatInputCancelVoice")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1d6d6] text-[#9a5e5e] transition hover:bg-[#e6c1c1]"
                 onClick={handleCancelVoice}
                 type="button"
@@ -255,7 +261,7 @@ export function ChatInput({
                 <span aria-hidden className="material-symbols-outlined text-[18px]">close</span>
               </button>
               <button
-                aria-label="结束录音并发送"
+                aria-label={t("chatInputFinishVoice")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-black"
                 onClick={handleCompleteVoiceRecording}
                 disabled={isBusy || isProcessingVoice}
@@ -274,7 +280,7 @@ export function ChatInput({
           ) : (
             <>
                <button
-                aria-label="语音输入"
+                aria-label={t("chatInputVoice")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8F6F3] text-[#4A443F] transition hover:bg-[#F2EDE7]"
                 onClick={handleStartVoiceRecording}
                 type="button"
@@ -282,7 +288,7 @@ export function ChatInput({
                 <span aria-hidden className="material-symbols-outlined text-[18px]">mic</span>
               </button>
               <button
-                aria-label="发送文本"
+                aria-label={t("chatInputSend")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-black disabled:opacity-50"
                 onClick={handleSendOrConfirm}
                 disabled={!draft.trim() || isBusy}

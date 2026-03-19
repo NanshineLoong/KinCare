@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "../auth/session";
+import { PreferencesProvider } from "../preferences";
 import { HomePage } from "./HomePage";
 
 const transcribeAudioMock = vi.fn();
@@ -84,12 +85,14 @@ describe("HomePage", () => {
     transcribeAudioMock.mockResolvedValue({ text: "帮妈妈记录今天血压正常" });
 
     render(
-      <HomePage
-        isLoadingMembers={false}
-        members={[]}
-        membersError={null}
-        session={session}
-      />,
+      <PreferencesProvider>
+        <HomePage
+          isLoadingMembers={false}
+          members={[]}
+          membersError={null}
+          session={session}
+        />
+      </PreferencesProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "trigger-audio-upload" }));

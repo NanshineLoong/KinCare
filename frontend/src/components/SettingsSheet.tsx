@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
+  getAdminSettings,
+  updateAdminSettings,
+} from "../api/adminSettings";
+import {
   createMember,
   grantMemberPermission,
   listMemberPermissions,
@@ -10,6 +14,11 @@ import {
   type PermissionScope,
 } from "../api/members";
 import type { AuthMember, AuthSession } from "../auth/session";
+import {
+  usePreferences,
+  type AppLanguage,
+  type AppTheme,
+} from "../preferences";
 
 type SettingsSheetProps = {
   open: boolean;
@@ -38,7 +47,7 @@ type DesiredGrant = {
 type PermissionPickerProps = {
   allSelected: boolean;
   disabled: boolean;
-  label: "可读取" | "可写入";
+  label: string;
   lockedIds?: string[];
   memberName: string;
   open: boolean;
@@ -52,13 +61,12 @@ type PermissionPickerProps = {
 
 const TAB_DEFINITIONS: Array<{
   key: SettingsTab;
-  label: string;
   icon: string;
   adminOnly?: boolean;
 }> = [
-  { key: "members", label: "成员管理", icon: "manage_accounts" },
-  { key: "preferences", label: "偏好", icon: "tune" },
-  { key: "ai", label: "AI 配置", icon: "neurology", adminOnly: true },
+  { key: "members", icon: "manage_accounts" },
+  { key: "preferences", icon: "tune" },
+  { key: "ai", icon: "neurology", adminOnly: true },
 ];
 
 function getAvatarColor(name: string): string {
@@ -436,6 +444,31 @@ function PermissionPicker({
         </div>
       )}
     </div>
+  );
+}
+
+function PreferenceChoiceButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+        active
+          ? "border-[#2D2926] bg-[#2D2926] text-white"
+          : "border-[#E7DFD4] bg-white text-[#2D2926] hover:border-[#D9D4CD] hover:bg-[#FBF8F5]"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
   );
 }
 
@@ -822,12 +855,19 @@ export function SettingsSheet({
   session,
   onMembersChange,
 }: SettingsSheetProps) {
+  const { language, setLanguage, theme, setTheme, t } = usePreferences();
   const [activeTab, setActiveTab] = useState<SettingsTab>("members");
   const [expandedMemberIds, setExpandedMemberIds] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [healthSummaryRefreshTime, setHealthSummaryRefreshTime] = useState("05:00");
+  const [carePlanRefreshTime, setCarePlanRefreshTime] = useState("06:00");
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [isLoadingAdminSettings, setIsLoadingAdminSettings] = useState(false);
+  const [isSavingAdminSettings, setIsSavingAdminSettings] = useState(false);
 
   const isAdmin = session.user.role === "admin";
   const visibleTabs = TAB_DEFINITIONS.filter((tab) => !tab.adminOnly || isAdmin);
@@ -846,11 +886,85 @@ export function SettingsSheet({
     setShowAddForm(false);
     setAddName("");
     setAddError(null);
+    setSettingsNotice(null);
+    setSettingsError(null);
 
     return () => {
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || activeTab !== "preferences" || !isAdmin) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadAdminSettings() {
+      setIsLoadingAdminSettings(true);
+      setSettingsError(null);
+      try {
+        const nextSettings = await getAdminSettings(session);
+        if (cancelled) {
+          return;
+        }
+        setHealthSummaryRefreshTime(nextSettings.health_summary_refresh_time);
+        setCarePlanRefreshTime(nextSettings.care_plan_refresh_time);
+      } catch (error) {
+        if (!cancelled) {
+          setSettingsError(
+            error instanceof Error ? error.message : t("settingsTimeLoadError"),
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAdminSettings(false);
+        }
+      }
+    }
+
+    void loadAdminSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isAdmin, open, session, t]);
+
+  async function handleSaveRefreshTimes() {
+    setIsSavingAdminSettings(true);
+    setSettingsError(null);
+    setSettingsNotice(null);
+    try {
+      const nextSettings = await updateAdminSettings(session, {
+        health_summary_refresh_time: healthSummaryRefreshTime,
+        care_plan_refresh_time: carePlanRefreshTime,
+      });
+      setHealthSummaryRefreshTime(nextSettings.health_summary_refresh_time);
+      setCarePlanRefreshTime(nextSettings.care_plan_refresh_time);
+      setSettingsNotice(t("settingsTimeSaved"));
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error ? error.message : t("settingsTimeSaveError"),
+      );
+    } finally {
+      setIsSavingAdminSettings(false);
+    }
+  }
+
+  const tabLabels: Record<SettingsTab, string> = {
+    members: t("settingsTabMembers"),
+    preferences: t("settingsTabPreferences"),
+    ai: t("settingsTabAi"),
+  };
+  const languageOptions: Array<{ value: AppLanguage; label: string }> = [
+    { value: "zh", label: t("settingsLanguageChinese") },
+    { value: "en", label: t("settingsLanguageEnglish") },
+  ];
+  const themeOptions: Array<{ value: AppTheme; label: string }> = [
+    { value: "light", label: t("settingsThemeLight") },
+    { value: "dark", label: t("settingsThemeDark") },
+    { value: "system", label: t("settingsThemeSystem") },
+  ];
 
   async function handleAddMember(event: FormEvent) {
     event.preventDefault();
@@ -891,7 +1005,7 @@ export function SettingsSheet({
 
   return (
     <div
-      aria-label="设置"
+      aria-label={t("settingsTitle")}
       aria-modal="true"
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-12"
       role="dialog"
@@ -913,10 +1027,10 @@ export function SettingsSheet({
                 settings
               </span>
             </div>
-            <h2 className="text-xl font-bold text-[#2D2926]">设置</h2>
+            <h2 className="text-xl font-bold text-[#2D2926]">{t("settingsTitle")}</h2>
           </div>
           <button
-            aria-label="关闭设置"
+            aria-label={t("settingsTitle")}
             className="flex h-10 w-10 items-center justify-center rounded-xl text-[#7D746D] transition hover:bg-[#F5F0EA] hover:text-[#2D2926]"
             onClick={onClose}
             type="button"
@@ -937,7 +1051,7 @@ export function SettingsSheet({
               onClick={() => setActiveTab(tab.key)}
               type="button"
             >
-              {tab.label}
+              {tabLabels[tab.key]}
             </button>
           ))}
         </nav>
@@ -1020,16 +1134,126 @@ export function SettingsSheet({
           )}
 
           {activeTab === "preferences" && (
-            <div className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#7D746D]">
-                偏好
-              </p>
-              <h3 className="mt-3 text-xl font-semibold text-[#2D2926]">
-                偏好设置入口已预留
-              </h3>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-[#7D746D]">
-                Step 7A 只完成 Settings Sheet 的框架。语言、每日刷新时间和外观配置会在 Step 7C 接入。
-              </p>
+            <div className="mx-auto max-w-5xl space-y-6">
+              <div className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#7D746D]">
+                  {t("settingsPreferencesEyebrow")}
+                </p>
+                <h3 className="mt-3 text-xl font-semibold text-[#2D2926]">
+                  {t("settingsPreferencesTitle")}
+                </h3>
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-[#7D746D]">
+                  {t("settingsPreferencesDescription")}
+                </p>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-3">
+                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
+                  <h3 className="text-xl font-semibold text-[#2D2926]">
+                    {t("settingsSectionLanguage")}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
+                    {t("settingsSectionLanguageDescription")}
+                  </p>
+                  <div className="mt-5 grid gap-3">
+                    {languageOptions.map((option) => (
+                      <PreferenceChoiceButton
+                        active={language === option.value}
+                        key={option.value}
+                        label={option.label}
+                        onClick={() => {
+                          setLanguage(option.value);
+                          setSettingsNotice(null);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
+                  <h3 className="text-xl font-semibold text-[#2D2926]">
+                    {t("settingsSectionTime")}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
+                    {t("settingsSectionTimeDescription")}
+                  </p>
+
+                  {settingsError && (
+                    <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {settingsError}
+                    </p>
+                  )}
+                  {settingsNotice && (
+                    <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {settingsNotice}
+                    </p>
+                  )}
+
+                  {isAdmin ? (
+                    <div className="mt-5 space-y-4">
+                      <label className="block text-sm font-medium text-[#2D2926]">
+                        {t("settingsTimeHealthSummary")}
+                        <input
+                          aria-label={t("settingsTimeHealthSummary")}
+                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                          disabled={isLoadingAdminSettings || isSavingAdminSettings}
+                          onChange={(event) =>
+                            setHealthSummaryRefreshTime(event.target.value)
+                          }
+                          type="time"
+                          value={healthSummaryRefreshTime}
+                        />
+                      </label>
+                      <label className="block text-sm font-medium text-[#2D2926]">
+                        {t("settingsTimeCarePlan")}
+                        <input
+                          aria-label={t("settingsTimeCarePlan")}
+                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                          disabled={isLoadingAdminSettings || isSavingAdminSettings}
+                          onChange={(event) =>
+                            setCarePlanRefreshTime(event.target.value)
+                          }
+                          type="time"
+                          value={carePlanRefreshTime}
+                        />
+                      </label>
+                      <button
+                        className="w-full rounded-2xl bg-[#2D2926] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1F1C19] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={isLoadingAdminSettings || isSavingAdminSettings}
+                        onClick={() => void handleSaveRefreshTimes()}
+                        type="button"
+                      >
+                        {isSavingAdminSettings
+                          ? t("settingsTimeSaving")
+                          : t("settingsTimeSave")}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-5 rounded-2xl border border-[#E7DFD4] bg-[#FBF8F5] px-4 py-4 text-sm text-[#7D746D]">
+                      {t("settingsTimeAdminOnly")}
+                    </p>
+                  )}
+                </section>
+
+                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
+                  <h3 className="text-xl font-semibold text-[#2D2926]">
+                    {t("settingsSectionAppearance")}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
+                    {t("settingsSectionAppearanceDescription")}
+                  </p>
+                  <div className="mt-5 grid gap-3">
+                    {themeOptions.map((option) => (
+                      <PreferenceChoiceButton
+                        active={theme === option.value}
+                        key={option.value}
+                        label={option.label}
+                        onClick={() => setTheme(option.value)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              </div>
             </div>
           )}
 
