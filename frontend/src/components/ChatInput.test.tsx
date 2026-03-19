@@ -137,4 +137,65 @@ describe("ChatInput", () => {
     const button = screen.getByRole("button", { name: "结束录音并发送" });
     expect(button.querySelector(".animate-spin")).not.toBeNull();
   });
+
+  it("toggles between text and voice mode with Ctrl+M", async () => {
+    render(
+      <PreferencesProvider>
+        <ChatInput
+          draft=""
+          isBusy={false}
+          memberOptions={[]}
+          onAudioUpload={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
+    );
+
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-visualizer")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "m", ctrlKey: true });
+
+    await waitFor(() => {
+      expect(voiceVisualizerState.startRecording).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("voice-visualizer")).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { key: "m", ctrlKey: true });
+
+    await waitFor(() => {
+      expect(voiceVisualizerState.stopRecording).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("textbox")).toBeInTheDocument();
+    });
+  });
+
+  it("sends on Enter and keeps Shift+Enter for multiline input", () => {
+    const handleSend = vi.fn();
+
+    render(
+      <PreferencesProvider>
+        <ChatInput
+          draft="记录奶奶今天的午睡情况"
+          isBusy={false}
+          memberOptions={[]}
+          onAudioUpload={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={handleSend}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
+    );
+
+    const textbox = screen.getByRole("textbox");
+
+    fireEvent.keyDown(textbox, { key: "Enter" });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(textbox, { key: "Enter", shiftKey: true });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+  });
 });

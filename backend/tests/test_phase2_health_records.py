@@ -725,3 +725,91 @@ def test_all_scope_write_grant_applies_to_every_member_in_family_space(client: T
         and item["target_scope"] == "all"
         for item in permissions_response.json()
     )
+
+
+def test_read_all_grant_expands_dashboard_visibility_across_family_members(client: TestClient) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    caregiver = register_user(
+        client,
+        email="caregiver@example.com",
+        password="Secret123!",
+        name="照护者",
+    )
+    grandma = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    grandpa = create_managed_member(client, admin["tokens"]["access_token"], "爷爷")
+
+    for member, title, slot in (
+        (grandma, "早餐后服药", "清晨"),
+        (grandpa, "午后散步", "午后"),
+    ):
+        summary_response = client.post(
+            f"/api/members/{member['id']}/health-summaries",
+            json={
+                "category": "日常关注",
+                "label": f"{member['name']}摘要",
+                "value": f"{member['name']}今天整体稳定。",
+                "status": "good",
+                "generated_at": "2026-03-11T08:00:00+00:00",
+            },
+            headers=auth_headers(admin["tokens"]["access_token"]),
+        )
+        assert summary_response.status_code == 201, summary_response.text
+
+        care_plan_response = client.post(
+            f"/api/members/{member['id']}/care-plans",
+            json={
+                "category": "daily-tip",
+                "title": title,
+                "description": f"{member['name']}的今日提醒",
+                "icon_key": "general",
+                "time_slot": slot,
+                "assignee_member_id": member["id"],
+                "status": "active",
+                "scheduled_at": datetime.now(UTC).replace(hour=9, minute=0, second=0, microsecond=0).isoformat(),
+                "generated_by": "manual",
+            },
+            headers=auth_headers(admin["tokens"]["access_token"]),
+        )
+        assert care_plan_response.status_code == 201, care_plan_response.text
+
+    before_grant = client.get(
+        "/api/dashboard",
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+    assert before_grant.status_code == 200, before_grant.text
+    assert [item["member"]["id"] for item in before_grant.json()["members"]] == [
+        caregiver["member"]["id"]
+    ]
+    assert before_grant.json()["today_reminders"] == []
+
+    grant_response = grant_permission(
+        client,
+        actor_access_token=admin["tokens"]["access_token"],
+        context_member_id=grandma["id"],
+        user_account_id=caregiver["user"]["id"],
+        permission_level="read",
+        target_scope="all",
+    )
+    assert grant_response["target_scope"] == "all"
+    assert grant_response["permission_level"] == "read"
+
+    dashboard_response = client.get(
+        "/api/dashboard",
+        headers=auth_headers(caregiver["tokens"]["access_token"]),
+    )
+    assert dashboard_response.status_code == 200, dashboard_response.text
+
+    payload = dashboard_response.json()
+    assert {item["member"]["name"] for item in payload["members"]} == {
+        "管理员",
+        "照护者",
+        "奶奶",
+        "爷爷",
+    }
+    assert {item["member_name"] for item in payload["today_reminders"]} == {"奶奶", "爷爷"}
+    assert {item["title"] for item in payload["today_reminders"]} == {"早餐后服药", "午后散步"}
