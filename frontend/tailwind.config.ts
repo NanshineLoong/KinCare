@@ -28,8 +28,8 @@ export default {
         mono: ['"JetBrains Mono"', "monospace"],
       },
       borderRadius: {
-        card: "2rem",
-        panel: "2.5rem",
+        card: "0.875rem",
+        panel: "1rem",
       },
     },
   },

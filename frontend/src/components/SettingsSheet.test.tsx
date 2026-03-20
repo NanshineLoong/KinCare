@@ -15,6 +15,7 @@ const updateAdminSettingsMock = vi.fn();
 
 vi.mock("../api/members", () => ({
   createMember: (...args: unknown[]) => createMemberMock(...args),
+  deleteMember: vi.fn(),
   listMemberPermissions: (...args: unknown[]) => listMemberPermissionsMock(...args),
   grantMemberPermission: (...args: unknown[]) => grantMemberPermissionMock(...args),
   revokeMemberPermission: (...args: unknown[]) => revokeMemberPermissionMock(...args),
@@ -259,7 +260,7 @@ describe("SettingsSheet", () => {
     }));
   });
 
-  it("shows all Step 7A tabs for admin and hides AI config for non-admin users", () => {
+  it("shows the redesigned tabs for admin and hides admin config for non-admin users", () => {
     const { rerender } = render(
       <PreferencesProvider>
         <SettingsSheet
@@ -272,9 +273,9 @@ describe("SettingsSheet", () => {
       </PreferencesProvider>,
     );
 
-    expect(screen.getByRole("button", { name: /成员管理/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /偏好/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /AI 配置/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /成员管理/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /管理员配置/ })).toBeInTheDocument();
 
     rerender(
       <PreferencesProvider>
@@ -288,15 +289,18 @@ describe("SettingsSheet", () => {
       </PreferencesProvider>,
     );
 
-    expect(screen.getByRole("button", { name: /成员管理/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /偏好/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /AI 配置/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /成员管理/ })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /管理员配置/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("expands member rows inline, supports multiple open rows, and collapses on second click", async () => {
     installPermissionMocks(createPermissionStore());
     renderSheet();
 
+    fireEvent.click(screen.getByRole("button", { name: "成员管理" }));
     fireEvent.click(
       screen.getByRole("button", { name: "展开 张妈妈 的权限设置" }),
     );
@@ -304,14 +308,14 @@ describe("SettingsSheet", () => {
       screen.getByRole("button", { name: "展开 李爸爸 的权限设置" }),
     );
 
-    const expandedLabels = await screen.findAllByText("管理全部成员");
+    const expandedLabels = await screen.findAllByText("管理权限");
     expect(expandedLabels.length).toBe(2);
 
     fireEvent.click(
       screen.getByRole("button", { name: "收起 张妈妈 的权限设置" }),
     );
 
-    expect(screen.getAllByText("管理全部成员").length).toBe(1);
+    expect(screen.getAllByText("管理权限").length).toBe(1);
   });
 
   it("saves permission clicks immediately, mirrors write targets into read, and locks selectors when manage is enabled", async () => {
@@ -319,11 +323,12 @@ describe("SettingsSheet", () => {
     installPermissionMocks(store);
     renderSheet();
 
+    fireEvent.click(screen.getByRole("button", { name: "成员管理" }));
     fireEvent.click(
       screen.getByRole("button", { name: "展开 张妈妈 的权限设置" }),
     );
 
-    expect(await screen.findByText("管理全部成员")).toBeInTheDocument();
+    expect(await screen.findByText("管理权限")).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "选择 张妈妈 的可写入对象" }),
@@ -372,93 +377,120 @@ describe("SettingsSheet", () => {
     expect(within(writeSection).getAllByText("所有人").length).toBeGreaterThan(0);
   });
 
-  it("renders Step 7C preference sections and lets admins save refresh times", async () => {
+  it("renders the redesigned preference page with language only", async () => {
     renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "偏好" }));
 
     expect(await screen.findByRole("heading", { name: "语言" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "时间" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "外观" })).toBeInTheDocument();
-
-    const summaryTimeInput = await screen.findByLabelText("每日健康状态刷新时间");
-    const carePlanTimeInput = screen.getByLabelText("每日提醒刷新时间");
-    expect(summaryTimeInput).toHaveValue("05:00");
-    expect(carePlanTimeInput).toHaveValue("06:00");
-
-    fireEvent.change(summaryTimeInput, { target: { value: "07:30" } });
-    fireEvent.change(carePlanTimeInput, { target: { value: "08:45" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存时间设置" }));
-
-    await waitFor(() => {
-      expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
-        health_summary_refresh_time: "07:30",
-        care_plan_refresh_time: "08:45",
-      });
-    });
+    expect(screen.queryByRole("heading", { name: "外观" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("每日健康状态更新时间"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("每日计划更新时间")).not.toBeInTheDocument();
+    expect(getAdminSettingsMock).not.toHaveBeenCalled();
   });
 
-  it("keeps time configuration read-only for non-admin users", async () => {
+  it("does not expose admin configuration to non-admin users", async () => {
     renderSheet(memberSession);
 
     fireEvent.click(screen.getByRole("button", { name: "偏好" }));
 
-    expect(await screen.findByText("仅管理员可配置每日刷新时间。")).toBeInTheDocument();
-    expect(screen.queryByLabelText("每日健康状态刷新时间")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "语言" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "管理员配置" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("每日健康状态更新时间")).not.toBeInTheDocument();
     expect(getAdminSettingsMock).not.toHaveBeenCalled();
   });
 
-  it("loads and saves Step 7D AI settings for admin users", async () => {
+  it("loads and saves merged admin settings for admin users", async () => {
     renderSheet();
 
-    fireEvent.click(screen.getByRole("button", { name: "AI 配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "管理员配置" }));
 
-    expect(await screen.findByRole("heading", { name: "语音转录" })).toBeInTheDocument();
+    const summaryTimeInput = await screen.findByLabelText("每日健康状态更新时间");
+    const carePlanTimeInput = screen.getByLabelText("每日计划更新时间");
+    expect(summaryTimeInput).toHaveValue("05:00");
+    expect(carePlanTimeInput).toHaveValue("06:00");
+    expect(screen.getByRole("heading", { name: "语音转录" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "对话模型" })).toBeInTheDocument();
 
-    const providerSelect = screen.getByLabelText("转录 Provider");
-    const sttModelInput = screen.getByLabelText("转录模型");
-    const timeoutInput = screen.getByLabelText("转录超时时间（秒）");
+    const openaiSttRadio = screen.getByRole("radio", { name: /OpenAI API/ });
+    const localSttRadio = screen.getByRole("radio", { name: /本地 Whisper/ });
     const chatBaseUrlInput = screen.getByLabelText("对话 Base URL");
     const chatApiKeyInput = screen.getByLabelText("对话 API Key");
     const chatModelInput = screen.getByLabelText("对话模型");
 
-    expect(providerSelect).toHaveValue("openai");
-    expect(sttModelInput).toHaveValue("gpt-4o-mini-transcribe");
-    expect(timeoutInput).toHaveValue(30);
+    expect(openaiSttRadio).toHaveAttribute("aria-checked", "true");
+    expect(localSttRadio).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByLabelText("转录模型")).toHaveValue("gpt-4o-mini-transcribe");
+    expect(screen.getByLabelText("转录超时时间（秒）")).toHaveValue(30);
     expect(chatBaseUrlInput).toHaveValue("https://example.invalid/v1");
     expect(chatApiKeyInput).toHaveValue("chat-key");
     expect(chatModelInput).toHaveValue("gpt-4.1-mini");
 
-    fireEvent.change(providerSelect, { target: { value: "local_whisper" } });
-    fireEvent.change(sttModelInput, { target: { value: "whisper-small" } });
-    fireEvent.change(timeoutInput, { target: { value: "9.5" } });
+    fireEvent.change(summaryTimeInput, { target: { value: "07:30" } });
+    fireEvent.change(carePlanTimeInput, { target: { value: "08:45" } });
+
+    await waitFor(
+      () => {
+        expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
+          health_summary_refresh_time: "07:30",
+          care_plan_refresh_time: "08:45",
+        });
+      },
+      { timeout: 3000 },
+    );
+
+    fireEvent.click(localSttRadio);
+    await waitFor(() => {
+      expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
+        transcription: { provider: "local_whisper" },
+      });
+    });
+
+    const localWhisperModelInput = screen.getByLabelText("Local Whisper 模型");
+    fireEvent.change(localWhisperModelInput, {
+      target: { value: "whisper-small" },
+    });
+    const transcriptionTimeoutInput = screen.getByLabelText("转录超时时间（秒）");
+    fireEvent.change(transcriptionTimeoutInput, { target: { value: "9.5" } });
     fireEvent.change(chatBaseUrlInput, {
       target: { value: "https://override.invalid/v1" },
     });
     fireEvent.change(chatApiKeyInput, { target: { value: "override-key" } });
     fireEvent.change(chatModelInput, { target: { value: "gpt-4.1-nano" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存 AI 配置" }));
 
-    await waitFor(() => {
-      expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
-        transcription: {
-          provider: "local_whisper",
-          model: "whisper-small",
-          language: "zh",
-          timeout: 9.5,
-          api_key: "stt-key",
-          local_whisper_model: "whisper-large-v3-turbo",
-          local_whisper_device: "auto",
-          local_whisper_compute_type: "default",
-          local_whisper_download_root: null,
-        },
-        chat_model: {
-          base_url: "https://override.invalid/v1",
-          api_key: "override-key",
-          model: "gpt-4.1-nano",
-        },
-      });
-    });
+    await waitFor(
+      () => {
+        expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
+          transcription: {
+            provider: "local_whisper",
+            model: "gpt-4o-mini-transcribe",
+            language: "zh",
+            timeout: 9.5,
+            api_key: "stt-key",
+            local_whisper_model: "whisper-small",
+            local_whisper_device: "auto",
+            local_whisper_compute_type: "default",
+            local_whisper_download_root: null,
+          },
+          chat_model: {
+            base_url: "https://override.invalid/v1",
+            api_key: "override-key",
+            model: "gpt-4.1-nano",
+          },
+        });
+      },
+      { timeout: 3000 },
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "保存时间设置" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "保存 AI 配置" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -471,7 +471,7 @@ describe("App", () => {
     expect(screen.getByText(/每日刷新时同步最新 AI 提醒/)).toBeInTheDocument();
   });
 
-  it("switches language and theme from preferences with immediate app-wide effect", async () => {
+  it("switches language from preferences with immediate app-wide effect", async () => {
     window.localStorage.setItem(
       sessionStorageKey,
       JSON.stringify(createSessionPayload()),
@@ -501,14 +501,10 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "用户菜单" }));
     fireEvent.click(screen.getByRole("menuitem", { name: /设置/ }));
     fireEvent.click(await screen.findByRole("button", { name: "偏好" }));
-    fireEvent.click(await screen.findByRole("button", { name: "English" }));
+    fireEvent.click(await screen.findByRole("button", { name: /English/ }));
 
     expect(await screen.findByText("Family Dashboard")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Language" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
-
-    expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
   it("opens member profile modal and loads current resources", async () => {

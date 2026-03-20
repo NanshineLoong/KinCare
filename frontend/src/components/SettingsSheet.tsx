@@ -7,6 +7,7 @@ import {
 } from "../api/adminSettings";
 import {
   createMember,
+  deleteMember,
   grantMemberPermission,
   listMemberPermissions,
   revokeMemberPermission,
@@ -18,7 +19,6 @@ import type { AuthMember, AuthSession } from "../auth/session";
 import {
   usePreferences,
   type AppLanguage,
-  type AppTheme,
 } from "../preferences";
 
 type SettingsSheetProps = {
@@ -29,7 +29,7 @@ type SettingsSheetProps = {
   onMembersChange: (members: AuthMember[]) => void;
 };
 
-type SettingsTab = "members" | "preferences" | "ai";
+type SettingsTab = "members" | "preferences" | "admin";
 
 type PermissionSelection = {
   manageAll: boolean;
@@ -67,9 +67,9 @@ const TAB_DEFINITIONS: Array<{
   icon: string;
   adminOnly?: boolean;
 }> = [
-  { key: "members", icon: "manage_accounts" },
   { key: "preferences", icon: "tune" },
-  { key: "ai", icon: "neurology", adminOnly: true },
+  { key: "members", icon: "group" },
+  { key: "admin", icon: "admin_panel_settings", adminOnly: true },
 ];
 
 function getAvatarColor(name: string): string {
@@ -290,7 +290,7 @@ async function syncSubjectGrants(
 
 function AvatarPill({ member }: { member: AuthMember }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-[#E7DFD4] bg-white px-2.5 py-1.5 text-sm text-[#2D2926]">
+    <div className="inline-flex items-center gap-2 rounded-full border border-[#E4E3DB] bg-[#FCF9F5] px-2.5 py-1.5 text-sm text-[#32332D]">
       <span
         className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
         style={{ backgroundColor: getAvatarColor(member.name) }}
@@ -357,11 +357,11 @@ function PermissionPicker({
 
   return (
     <div aria-label={`${memberName} ${label}`} className="space-y-2">
-      <p className="text-sm font-medium text-[#2D2926]">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5F5F59]">{label}</p>
       <button
         aria-expanded={open}
         aria-label={`选择 ${memberName} 的${label}对象`}
-        className="flex w-full items-center justify-between rounded-[1.5rem] border border-[#E7DFD4] bg-white px-4 py-3 text-left transition hover:border-[#D9D4CD] disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex w-full items-center justify-between rounded-xl border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-3 text-left transition hover:border-[#B3B2AB] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled}
         onClick={onToggleOpen}
         type="button"
@@ -377,14 +377,14 @@ function PermissionPicker({
       </button>
 
       {open && (
-        <div className="rounded-[1.5rem] border border-[#E7DFD4] bg-white p-3 shadow-sm">
+        <div className="rounded-xl border border-[#D9D4CD] bg-white p-3 shadow-sm">
           <div className="space-y-2">
             <button
               aria-label={`切换 ${label} 对象 所有人`}
-              className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left transition ${
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition ${
                 allSelected
-                  ? "bg-[#F4EFE8] text-[#2D2926]"
-                  : "hover:bg-[#F8F3EE] text-[#2D2926]"
+                  ? "bg-[#F0EEE8] text-[#32332D]"
+                  : "hover:bg-[#F8F3EE] text-[#32332D]"
               }`}
               disabled={disabled || saving}
               onClick={onToggleAll}
@@ -411,10 +411,10 @@ function PermissionPicker({
               return (
                 <button
                   aria-label={`切换 ${label} 对象 ${member.name}`}
-                  className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left transition ${
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition ${
                     isSelected
-                      ? "bg-[#FBF8F5] text-[#2D2926]"
-                      : "hover:bg-[#F8F3EE] text-[#2D2926]"
+                      ? "bg-[#FBF8F5] text-[#32332D]"
+                      : "hover:bg-[#F8F3EE] text-[#32332D]"
                   }`}
                   disabled={disabled || saving || isLocked || allSelected}
                   key={member.id}
@@ -452,25 +452,43 @@ function PermissionPicker({
 
 function PreferenceChoiceButton({
   active,
+  caption,
   label,
   onClick,
 }: {
   active: boolean;
+  caption?: string;
   label: string;
   onClick: () => void;
 }) {
   return (
     <button
       aria-pressed={active}
-      className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+      className={`flex items-center justify-between rounded-xl border-2 px-6 py-7 text-left transition ${
         active
-          ? "border-[#2D2926] bg-[#2D2926] text-white"
-          : "border-[#E7DFD4] bg-white text-[#2D2926] hover:border-[#D9D4CD] hover:bg-[#FBF8F5]"
+          ? "border-[#615E57] bg-white text-[#615E57] shadow-sm"
+          : "border-transparent bg-[#F6F3EE] text-[#32332D] hover:border-[#B3B2AB]/50"
       }`}
       onClick={onClick}
       type="button"
     >
-      {label}
+      <span className="flex flex-col">
+        <span className={`text-lg font-bold ${active ? "text-[#615E57]" : "text-[#32332D]"}`}>
+          {label}
+        </span>
+        {caption ? (
+          <span className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-[#5F5F59]">
+            {caption}
+          </span>
+        ) : null}
+      </span>
+      {active ? (
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#615E57] text-white">
+          <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
+            check
+          </span>
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -480,12 +498,18 @@ function MemberPermissionRow({
   member,
   members,
   session,
+  showDeleteMember,
+  deletingMember,
+  onDeleteMember,
   onToggleExpand,
 }: {
   expanded: boolean;
   member: AuthMember;
   members: AuthMember[];
   session: AuthSession;
+  showDeleteMember: boolean;
+  deletingMember: boolean;
+  onDeleteMember: () => void;
   onToggleExpand: () => void;
 }) {
   const [grants, setGrants] = useState<MemberPermissionGrant[]>([]);
@@ -495,6 +519,7 @@ function MemberPermissionRow({
   const [openPicker, setOpenPicker] = useState<"read" | "write" | null>(null);
   const readPickerRef = useRef<HTMLDivElement | null>(null);
   const writePickerRef = useRef<HTMLDivElement | null>(null);
+  const { t } = usePreferences();
 
   const isAdmin = session.user.role === "admin";
   const canEdit = isAdmin && Boolean(member.user_account_id);
@@ -709,15 +734,21 @@ function MemberPermissionRow({
   }
 
   return (
-    <div className="rounded-[2rem] border border-[#F2EDE7] bg-white shadow-sm">
+    <div
+      className={`overflow-hidden rounded-xl ${
+        expanded
+          ? "bg-[#F0EEE8] ring-1 ring-[#615E57]/5"
+          : "bg-[#F6F3EE]"
+      }`}
+    >
       <div
-        className={`flex items-center justify-between gap-4 px-5 py-4 transition ${
-          expanded ? "border-b border-[#F2EDE7] bg-[#FBF8F5]" : ""
+        className={`flex items-center justify-between gap-4 px-6 py-6 transition ${
+          expanded ? "border-b border-[#32332D]/5" : ""
         }`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-sm"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white text-lg font-bold text-white shadow-sm"
             style={{ backgroundColor: getAvatarColor(member.name) }}
           >
             {member.name.charAt(0).toUpperCase()}
@@ -732,7 +763,7 @@ function MemberPermissionRow({
                 className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${
                   member.user_account_id
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-[#E7DFD4] bg-[#F8F3EE] text-[#9C9288]"
+                    : "border-[#D9D4CD] bg-[#FCF9F5] text-[#7B7B74]"
                 }`}
               >
                 {member.user_account_id ? "已绑定" : "未绑定"}
@@ -741,47 +772,60 @@ function MemberPermissionRow({
           </div>
         </div>
 
-        <button
-          aria-label={
-            expanded
-              ? `收起 ${member.name} 的权限设置`
-              : `展开 ${member.name} 的权限设置`
-          }
-          className="flex items-center justify-center rounded-full p-2 text-[#7D746D] transition hover:bg-[#F5F0EA] hover:text-[#2D2926] disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!canEdit}
-          onClick={onToggleExpand}
-          type="button"
-        >
-          <span className="material-symbols-outlined text-[20px]">
-            {expanded ? "expand_less" : "expand_more"}
-          </span>
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          {showDeleteMember && (
+            <button
+              aria-label={t("settingsMembersDeleteMemberAria", { name: member.name })}
+              className="flex items-center justify-center rounded-full p-2 text-[#9C9288] transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={deletingMember}
+              onClick={onDeleteMember}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[20px]">delete</span>
+            </button>
+          )}
+          <button
+            aria-label={
+              expanded
+                ? `收起 ${member.name} 的权限设置`
+                : `展开 ${member.name} 的权限设置`
+            }
+            className="flex items-center justify-center rounded-full p-2 text-[#7D746D] transition hover:bg-[#F5F0EA] hover:text-[#2D2926] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canEdit}
+            onClick={onToggleExpand}
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[20px]">
+              {expanded ? "expand_less" : "expand_more"}
+            </span>
+          </button>
+        </div>
       </div>
 
       {expanded && (
-        <div className="space-y-4 px-5 py-5">
+        <div className="space-y-6 px-8 py-8">
           {error && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
               {error}
             </div>
           )}
 
           {!member.user_account_id && (
-            <div className="rounded-[1.5rem] border border-[#E7DFD4] bg-[#FBF8F5] px-4 py-4 text-sm text-[#7D746D]">
+            <div className="rounded-lg border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-4 text-sm text-[#5F5F59]">
               未绑定账号，无法配置权限
             </div>
           )}
 
           {member.user_account_id && loading && (
-            <div className="rounded-[1.5rem] border border-[#E7DFD4] bg-[#FBF8F5] px-4 py-5 text-sm text-[#7D746D]">
+            <div className="rounded-lg border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-5 text-sm text-[#5F5F59]">
               权限加载中...
             </div>
           )}
 
           {member.user_account_id && !loading && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-[1.5rem] border border-[#E7DFD4] bg-[#FBF8F5] px-4 py-3">
-                <span className="text-sm font-medium text-[#2D2926]">管理全部成员</span>
+            <div className="space-y-8">
+              <div className="flex items-center justify-between border-t border-[#32332D]/5 py-4 first:border-t-0">
+                <span className="text-sm font-semibold text-[#32332D]">管理权限</span>
                 <button
                   aria-label={`切换 ${member.name} 的管理全部成员权限`}
                   aria-pressed={selection.manageAll}
@@ -801,7 +845,7 @@ function MemberPermissionRow({
                 </button>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-6 lg:grid-cols-2">
                 <div ref={readPickerRef}>
                   <PermissionPicker
                     allSelected={selection.readAll}
@@ -858,8 +902,8 @@ export function SettingsSheet({
   session,
   onMembersChange,
 }: SettingsSheetProps) {
-  const { language, setLanguage, theme, setTheme, t } = usePreferences();
-  const [activeTab, setActiveTab] = useState<SettingsTab>("members");
+  const { language, setLanguage, t } = usePreferences();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
   const [expandedMemberIds, setExpandedMemberIds] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
@@ -867,11 +911,9 @@ export function SettingsSheet({
   const [addError, setAddError] = useState<string | null>(null);
   const [healthSummaryRefreshTime, setHealthSummaryRefreshTime] = useState("05:00");
   const [carePlanRefreshTime, setCarePlanRefreshTime] = useState("06:00");
-  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [isLoadingAdminSettings, setIsLoadingAdminSettings] = useState(false);
   const [isSavingAdminSettings, setIsSavingAdminSettings] = useState(false);
-  const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
   const [sttProvider, setSttProvider] = useState<TranscriptionProvider>("openai");
@@ -886,9 +928,75 @@ export function SettingsSheet({
   const [chatBaseUrl, setChatBaseUrl] = useState("");
   const [chatApiKey, setChatApiKey] = useState("");
   const [chatModel, setChatModel] = useState("gpt-4.1-mini");
+  const [preferencesSectionOpen, setPreferencesSectionOpen] = useState(true);
+  const [adminChatSectionOpen, setAdminChatSectionOpen] = useState(true);
+  const [adminTranscriptionSectionOpen, setAdminTranscriptionSectionOpen] =
+    useState(true);
+  const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+  const [memberPendingDelete, setMemberPendingDelete] = useState<AuthMember | null>(
+    null,
+  );
+  const [isPersistingSttProvider, setIsPersistingSttProvider] = useState(false);
+
+  const latestRefreshTimesRef = useRef({
+    health: healthSummaryRefreshTime,
+    care: carePlanRefreshTime,
+  });
+  const refreshPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiFormRef = useRef({
+    sttProvider: "openai" as TranscriptionProvider,
+    sttApiKey: "",
+    sttModel: "",
+    sttLanguage: "",
+    sttTimeout: "",
+    localWhisperModel: "",
+    localWhisperDevice: "",
+    localWhisperComputeType: "",
+    localWhisperDownloadRoot: "",
+    chatBaseUrl: "",
+    chatApiKey: "",
+    chatModel: "",
+  });
+  const aiPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  latestRefreshTimesRef.current.health = healthSummaryRefreshTime;
+  latestRefreshTimesRef.current.care = carePlanRefreshTime;
+  aiFormRef.current = {
+    sttProvider,
+    sttApiKey,
+    sttModel,
+    sttLanguage,
+    sttTimeout,
+    localWhisperModel,
+    localWhisperDevice,
+    localWhisperComputeType,
+    localWhisperDownloadRoot,
+    chatBaseUrl,
+    chatApiKey,
+    chatModel,
+  };
 
   const isAdmin = session.user.role === "admin";
   const visibleTabs = TAB_DEFINITIONS.filter((tab) => !tab.adminOnly || isAdmin);
+
+  useEffect(() => {
+    if (visibleTabs.some((tab) => tab.key === activeTab)) {
+      return;
+    }
+
+    setActiveTab(visibleTabs[0]?.key ?? "preferences");
+  }, [activeTab, visibleTabs]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshPersistTimerRef.current) {
+        clearTimeout(refreshPersistTimerRef.current);
+      }
+      if (aiPersistTimerRef.current) {
+        clearTimeout(aiPersistTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -899,15 +1007,14 @@ export function SettingsSheet({
     }
 
     document.body.style.overflow = "";
-    setActiveTab("members");
+    setActiveTab("preferences");
     setExpandedMemberIds([]);
     setShowAddForm(false);
     setAddName("");
     setAddError(null);
-    setSettingsNotice(null);
     setSettingsError(null);
-    setAiNotice(null);
     setAiError(null);
+    setMemberPendingDelete(null);
 
     return () => {
       document.body.style.overflow = "";
@@ -934,7 +1041,7 @@ export function SettingsSheet({
   }
 
   useEffect(() => {
-    if (!open || !isAdmin || (activeTab !== "preferences" && activeTab !== "ai")) {
+    if (!open || !isAdmin || activeTab !== "admin") {
       return;
     }
 
@@ -942,11 +1049,8 @@ export function SettingsSheet({
 
     async function loadAdminSettings() {
       setIsLoadingAdminSettings(true);
-      if (activeTab === "preferences") {
-        setSettingsError(null);
-      } else {
-        setAiError(null);
-      }
+      setSettingsError(null);
+      setAiError(null);
       try {
         const nextSettings = await getAdminSettings(session);
         if (cancelled) {
@@ -958,14 +1062,9 @@ export function SettingsSheet({
           const message =
             error instanceof Error
               ? error.message
-              : activeTab === "preferences"
-                ? t("settingsTimeLoadError")
-                : t("settingsAiLoadError");
-          if (activeTab === "preferences") {
-            setSettingsError(message);
-          } else {
-            setAiError(message);
-          }
+              : t("settingsAiLoadError");
+          setSettingsError(message);
+          setAiError(message);
         }
       } finally {
         if (!cancelled) {
@@ -980,18 +1079,27 @@ export function SettingsSheet({
     };
   }, [activeTab, isAdmin, open, session, t]);
 
-  async function handleSaveRefreshTimes() {
+  function schedulePersistRefreshTimes() {
+    if (refreshPersistTimerRef.current) {
+      clearTimeout(refreshPersistTimerRef.current);
+    }
+    refreshPersistTimerRef.current = setTimeout(() => {
+      refreshPersistTimerRef.current = null;
+      const { health, care } = latestRefreshTimesRef.current;
+      void persistRefreshTimes(health, care);
+    }, 450);
+  }
+
+  async function persistRefreshTimes(health: string, care: string) {
     setIsSavingAdminSettings(true);
     setSettingsError(null);
-    setSettingsNotice(null);
     try {
       const nextSettings = await updateAdminSettings(session, {
-        health_summary_refresh_time: healthSummaryRefreshTime,
-        care_plan_refresh_time: carePlanRefreshTime,
+        health_summary_refresh_time: health,
+        care_plan_refresh_time: care,
       });
       setHealthSummaryRefreshTime(nextSettings.health_summary_refresh_time);
       setCarePlanRefreshTime(nextSettings.care_plan_refresh_time);
-      setSettingsNotice(t("settingsTimeSaved"));
     } catch (error) {
       setSettingsError(
         error instanceof Error ? error.message : t("settingsTimeSaveError"),
@@ -1001,52 +1109,118 @@ export function SettingsSheet({
     }
   }
 
-  async function handleSaveAiSettings() {
+  function schedulePersistAiSettings() {
+    if (aiPersistTimerRef.current) {
+      clearTimeout(aiPersistTimerRef.current);
+    }
+    aiPersistTimerRef.current = setTimeout(() => {
+      aiPersistTimerRef.current = null;
+      void persistAiSettings();
+    }, 500);
+  }
+
+  async function persistAiSettings() {
+    const snap = aiFormRef.current;
     setIsSavingAiSettings(true);
     setAiError(null);
-    setAiNotice(null);
     try {
       const nextSettings = await updateAdminSettings(session, {
         transcription: {
-          provider: sttProvider,
-          api_key: sttApiKey || null,
-          model: sttModel || null,
-          language: sttLanguage || null,
-          timeout: Number(sttTimeout),
-          local_whisper_model: localWhisperModel || null,
-          local_whisper_device: localWhisperDevice || null,
-          local_whisper_compute_type: localWhisperComputeType || null,
-          local_whisper_download_root: localWhisperDownloadRoot || null,
+          provider: snap.sttProvider,
+          api_key: snap.sttApiKey || null,
+          model: snap.sttModel || null,
+          language: snap.sttLanguage || null,
+          timeout: Number(snap.sttTimeout),
+          local_whisper_model: snap.localWhisperModel || null,
+          local_whisper_device: snap.localWhisperDevice || null,
+          local_whisper_compute_type: snap.localWhisperComputeType || null,
+          local_whisper_download_root: snap.localWhisperDownloadRoot || null,
         },
         chat_model: {
-          base_url: chatBaseUrl || null,
-          api_key: chatApiKey || null,
-          model: chatModel || null,
+          base_url: snap.chatBaseUrl || null,
+          api_key: snap.chatApiKey || null,
+          model: snap.chatModel || null,
         },
       });
       applyAdminSettings(nextSettings);
-      setAiNotice(t("settingsAiSaved"));
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : t("settingsAiSaveError"));
+      setAiError(
+        error instanceof Error ? error.message : t("settingsAiSaveError"),
+      );
     } finally {
       setIsSavingAiSettings(false);
     }
   }
 
+  async function handleSelectTranscriptionProvider(
+    provider: TranscriptionProvider,
+  ) {
+    if (
+      provider === sttProvider ||
+      isPersistingSttProvider ||
+      isSavingAiSettings ||
+      isLoadingAdminSettings
+    ) {
+      return;
+    }
+
+    const previous = sttProvider;
+    setSttProvider(provider);
+    setIsPersistingSttProvider(true);
+    setAiError(null);
+    try {
+      const nextSettings = await updateAdminSettings(session, {
+        transcription: { provider },
+      });
+      applyAdminSettings(nextSettings);
+    } catch (error) {
+      setSttProvider(previous);
+      setAiError(
+        error instanceof Error ? error.message : t("settingsAiSaveError"),
+      );
+    } finally {
+      setIsPersistingSttProvider(false);
+    }
+  }
+
+  async function executeConfirmedMemberDelete() {
+    const member = memberPendingDelete;
+    if (!member || !isAdmin || member.id === session.member.id) {
+      setMemberPendingDelete(null);
+      return;
+    }
+
+    setMemberPendingDelete(null);
+    setDeletingMemberId(member.id);
+    setAddError(null);
+    try {
+      await deleteMember(session, member.id);
+      onMembersChange(members.filter((m) => m.id !== member.id));
+      setExpandedMemberIds((ids) => ids.filter((id) => id !== member.id));
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : t("settingsMembersDeleteError"),
+      );
+    } finally {
+      setDeletingMemberId(null);
+    }
+  }
+
   const tabLabels: Record<SettingsTab, string> = {
-    members: t("settingsTabMembers"),
     preferences: t("settingsTabPreferences"),
-    ai: t("settingsTabAi"),
+    members: t("settingsTabMembers"),
+    admin: t("settingsTabAdmin"),
   };
   const languageOptions: Array<{ value: AppLanguage; label: string }> = [
     { value: "zh", label: t("settingsLanguageChinese") },
     { value: "en", label: t("settingsLanguageEnglish") },
   ];
-  const themeOptions: Array<{ value: AppTheme; label: string }> = [
-    { value: "light", label: t("settingsThemeLight") },
-    { value: "dark", label: t("settingsThemeDark") },
-    { value: "system", label: t("settingsThemeSystem") },
-  ];
+  const adminCardClass =
+    "overflow-hidden rounded-xl bg-[#F0EEE8] ring-1 ring-[#615E57]/5";
+  const adminFieldClass =
+    "mt-2 w-full rounded-lg border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#615E57] focus:ring-1 focus:ring-[#615E57]";
+  const adminInlineInputClass =
+    "w-full rounded-lg border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-2.5 text-sm text-[#2D2926] outline-none transition focus:border-[#615E57] focus:ring-1 focus:ring-[#615E57] md:w-[150px]";
 
   async function handleAddMember(event: FormEvent) {
     event.preventDefault();
@@ -1081,6 +1255,11 @@ export function SettingsSheet({
     );
   }
 
+  const sharedAdminError =
+    settingsError && aiError && settingsError === aiError ? settingsError : null;
+  const timeSectionError = sharedAdminError ? null : settingsError;
+  const aiSectionError = sharedAdminError ? null : aiError;
+
   if (!open) {
     return null;
   }
@@ -1099,82 +1278,157 @@ export function SettingsSheet({
       />
 
       <div
-        className="relative flex h-[85vh] w-[88vw] max-w-6xl flex-col overflow-hidden rounded-[2.5rem] border border-white/50 bg-white shadow-2xl"
+        className="relative flex h-[85vh] max-h-[calc(100dvh-2rem)] w-[92vw] max-w-6xl flex-col overflow-hidden rounded-panel border border-white/60 bg-white shadow-[0_32px_64px_rgba(50,51,45,0.06)] md:flex-row"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-[#F2EDE7] px-8 py-5">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F5F0EA]">
-              <span className="material-symbols-outlined text-[22px] text-[#7D746D]">
-                settings
-              </span>
-            </div>
-            <h2 className="text-xl font-bold text-[#2D2926]">{t("settingsTitle")}</h2>
+        <aside className="shrink-0 border-b border-[#E4E3DB] bg-[#F6F3EE] px-8 py-8 md:flex md:w-64 md:flex-col md:border-b-0 md:border-r md:px-0">
+          <div className="mb-8 px-8">
+            <h2 className="text-xl font-black tracking-tight text-[#615E57]">
+              {t("settingsTitle")}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#5F5F59]/70">
+              {t("settingsSidebarDescription")}
+            </p>
           </div>
-          <button
-            aria-label={t("settingsTitle")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-[#7D746D] transition hover:bg-[#F5F0EA] hover:text-[#2D2926]"
-            onClick={onClose}
-            type="button"
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </header>
 
-        <nav className="flex shrink-0 gap-1 border-b border-[#F2EDE7] px-8 pt-1">
-          {visibleTabs.map((tab) => (
-            <button
-              className={`-mb-px border-b-2 px-4 py-3 text-sm font-semibold transition ${
-                activeTab === tab.key
-                  ? "border-[#2D2926] text-[#2D2926]"
-                  : "border-transparent text-[#7D746D] hover:text-[#2D2926]"
-              }`}
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              type="button"
-            >
-              {tabLabels[tab.key]}
-            </button>
-          ))}
-        </nav>
+          <nav className="flex flex-col gap-1">
+            {visibleTabs.map((tab) => (
+              <button
+                className={`flex items-center gap-3 px-8 py-3 text-left text-sm font-semibold tracking-tight transition ${
+                  activeTab === tab.key
+                    ? "border-r-2 border-[#615E57] bg-[#EAE8E1] text-[#615E57] scale-[0.985]"
+                    : "text-[#5F5F59]/70 hover:bg-[#F0EEE8] hover:text-[#615E57]"
+                }`}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`material-symbols-outlined text-[18px] ${
+                    activeTab === tab.key ? "text-[#615E57]" : "text-[#8E8B84]"
+                  }`}
+                >
+                  {tab.icon}
+                </span>
+                <span>{tabLabels[tab.key]}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-        <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6 no-scrollbar">
+        <div className="flex min-h-0 flex-1 flex-col bg-[#FCF9F5]">
+          <header className="flex shrink-0 items-start justify-between border-b border-[#E4E3DB] bg-[#FCF9F5]/90 px-6 py-7 backdrop-blur md:px-10 md:py-8">
+            <div className="space-y-1">
+              {activeTab === "preferences" && (
+                <>
+                  <h3 className="text-2xl font-bold tracking-tight text-[#615E57]">
+                    {t("settingsPreferencesTitle")}
+                  </h3>
+                  <p className="max-w-3xl text-sm leading-7 text-[#5F5F59]">
+                    {t("settingsPreferencesDescription")}
+                  </p>
+                </>
+              )}
+              {activeTab === "members" && (
+                <>
+                  <h3 className="text-2xl font-bold tracking-tight text-[#615E57]">
+                    {t("settingsMembersTitle")}
+                  </h3>
+                  <p className="max-w-3xl text-sm leading-7 text-[#5F5F59]">
+                    {t("settingsMembersDescription")}
+                  </p>
+                </>
+              )}
+              {activeTab === "admin" && isAdmin && (
+                <>
+                  <h3 className="text-2xl font-bold tracking-tight text-[#615E57]">
+                    {t("settingsAdminTitle")}
+                  </h3>
+                  <p className="max-w-3xl text-sm leading-7 text-[#5F5F59]">
+                    {t("settingsAdminDescription")}
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {activeTab === "members" && isAdmin && !showAddForm && (
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#615E57] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#4F4B45]"
+                  onClick={() => setShowAddForm(true)}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    person_add
+                  </span>
+                  {t("settingsMembersAdd")}
+                </button>
+              )}
+
+              <button
+                aria-label={t("settingsClose")}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[#5F5F59] transition hover:bg-[#F0EEE8] hover:text-[#32332D]"
+                onClick={onClose}
+                type="button"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto bg-[#FCF9F5] px-6 py-6 no-scrollbar md:px-10 md:pb-12">
           {activeTab === "members" && (
-            <div className="mx-auto max-w-4xl space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-[#F2EDE7] bg-[#FBF8F5] px-5 py-4">
-                <h3 className="text-base font-semibold text-[#2D2926]">成员权限</h3>
-                {isAdmin && !showAddForm && (
-                  <button
-                    className="inline-flex items-center gap-2 rounded-full bg-[#2D2926] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1F1C19]"
-                    onClick={() => setShowAddForm(true)}
-                    type="button"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">
-                      person_add
-                    </span>
-                    添加成员
-                  </button>
-                )}
-              </div>
+            <div className="mx-auto max-w-5xl space-y-4">
+              {memberPendingDelete && (
+                <div
+                  aria-live="polite"
+                  className="rounded-xl border border-[#D9D4CD] bg-[#FCF9F5] px-5 py-4 ring-1 ring-[#615E57]/10"
+                  role="region"
+                >
+                  <p className="text-sm font-medium text-[#32332D]">
+                    {t("settingsMembersDeleteConfirm", {
+                      name: memberPendingDelete.name,
+                    })}
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <button
+                      className="rounded-lg px-4 py-2 text-sm font-semibold text-[#5F5F59] transition hover:bg-[#EAE8E1]"
+                      onClick={() => setMemberPendingDelete(null)}
+                      type="button"
+                    >
+                      {t("settingsMembersAddCancel")}
+                    </button>
+                    <button
+                      className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={deletingMemberId !== null}
+                      onClick={() => void executeConfirmedMemberDelete()}
+                      type="button"
+                    >
+                      {t("settingsMembersDeleteMember")}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {showAddForm && (
                 <form
-                  className="rounded-[2rem] border border-[#E7DFD4] bg-white p-4"
+                  className="rounded-xl bg-[#F0EEE8] p-4 ring-1 ring-[#615E57]/5"
                   onSubmit={handleAddMember}
                 >
                   <div className="flex flex-wrap items-center gap-3">
                     <input
                       autoFocus
-                      className="min-w-[180px] flex-1 rounded-full border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-2.5 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                      className="min-w-[180px] flex-1 rounded-lg border border-[#D9D0C6] bg-white px-4 py-2.5 text-sm text-[#2D2926] outline-none transition focus:border-[#615E57] focus:ring-1 focus:ring-[#615E57]"
                       disabled={addLoading}
                       onChange={(event) => setAddName(event.target.value)}
-                      placeholder="成员姓名"
+                      placeholder={t("settingsMembersNamePlaceholder")}
                       type="text"
                       value={addName}
                     />
                     <div className="flex items-center gap-2">
                       <button
-                        className="rounded-full px-4 py-2 text-sm text-[#7D746D] transition hover:bg-[#F5F0EA]"
+                        className="rounded-lg px-4 py-2 text-sm text-[#7D746D] transition hover:bg-[#EAE8E1]"
                         disabled={addLoading}
                         onClick={() => {
                           setShowAddForm(false);
@@ -1183,14 +1437,16 @@ export function SettingsSheet({
                         }}
                         type="button"
                       >
-                        取消
+                        {t("settingsMembersAddCancel")}
                       </button>
                       <button
-                        className="rounded-full bg-[#2D2926] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1F1C19] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg bg-[#615E57] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4F4B45] disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={!addName.trim() || addLoading}
                         type="submit"
                       >
-                        {addLoading ? "添加中..." : "确认添加"}
+                        {addLoading
+                          ? t("settingsMembersAddSubmitting")
+                          : t("settingsMembersAddSubmit")}
                       </button>
                     </div>
                   </div>
@@ -1202,356 +1458,559 @@ export function SettingsSheet({
                 </form>
               )}
 
-              {members.map((member) => (
-                <MemberPermissionRow
-                  expanded={expandedMemberIds.includes(member.id)}
-                  key={member.id}
-                  member={member}
-                  members={members}
-                  onToggleExpand={() => toggleExpandedMember(member.id)}
-                  session={session}
-                />
-              ))}
+              <div className="space-y-4">
+                {members.map((member) => (
+                  <MemberPermissionRow
+                    deletingMember={deletingMemberId === member.id}
+                    expanded={expandedMemberIds.includes(member.id)}
+                    key={member.id}
+                    member={member}
+                    members={members}
+                    onDeleteMember={() => setMemberPendingDelete(member)}
+                    onToggleExpand={() => toggleExpandedMember(member.id)}
+                    session={session}
+                    showDeleteMember={
+                      isAdmin && member.id !== session.member.id
+                    }
+                  />
+                ))}
+              </div>
             </div>
           )}
 
           {activeTab === "preferences" && (
-            <div className="mx-auto max-w-5xl space-y-6">
-              <div className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#7D746D]">
-                  {t("settingsPreferencesEyebrow")}
-                </p>
-                <h3 className="mt-3 text-xl font-semibold text-[#2D2926]">
-                  {t("settingsPreferencesTitle")}
-                </h3>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-[#7D746D]">
-                  {t("settingsPreferencesDescription")}
-                </p>
-              </div>
-
-              <div className="grid gap-5 lg:grid-cols-3">
-                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-                  <h3 className="text-xl font-semibold text-[#2D2926]">
-                    {t("settingsSectionLanguage")}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
-                    {t("settingsSectionLanguageDescription")}
-                  </p>
-                  <div className="mt-5 grid gap-3">
-                    {languageOptions.map((option) => (
-                      <PreferenceChoiceButton
-                        active={language === option.value}
-                        key={option.value}
-                        label={option.label}
-                        onClick={() => {
-                          setLanguage(option.value);
-                          setSettingsNotice(null);
-                        }}
-                      />
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-                  <h3 className="text-xl font-semibold text-[#2D2926]">
-                    {t("settingsSectionTime")}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
-                    {t("settingsSectionTimeDescription")}
-                  </p>
-
-                  {settingsError && (
-                    <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {settingsError}
-                    </p>
-                  )}
-                  {settingsNotice && (
-                    <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {settingsNotice}
-                    </p>
-                  )}
-
-                  {isAdmin ? (
-                    <div className="mt-5 space-y-4">
-                      <label className="block text-sm font-medium text-[#2D2926]">
-                        {t("settingsTimeHealthSummary")}
-                        <input
-                          aria-label={t("settingsTimeHealthSummary")}
-                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                          disabled={isLoadingAdminSettings || isSavingAdminSettings}
-                          onChange={(event) =>
-                            setHealthSummaryRefreshTime(event.target.value)
-                          }
-                          type="time"
-                          value={healthSummaryRefreshTime}
-                        />
-                      </label>
-                      <label className="block text-sm font-medium text-[#2D2926]">
-                        {t("settingsTimeCarePlan")}
-                        <input
-                          aria-label={t("settingsTimeCarePlan")}
-                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                          disabled={isLoadingAdminSettings || isSavingAdminSettings}
-                          onChange={(event) =>
-                            setCarePlanRefreshTime(event.target.value)
-                          }
-                          type="time"
-                          value={carePlanRefreshTime}
-                        />
-                      </label>
-                      <button
-                        className="w-full rounded-2xl bg-[#2D2926] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1F1C19] disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isLoadingAdminSettings || isSavingAdminSettings}
-                        onClick={() => void handleSaveRefreshTimes()}
-                        type="button"
-                      >
-                        {isSavingAdminSettings
-                          ? t("settingsTimeSaving")
-                          : t("settingsTimeSave")}
-                      </button>
+            <div className="mx-auto max-w-4xl">
+              <section className="overflow-hidden rounded-xl bg-[#F0EEE8] ring-1 ring-[#615E57]/5">
+                <button
+                  aria-expanded={preferencesSectionOpen}
+                  aria-label={t("settingsLanguageCardTitle")}
+                  className="flex w-full items-center justify-between p-6 text-left transition hover:bg-[#EAE8E1]/40"
+                  onClick={() => setPreferencesSectionOpen((open) => !open)}
+                  type="button"
+                >
+                  <div className="flex items-center gap-5">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EAE8E1] text-[#615E57] shadow-sm">
+                      <span className="material-symbols-outlined text-2xl">
+                        language
+                      </span>
                     </div>
-                  ) : (
-                    <p className="mt-5 rounded-2xl border border-[#E7DFD4] bg-[#FBF8F5] px-4 py-4 text-sm text-[#7D746D]">
-                      {t("settingsTimeAdminOnly")}
-                    </p>
-                  )}
-                </section>
-
-                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-                  <h3 className="text-xl font-semibold text-[#2D2926]">
-                    {t("settingsSectionAppearance")}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
-                    {t("settingsSectionAppearanceDescription")}
-                  </p>
-                  <div className="mt-5 grid gap-3">
-                    {themeOptions.map((option) => (
-                      <PreferenceChoiceButton
-                        active={theme === option.value}
-                        key={option.value}
-                        label={option.label}
-                        onClick={() => setTheme(option.value)}
-                      />
-                    ))}
+                    <div>
+                      <h3 className="text-lg font-bold tracking-tight text-[#615E57]">
+                        {t("settingsLanguageCardTitle")}
+                      </h3>
+                      <p className="text-xs font-medium text-[#5F5F59]">
+                        {t("settingsLanguageCardDescription")}
+                      </p>
+                    </div>
                   </div>
-                </section>
-              </div>
+                  <span className="material-symbols-outlined text-[#615E57]">
+                    {preferencesSectionOpen ? "expand_less" : "expand_more"}
+                  </span>
+                </button>
+
+                {preferencesSectionOpen && (
+                  <div className="border-t border-[#32332D]/5 px-8 pb-8 pt-6">
+                    <section className="space-y-6">
+                      <div className="flex flex-col gap-1">
+                        <h4 className="text-sm font-bold text-[#32332D]">
+                          {t("settingsSectionLanguage")}
+                        </h4>
+                        <p className="text-xs text-[#5F5F59]">
+                          {t("settingsSectionLanguageDescription")}
+                        </p>
+                      </div>
+
+                      <div className="grid gap-6 md:grid-cols-2">
+                        {languageOptions.map((option) => (
+                          <PreferenceChoiceButton
+                            active={language === option.value}
+                            caption={
+                              option.value === "zh"
+                                ? t("settingsLanguageCurrentTag")
+                                : t("settingsLanguageEnglishTag")
+                            }
+                            key={option.value}
+                            label={option.label}
+                            onClick={() => setLanguage(option.value)}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                )}
+              </section>
             </div>
           )}
 
-          {activeTab === "ai" && isAdmin && (
-            <div className="mx-auto max-w-5xl space-y-6">
-              <div className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#7D746D]">
-                  {t("settingsAiEyebrow")}
-                </p>
-                <h3 className="mt-3 text-xl font-semibold text-[#2D2926]">
-                  {t("settingsAiTitle")}
-                </h3>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-[#7D746D]">
-                  {t("settingsAiDescription")}
-                </p>
-              </div>
-
-              {aiError && (
-                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {aiError}
-                </p>
-              )}
-              {aiNotice && (
-                <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {aiNotice}
+          {activeTab === "admin" && isAdmin && (
+            <div className="mx-auto max-w-5xl space-y-4">
+              {sharedAdminError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {sharedAdminError}
                 </p>
               )}
 
-              <div className="grid gap-5 xl:grid-cols-2">
-                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-                  <h3 className="text-xl font-semibold text-[#2D2926]">
-                    {t("settingsAiSectionTranscription")}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
-                    {t("settingsAiSectionTranscriptionDescription")}
-                  </p>
-                  <div className="mt-5 space-y-4">
-                    <label className="block text-sm font-medium text-[#2D2926]">
-                      {t("settingsAiTranscriptionProvider")}
-                      <select
-                        aria-label={t("settingsAiTranscriptionProvider")}
-                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                        disabled={isLoadingAdminSettings || isSavingAiSettings}
-                        onChange={(event) =>
-                          setSttProvider(event.target.value as TranscriptionProvider)
-                        }
-                        value={sttProvider}
-                      >
-                        <option value="openai">openai</option>
-                        <option value="local_whisper">local_whisper</option>
-                      </select>
-                    </label>
-                    <label className="block text-sm font-medium text-[#2D2926]">
-                      {t("settingsAiTranscriptionApiKey")}
-                      <input
-                        aria-label={t("settingsAiTranscriptionApiKey")}
-                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                        disabled={isLoadingAdminSettings || isSavingAiSettings}
-                        onChange={(event) => setSttApiKey(event.target.value)}
-                        type="password"
-                        value={sttApiKey}
-                      />
-                    </label>
-                    <label className="block text-sm font-medium text-[#2D2926]">
-                      {t("settingsAiTranscriptionModel")}
-                      <input
-                        aria-label={t("settingsAiTranscriptionModel")}
-                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                        disabled={isLoadingAdminSettings || isSavingAiSettings}
-                        onChange={(event) => setSttModel(event.target.value)}
-                        type="text"
-                        value={sttModel}
-                      />
-                    </label>
+              <section className="rounded-xl bg-[#F6F3EE]">
+                <div className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAE8E1] text-[#615E57] shadow-sm">
+                      <span className="material-symbols-outlined text-[20px]">
+                        calendar_today
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-base font-semibold text-[#32332D]">
+                        {t("settingsTimeCarePlan")}
+                      </h4>
+                      <p className="text-sm text-[#5F5F59]">
+                        {t("settingsTimeCarePlanDescription")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="block md:w-auto">
+                    <span className="sr-only">{t("settingsTimeCarePlan")}</span>
+                    <input
+                      aria-label={t("settingsTimeCarePlan")}
+                      className={adminInlineInputClass}
+                      disabled={isLoadingAdminSettings || isSavingAdminSettings}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setCarePlanRefreshTime(value);
+                        latestRefreshTimesRef.current = {
+                          health: healthSummaryRefreshTime,
+                          care: value,
+                        };
+                        schedulePersistRefreshTimes();
+                      }}
+                      type="time"
+                      value={carePlanRefreshTime}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-xl bg-[#F6F3EE]">
+                <div className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAE8E1] text-[#615E57] shadow-sm">
+                      <span className="material-symbols-outlined text-[20px]">
+                        health_and_safety
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-base font-semibold text-[#32332D]">
+                        {t("settingsTimeHealthSummary")}
+                      </h4>
+                      <p className="text-sm text-[#5F5F59]">
+                        {t("settingsTimeHealthSummaryDescription")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="block md:w-auto">
+                    <span className="sr-only">{t("settingsTimeHealthSummary")}</span>
+                    <input
+                      aria-label={t("settingsTimeHealthSummary")}
+                      className={adminInlineInputClass}
+                      disabled={isLoadingAdminSettings || isSavingAdminSettings}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setHealthSummaryRefreshTime(value);
+                        latestRefreshTimesRef.current = {
+                          health: value,
+                          care: carePlanRefreshTime,
+                        };
+                        schedulePersistRefreshTimes();
+                      }}
+                      type="time"
+                      value={healthSummaryRefreshTime}
+                    />
+                  </label>
+                </div>
+              </section>
+
+              {timeSectionError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {timeSectionError}
+                </p>
+              )}
+
+              {aiSectionError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {aiSectionError}
+                </p>
+              )}
+
+              <section className={adminCardClass}>
+                <button
+                  aria-expanded={adminChatSectionOpen}
+                  className="flex w-full items-center justify-between p-6 text-left transition hover:bg-[#E8E6DF]/50"
+                  onClick={() => setAdminChatSectionOpen((open) => !open)}
+                  type="button"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAE8E1] text-[#615E57] shadow-sm">
+                      <span className="material-symbols-outlined text-[20px]">
+                        chat_bubble_outline
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold tracking-tight text-[#615E57]">
+                        {t("settingsAiSectionChatModel")}
+                      </h3>
+                      <p className="text-xs font-medium text-[#5F5F59]">
+                        {t("settingsAiSectionChatModelDescription")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="material-symbols-outlined text-[#615E57]">
+                    {adminChatSectionOpen ? "expand_less" : "expand_more"}
+                  </span>
+                </button>
+
+                {adminChatSectionOpen && (
+                  <div className="border-t border-[#32332D]/5 px-8 pb-8 pt-6">
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="block text-sm font-medium text-[#2D2926]">
-                        {t("settingsAiTranscriptionLanguage")}
+                        {t("settingsAiChatBaseUrl")}
                         <input
-                          aria-label={t("settingsAiTranscriptionLanguage")}
-                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                          aria-label={t("settingsAiChatBaseUrl")}
+                          className={adminFieldClass}
                           disabled={isLoadingAdminSettings || isSavingAiSettings}
-                          onChange={(event) => setSttLanguage(event.target.value)}
+                          onChange={(event) => {
+                            setChatBaseUrl(event.target.value);
+                            schedulePersistAiSettings();
+                          }}
                           type="text"
-                          value={sttLanguage}
+                          value={chatBaseUrl}
                         />
                       </label>
                       <label className="block text-sm font-medium text-[#2D2926]">
-                        {t("settingsAiTranscriptionTimeout")}
+                        {t("settingsAiChatApiKey")}
                         <input
-                          aria-label={t("settingsAiTranscriptionTimeout")}
-                          className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                          aria-label={t("settingsAiChatApiKey")}
+                          className={adminFieldClass}
                           disabled={isLoadingAdminSettings || isSavingAiSettings}
-                          min="0.1"
-                          onChange={(event) => setSttTimeout(event.target.value)}
-                          step="0.1"
-                          type="number"
-                          value={sttTimeout}
+                          onChange={(event) => {
+                            setChatApiKey(event.target.value);
+                            schedulePersistAiSettings();
+                          }}
+                          type="password"
+                          value={chatApiKey}
                         />
                       </label>
                     </div>
-
-                    {sttProvider === "local_whisper" && (
-                      <div className="space-y-4 rounded-[1.5rem] border border-[#E7DFD4] bg-[#FBF8F5] p-4">
-                        <label className="block text-sm font-medium text-[#2D2926]">
-                          {t("settingsAiLocalWhisperModel")}
-                          <input
-                            aria-label={t("settingsAiLocalWhisperModel")}
-                            className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                            disabled={isLoadingAdminSettings || isSavingAiSettings}
-                            onChange={(event) => setLocalWhisperModel(event.target.value)}
-                            type="text"
-                            value={localWhisperModel}
-                          />
-                        </label>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <label className="block text-sm font-medium text-[#2D2926]">
-                            {t("settingsAiLocalWhisperDevice")}
-                            <input
-                              aria-label={t("settingsAiLocalWhisperDevice")}
-                              className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                              disabled={isLoadingAdminSettings || isSavingAiSettings}
-                              onChange={(event) => setLocalWhisperDevice(event.target.value)}
-                              type="text"
-                              value={localWhisperDevice}
-                            />
-                          </label>
-                          <label className="block text-sm font-medium text-[#2D2926]">
-                            {t("settingsAiLocalWhisperComputeType")}
-                            <input
-                              aria-label={t("settingsAiLocalWhisperComputeType")}
-                              className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                              disabled={isLoadingAdminSettings || isSavingAiSettings}
-                              onChange={(event) =>
-                                setLocalWhisperComputeType(event.target.value)
-                              }
-                              type="text"
-                              value={localWhisperComputeType}
-                            />
-                          </label>
-                        </div>
-                        <label className="block text-sm font-medium text-[#2D2926]">
-                          {t("settingsAiLocalWhisperDownloadRoot")}
-                          <input
-                            aria-label={t("settingsAiLocalWhisperDownloadRoot")}
-                            className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                            disabled={isLoadingAdminSettings || isSavingAiSettings}
-                            onChange={(event) =>
-                              setLocalWhisperDownloadRoot(event.target.value)
-                            }
-                            placeholder="/models/whisper"
-                            type="text"
-                            value={localWhisperDownloadRoot}
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="rounded-[2rem] border border-[#F2EDE7] bg-white p-6 shadow-sm">
-                  <h3 className="text-xl font-semibold text-[#2D2926]">
-                    {t("settingsAiSectionChatModel")}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#7D746D]">
-                    {t("settingsAiSectionChatModelDescription")}
-                  </p>
-                  <div className="mt-5 space-y-4">
-                    <label className="block text-sm font-medium text-[#2D2926]">
-                      {t("settingsAiChatBaseUrl")}
-                      <input
-                        aria-label={t("settingsAiChatBaseUrl")}
-                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                        disabled={isLoadingAdminSettings || isSavingAiSettings}
-                        onChange={(event) => setChatBaseUrl(event.target.value)}
-                        type="text"
-                        value={chatBaseUrl}
-                      />
-                    </label>
-                    <label className="block text-sm font-medium text-[#2D2926]">
-                      {t("settingsAiChatApiKey")}
-                      <input
-                        aria-label={t("settingsAiChatApiKey")}
-                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
-                        disabled={isLoadingAdminSettings || isSavingAiSettings}
-                        onChange={(event) => setChatApiKey(event.target.value)}
-                        type="password"
-                        value={chatApiKey}
-                      />
-                    </label>
-                    <label className="block text-sm font-medium text-[#2D2926]">
+                    <label className="mt-4 block text-sm font-medium text-[#2D2926]">
                       {t("settingsAiChatModel")}
                       <input
                         aria-label={t("settingsAiChatModel")}
-                        className="mt-2 w-full rounded-2xl border border-[#D9D4CD] bg-[#FBF8F5] px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#4A6076] focus:ring-1 focus:ring-[#4A6076]"
+                        className={adminFieldClass}
                         disabled={isLoadingAdminSettings || isSavingAiSettings}
-                        onChange={(event) => setChatModel(event.target.value)}
+                        onChange={(event) => {
+                          setChatModel(event.target.value);
+                          schedulePersistAiSettings();
+                        }}
                         type="text"
                         value={chatModel}
                       />
                     </label>
                   </div>
-                </section>
-              </div>
+                )}
+              </section>
 
-              <div className="flex justify-end">
+              <section className={adminCardClass}>
                 <button
-                  className="rounded-2xl bg-[#2D2926] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1F1C19] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isLoadingAdminSettings || isSavingAiSettings}
-                  onClick={() => void handleSaveAiSettings()}
+                  aria-expanded={adminTranscriptionSectionOpen}
+                  className="flex w-full items-center justify-between p-6 text-left transition hover:bg-[#E8E6DF]/50"
+                  onClick={() =>
+                    setAdminTranscriptionSectionOpen((open) => !open)
+                  }
                   type="button"
                 >
-                  {isSavingAiSettings ? t("settingsAiSaving") : t("settingsAiSave")}
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAE8E1] text-[#615E57] shadow-sm">
+                      <span className="material-symbols-outlined text-[20px]">
+                        record_voice_over
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold tracking-tight text-[#615E57]">
+                        {t("settingsAiSectionTranscription")}
+                      </h3>
+                      <p className="text-xs font-medium text-[#5F5F59]">
+                        {t("settingsAiSectionTranscriptionDescription")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="material-symbols-outlined text-[#615E57]">
+                    {adminTranscriptionSectionOpen ? "expand_less" : "expand_more"}
+                  </span>
                 </button>
-              </div>
+
+                {adminTranscriptionSectionOpen && (
+                  <div className="space-y-4 border-t border-[#32332D]/5 px-8 pb-8 pt-6">
+                    <div
+                      aria-label={t("settingsAiTranscriptionProvider")}
+                      className="flex flex-col gap-2"
+                      role="radiogroup"
+                    >
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5F5F59]">
+                        {t("settingsAiTranscriptionProvider")}
+                      </p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+                        <button
+                          aria-checked={sttProvider === "openai"}
+                          className={`flex flex-1 items-center gap-3 rounded-xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                            sttProvider === "openai"
+                              ? "border-[#615E57] bg-white text-[#615E57] shadow-sm"
+                              : "border-transparent bg-[#F6F3EE] text-[#32332D] hover:border-[#B3B2AB]/50"
+                          }`}
+                          disabled={
+                            isLoadingAdminSettings ||
+                            isSavingAiSettings ||
+                            isPersistingSttProvider
+                          }
+                          onClick={() =>
+                            void handleSelectTranscriptionProvider("openai")
+                          }
+                          role="radio"
+                          type="button"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="material-symbols-outlined text-[22px] text-[#615E57]"
+                          >
+                            cloud
+                          </span>
+                          <span className="text-sm font-semibold">
+                            {t("settingsAiTranscriptionProviderOpenAI")}
+                          </span>
+                        </button>
+                        <button
+                          aria-checked={sttProvider === "local_whisper"}
+                          className={`flex flex-1 items-center gap-3 rounded-xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                            sttProvider === "local_whisper"
+                              ? "border-[#615E57] bg-white text-[#615E57] shadow-sm"
+                              : "border-transparent bg-[#F6F3EE] text-[#32332D] hover:border-[#B3B2AB]/50"
+                          }`}
+                          disabled={
+                            isLoadingAdminSettings ||
+                            isSavingAiSettings ||
+                            isPersistingSttProvider
+                          }
+                          onClick={() =>
+                            void handleSelectTranscriptionProvider("local_whisper")
+                          }
+                          role="radio"
+                          type="button"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="material-symbols-outlined text-[22px] text-[#615E57]"
+                          >
+                            computer
+                          </span>
+                          <span className="text-sm font-semibold">
+                            {t("settingsAiTranscriptionProviderLocal")}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 rounded-xl border border-[#D9D4CD] bg-[#FCF9F5]/80 p-6">
+                      {sttProvider === "openai" && (
+                        <>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiTranscriptionApiKey")}
+                              <input
+                                aria-label={t("settingsAiTranscriptionApiKey")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                onChange={(event) => {
+                                  setSttApiKey(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                type="password"
+                                value={sttApiKey}
+                              />
+                            </label>
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiTranscriptionModel")}
+                              <input
+                                aria-label={t("settingsAiTranscriptionModel")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                onChange={(event) => {
+                                  setSttModel(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                type="text"
+                                value={sttModel}
+                              />
+                            </label>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiTranscriptionLanguage")}
+                              <input
+                                aria-label={t("settingsAiTranscriptionLanguage")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                onChange={(event) => {
+                                  setSttLanguage(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                type="text"
+                                value={sttLanguage}
+                              />
+                            </label>
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiTranscriptionTimeout")}
+                              <input
+                                aria-label={t("settingsAiTranscriptionTimeout")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                min="0.1"
+                                onChange={(event) => {
+                                  setSttTimeout(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                step="0.1"
+                                type="number"
+                                value={sttTimeout}
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
+
+                      {sttProvider === "local_whisper" && (
+                        <>
+                          <label className="block text-sm font-medium text-[#2D2926]">
+                            {t("settingsAiLocalWhisperModel")}
+                            <input
+                              aria-label={t("settingsAiLocalWhisperModel")}
+                              className={adminFieldClass}
+                              disabled={
+                                isLoadingAdminSettings || isSavingAiSettings
+                              }
+                              onChange={(event) => {
+                                setLocalWhisperModel(event.target.value);
+                                schedulePersistAiSettings();
+                              }}
+                              type="text"
+                              value={localWhisperModel}
+                            />
+                          </label>
+
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiLocalWhisperDevice")}
+                              <input
+                                aria-label={t("settingsAiLocalWhisperDevice")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                onChange={(event) => {
+                                  setLocalWhisperDevice(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                type="text"
+                                value={localWhisperDevice}
+                              />
+                            </label>
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiLocalWhisperComputeType")}
+                              <input
+                                aria-label={t("settingsAiLocalWhisperComputeType")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                onChange={(event) => {
+                                  setLocalWhisperComputeType(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                type="text"
+                                value={localWhisperComputeType}
+                              />
+                            </label>
+                          </div>
+
+                          <label className="block text-sm font-medium text-[#2D2926]">
+                            {t("settingsAiLocalWhisperDownloadRoot")}
+                            <input
+                              aria-label={t("settingsAiLocalWhisperDownloadRoot")}
+                              className={adminFieldClass}
+                              disabled={
+                                isLoadingAdminSettings || isSavingAiSettings
+                              }
+                              onChange={(event) => {
+                                setLocalWhisperDownloadRoot(event.target.value);
+                                schedulePersistAiSettings();
+                              }}
+                              placeholder="/models/whisper"
+                              type="text"
+                              value={localWhisperDownloadRoot}
+                            />
+                          </label>
+
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiTranscriptionLanguage")}
+                              <input
+                                aria-label={t("settingsAiTranscriptionLanguage")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                onChange={(event) => {
+                                  setSttLanguage(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                type="text"
+                                value={sttLanguage}
+                              />
+                            </label>
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiTranscriptionTimeout")}
+                              <input
+                                aria-label={t("settingsAiTranscriptionTimeout")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                min="0.1"
+                                onChange={(event) => {
+                                  setSttTimeout(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                step="0.1"
+                                type="number"
+                                value={sttTimeout}
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>
