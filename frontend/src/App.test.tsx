@@ -22,6 +22,16 @@ function renderApp(initialPath = "/") {
   );
 }
 
+/** Home composer is disabled while the dashboard loads; wait before opening the overlay. */
+async function openHomeChatOverlay() {
+  await waitFor(() => {
+    const sendButton = screen.getByRole("button", { name: /发送文本/ });
+    expect(sendButton).not.toBeDisabled();
+  });
+  fireEvent.click(screen.getByRole("button", { name: /发送文本/ }));
+  return screen.findByRole("dialog", { name: "AI 健康助手" });
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -808,9 +818,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const dialog = await openHomeChatOverlay();
 
     fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
       target: { value: "帮我记录张妈妈今天心率 72" },
@@ -905,9 +913,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const dialog = await openHomeChatOverlay();
 
     fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
       target: { value: "总结一下奶奶今天情况" },
@@ -946,9 +952,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    await screen.findByRole("dialog", { name: "AI 健康助手" });
+    await openHomeChatOverlay();
 
     expect(
       screen.queryByText(
@@ -1031,9 +1035,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const dialog = await openHomeChatOverlay();
     const attachmentInput = dialog.querySelector(
       'input[data-chat-attachment-input="true"]',
     ) as HTMLInputElement | null;
@@ -1088,9 +1090,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const dialog = await openHomeChatOverlay();
     const attachmentInput = dialog.querySelector(
       'input[data-chat-attachment-input="true"]',
     ) as HTMLInputElement | null;
@@ -1115,7 +1115,8 @@ describe("App", () => {
       expect(within(dialog).queryByText("report.pdf")).not.toBeInTheDocument();
     });
 
-    resolveAttachmentResponse?.(
+    expect(resolveAttachmentResponse).not.toBeNull();
+    resolveAttachmentResponse!(
       jsonResponse({
         attachment: {
           filename: "report.pdf",
@@ -1224,9 +1225,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const dialog = await openHomeChatOverlay();
 
     fireEvent.change(within(dialog).getByRole("combobox"), {
       target: { value: "member-2" },
@@ -1313,9 +1312,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const dialog = await openHomeChatOverlay();
 
     fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
       target: { value: "请根据刚才的报告继续分析" },
@@ -1429,7 +1426,7 @@ describe("App", () => {
     expect(within(dialog).getByText("已切换咨询人到管理员")).toBeInTheDocument();
   });
 
-  it("starts a fresh chat only when the new session action is used", async () => {
+  it("starts a fresh chat when sending from the homepage after the first overlay conversation", async () => {
     window.localStorage.setItem(
       sessionStorageKey,
       JSON.stringify(createSessionPayload()),
@@ -1513,9 +1510,7 @@ describe("App", () => {
 
     renderApp("/app");
 
-    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const dialog = await openHomeChatOverlay();
 
     fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
       target: { value: "第一段" },
@@ -1523,19 +1518,145 @@ describe("App", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
     expect(await within(dialog).findByText("这是第一段会话。")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "历史会话" }));
-    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
-
+    fireEvent.click(within(dialog).getByRole("button", { name: "关闭 AI 对话" }));
     await waitFor(() => {
-      expect(within(dialog).queryByText("这是第一段会话。")).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: "AI 健康助手" })).not.toBeInTheDocument();
     });
 
-    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+    fireEvent.change(screen.getByLabelText("对话输入框"), {
       target: { value: "第二段" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
-    expect(await within(dialog).findByText("这是第二段新会话。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /发送文本/ }));
+
+    const dialogAgain = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    expect(await within(dialogAgain).findByText("第二段")).toBeInTheDocument();
+    expect(await within(dialogAgain).findByText("这是第二段新会话。")).toBeInTheDocument();
+    expect(within(dialogAgain).queryByText("这是第一段会话。")).not.toBeInTheDocument();
     expect(sessionCreateCount).toBe(2);
+  });
+
+  it("starts a fresh chat when sending from the homepage after closing the overlay", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    let sessionCreateCount = 0;
+    let messageCount = 0;
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions") {
+        return jsonResponse([]);
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        sessionCreateCount += 1;
+        return jsonResponse(
+          {
+            id: `chat-${sessionCreateCount}`,
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: null,
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        messageCount += 1;
+
+        if (messageCount === 1) {
+          return sseResponse([
+            {
+              event: "session.started",
+              data: {
+                session_id: "chat-1",
+                member_id: null,
+                member_name: null,
+                previous_member_id: null,
+                previous_member_name: null,
+                focus_changed: false,
+                resolution_source: "unresolved",
+              },
+            },
+            {
+              event: "message.completed",
+              data: { content: "这是第一段会话。" },
+            },
+          ]);
+        }
+      }
+
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-2/messages") {
+        messageCount += 1;
+
+        if (messageCount === 2) {
+          return sseResponse([
+            {
+              event: "session.started",
+              data: {
+                session_id: "chat-2",
+                member_id: null,
+                member_name: null,
+                previous_member_id: null,
+                previous_member_name: null,
+                focus_changed: false,
+                resolution_source: "unresolved",
+              },
+            },
+            {
+              event: "message.completed",
+              data: { content: "这是关闭后发出的回复。" },
+            },
+          ]);
+        }
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    const dialog = await openHomeChatOverlay();
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "先建立旧会话" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+    expect(await within(dialog).findByText("这是第一段会话。")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "关闭 AI 对话" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "AI 健康助手" })).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("对话输入框"), {
+      target: { value: "关闭后再发" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /发送/ }));
+
+    const reopenedDialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    expect(await within(reopenedDialog).findByText("关闭后再发")).toBeInTheDocument();
+    expect(
+      await within(reopenedDialog).findByText("这是关闭后发出的回复。"),
+    ).toBeInTheDocument();
+    expect(
+      within(reopenedDialog).queryByText("这是第一段会话。"),
+    ).not.toBeInTheDocument();
+    expect(sessionCreateCount).toBe(2);
+    expect(messageCount).toBe(2);
   });
 
   it("submits remember_me when the login checkbox is selected", async () => {

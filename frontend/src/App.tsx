@@ -61,6 +61,9 @@ function loadStoredSession(): AuthSession | null {
 
 export default function App() {
   const { t } = usePreferences();
+  const activeChatRunIdRef = useRef(0);
+  const chatSessionRef = useRef<ChatSession | null>(null);
+  const forceFreshHomeSessionRef = useRef(false);
   const timelineSequenceRef = useRef(0);
   const [session, setSession] = useState<AuthSession | null>(loadStoredSession);
   const [isSessionReady, setIsSessionReady] = useState(() => {
@@ -83,10 +86,6 @@ export default function App() {
   const [selectedChatMemberId, setSelectedChatMemberId] = useState("");
   const [resolvedChatMemberName, setResolvedChatMemberName] = useState<string | null>(null);
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
-  const [queuedMessage, setQueuedMessage] = useState<{
-    content: string;
-    attachments: ComposerAttachment[];
-  } | null>(null);
   const {
     attachments: chatAttachments,
     clearAttachments: clearChatAttachments,
@@ -143,12 +142,16 @@ export default function App() {
   }
 
   function resetChatState() {
+    activeChatRunIdRef.current += 1;
+    chatSessionRef.current = null;
+    forceFreshHomeSessionRef.current = false;
     timelineSequenceRef.current = 0;
     setChatDraft("");
     clearChatAttachments();
     setChatMessages([]);
     setChatToolCards([]);
     setChatError(null);
+    setIsChatBusy(false);
     setChatSession(null);
     setSelectedChatMemberId("");
     setResolvedChatMemberName(null);
@@ -185,12 +188,16 @@ export default function App() {
     const memberName = payload.member_name ?? memberNameForId(memberId);
     setResolvedChatMemberName(memberName);
     setChatSession((current) =>
-      current
-        ? {
-            ...current,
-            member_id: memberId ?? current.member_id,
-          }
-        : current,
+      {
+        const nextSession = current
+          ? {
+              ...current,
+              member_id: memberId ?? current.member_id,
+            }
+          : current;
+        chatSessionRef.current = nextSession;
+        return nextSession;
+      },
     );
     if (options?.restoreSelection) {
       if (payload.resolution_source === "explicit" && memberId) {
@@ -372,42 +379,49 @@ export default function App() {
     };
   }, [isSessionReady, session]);
 
-  useEffect(() => {
-    if (!isChatOpen || !queuedMessage) {
-      return;
-    }
-    setChatDraft(queuedMessage.content);
-    restoreChatAttachments(queuedMessage.attachments);
-    void handleSendChatMessage(queuedMessage);
-    setQueuedMessage(null);
-  }, [isChatOpen, queuedMessage]);
-
   async function ensureChatSession(
     currentSession: AuthSession,
+    options?: {
+      forceNewSession?: boolean;
+    },
   ): Promise<ChatSession> {
-    if (chatSession && chatSession.page_context === "home") {
-      return chatSession;
+    const forceNewSession =
+      options?.forceNewSession === true || forceFreshHomeSessionRef.current;
+    const currentChatSession = chatSessionRef.current;
+    if (
+      !forceNewSession &&
+      currentChatSession &&
+      currentChatSession.page_context === "home"
+    ) {
+      return currentChatSession;
     }
 
     const nextSession = await createChatSession(currentSession, {
       member_id: selectedChatMemberId || null,
       page_context: "home",
     });
+    chatSessionRef.current = nextSession;
+    forceFreshHomeSessionRef.current = false;
     setChatSession(nextSession);
     return nextSession;
   }
 
   async function handleSendChatMessage(
     initialInput?:
-      | string
-      | {
-          content: string;
-          attachments?: ComposerAttachment[];
-        },
+        | string
+        | {
+            content: string;
+            attachments?: ComposerAttachment[];
+            forceNewSession?: boolean;
+          },
   ) {
     if (!session) {
       return;
     }
+
+    const runId = activeChatRunIdRef.current + 1;
+    activeChatRunIdRef.current = runId;
+    const isActiveRun = () => activeChatRunIdRef.current === runId;
 
     const pendingAttachmentState =
       typeof initialInput === "string"
@@ -442,14 +456,22 @@ export default function App() {
     setIsChatBusy(true);
 
     try {
-      const currentChatSession = await ensureChatSession(session);
+      const currentChatSession = await ensureChatSession(session, {
+        forceNewSession:
+          typeof initialInput === "string"
+            ? false
+            : initialInput?.forceNewSession === true,
+      });
+      if (!isActiveRun()) {
+        return;
+      }
       const assistantMessageId = nextId("assistant");
       const assistantSortKey = nextTimelineSortKey();
       let assistantMessageCreated = false;
       let assistantContent = "";
 
       const syncAssistantMessage = (contentValue: string) => {
-        if (!contentValue) {
+        if (!contentValue || !isActiveRun()) {
           return;
         }
         if (!assistantMessageCreated) {
@@ -481,6 +503,10 @@ export default function App() {
         member_selection_mode: selectedChatMemberId ? "explicit" : "auto",
         page_context: "home",
       }, (event) => {
+        if (!isActiveRun()) {
+          return;
+        }
+
         if (event.event === "session.started") {
           syncResolvedFocus(event.data);
           const marker = buildFocusMarker(event.data);
@@ -523,12 +549,17 @@ export default function App() {
         }
       });
     } catch (error) {
+      if (!isActiveRun()) {
+        return;
+      }
       restoreChatAttachments(pendingAttachmentState);
       setChatError(
         error instanceof Error ? error.message : "AI chat failed. Please try again later.",
       );
     } finally {
-      setIsChatBusy(false);
+      if (isActiveRun()) {
+        setIsChatBusy(false);
+      }
     }
   }
 
@@ -588,18 +619,13 @@ export default function App() {
     setIsChatOpen(true);
   }
 
-  function handleNewChatSession() {
-    resetChatState();
-    setIsChatOpen(true);
-  }
-
   const restoringSessionIdRef = useRef<string | null>(null);
 
   async function handleRestoreChatSession(sessionId: string) {
     if (!session) return;
     resetChatState();
     restoringSessionIdRef.current = sessionId;
-    setChatSession({
+    const restoredSession = {
       id: sessionId,
       user_id: session.user.id,
       family_space_id: session.user.family_space_id,
@@ -609,7 +635,9 @@ export default function App() {
       page_context: "home",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    });
+    };
+    chatSessionRef.current = restoredSession;
+    setChatSession(restoredSession);
     setIsChatOpen(true);
 
     try {
@@ -635,8 +663,16 @@ export default function App() {
     message: string,
     attachments: ComposerAttachment[],
   ) {
-    setQueuedMessage({ content: message, attachments });
+    // Homepage send should start a fresh chat immediately instead of
+    // reopening and continuing the last hidden transcript.
+    resetChatState();
+    forceFreshHomeSessionRef.current = true;
     setIsChatOpen(true);
+    void handleSendChatMessage({
+      content: message,
+      attachments,
+      forceNewSession: true,
+    });
   }
   if (session && !isSessionReady) {
     return null;
@@ -673,8 +709,6 @@ export default function App() {
           element={
             session ? (
               <AppShell
-                onNewChatSession={handleNewChatSession}
-                onOpenChat={handleOpenChat}
                 onOpenSettings={() => setIsSettingsOpen(true)}
                 onRestoreChatSession={handleRestoreChatSession}
                 onSignOut={handleSignOut}
