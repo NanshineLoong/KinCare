@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { PreferencesProvider } from "../preferences";
@@ -15,6 +15,7 @@ function renderOverlay(messages: ChatMessage[]) {
         attachments={[]}
         draft=""
         error={null}
+        focusLabel="当前咨询人：自动识别"
         isBusy={false}
         isUploading={false}
         memberOptions={[]}
@@ -31,6 +32,56 @@ function renderOverlay(messages: ChatMessage[]) {
       />
     </PreferencesProvider>,
   );
+}
+
+function installScrollMetrics(panel: HTMLDivElement) {
+  let scrollTopValue = 0;
+  let scrollHeightValue = 1200;
+  let clientHeightValue = 320;
+
+  Object.defineProperty(panel, "scrollTop", {
+    configurable: true,
+    get: () => scrollTopValue,
+    set: (value: number) => {
+      scrollTopValue = value;
+    },
+  });
+  Object.defineProperty(panel, "scrollHeight", {
+    configurable: true,
+    get: () => scrollHeightValue,
+    set: (value: number) => {
+      scrollHeightValue = value;
+    },
+  });
+  Object.defineProperty(panel, "clientHeight", {
+    configurable: true,
+    get: () => clientHeightValue,
+    set: (value: number) => {
+      clientHeightValue = value;
+    },
+  });
+
+  const scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+    if (typeof options === "number") {
+      scrollTopValue = options;
+      return;
+    }
+    scrollTopValue = options?.top ?? scrollHeightValue;
+  });
+  panel.scrollTo = scrollTo as typeof panel.scrollTo;
+
+  return {
+    scrollTo,
+    setScrollTop(value: number) {
+      scrollTopValue = value;
+    },
+    setScrollHeight(value: number) {
+      scrollHeightValue = value;
+    },
+    setClientHeight(value: number) {
+      clientHeightValue = value;
+    },
+  };
 }
 
 describe("ChatOverlay", () => {
@@ -86,5 +137,178 @@ describe("ChatOverlay", () => {
 
     expect(screen.getByText("这是 **重点**")).toBeInTheDocument();
     expect(screen.queryByText("重点", { selector: "strong" })).not.toBeInTheDocument();
+  });
+
+  it("scrolls to the bottom when an existing conversation is restored", async () => {
+    const view = renderOverlay([]);
+    const panel = view.container.querySelector('[tabindex="-1"]') as HTMLDivElement | null;
+
+    expect(panel).not.toBeNull();
+    const metrics = installScrollMetrics(panel as HTMLDivElement);
+
+    view.rerender(
+      <PreferencesProvider>
+        <ChatOverlay
+          attachments={[]}
+          draft=""
+          error={null}
+          focusLabel="当前咨询人：自动识别"
+          isBusy={false}
+          isUploading={false}
+          memberOptions={[]}
+          messages={[
+            {
+              id: "assistant-1",
+              role: "assistant",
+              content: "这是之前的上下文",
+              sortKey: 1,
+            },
+          ]}
+          onAttachmentRemove={() => {}}
+          onAttachmentUpload={() => {}}
+          onClose={() => {}}
+          onConfirmToolDraft={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+          toolCards={[]}
+        />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(metrics.scrollTo).toHaveBeenCalled();
+    });
+    expect(panel?.scrollTop).toBe(1200);
+  });
+
+  it("follows streaming output until the user scrolls up, then resumes after returning to bottom", async () => {
+    const initialMessages: ChatMessage[] = [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "第一段输出",
+        sortKey: 1,
+      },
+    ];
+
+    const view = renderOverlay(initialMessages);
+    const panel = view.container.querySelector('[tabindex="-1"]') as HTMLDivElement | null;
+
+    expect(panel).not.toBeNull();
+    const metrics = installScrollMetrics(panel as HTMLDivElement);
+
+    view.rerender(
+      <PreferencesProvider>
+        <ChatOverlay
+          attachments={[]}
+          draft=""
+          error={null}
+          focusLabel="当前咨询人：自动识别"
+          isBusy={false}
+          isUploading={false}
+          memberOptions={[]}
+          messages={[
+            {
+              id: "assistant-1",
+              role: "assistant",
+              content: "第一段输出，继续补充第二段",
+              sortKey: 1,
+            },
+          ]}
+          onAttachmentRemove={() => {}}
+          onAttachmentUpload={() => {}}
+          onClose={() => {}}
+          onConfirmToolDraft={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+          toolCards={[]}
+        />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(metrics.scrollTo).toHaveBeenCalledTimes(1);
+    });
+
+    metrics.scrollTo.mockClear();
+    metrics.setScrollTop(400);
+    fireEvent.scroll(panel as HTMLDivElement);
+
+    view.rerender(
+      <PreferencesProvider>
+        <ChatOverlay
+          attachments={[]}
+          draft=""
+          error={null}
+          focusLabel="当前咨询人：自动识别"
+          isBusy={false}
+          isUploading={false}
+          memberOptions={[]}
+          messages={[
+            {
+              id: "assistant-1",
+              role: "assistant",
+              content: "第一段输出，继续补充第二段和第三段",
+              sortKey: 1,
+            },
+          ]}
+          onAttachmentRemove={() => {}}
+          onAttachmentUpload={() => {}}
+          onClose={() => {}}
+          onConfirmToolDraft={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+          toolCards={[]}
+        />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(metrics.scrollTo).not.toHaveBeenCalled();
+    });
+
+    metrics.setScrollTop(880);
+    fireEvent.scroll(panel as HTMLDivElement);
+
+    view.rerender(
+      <PreferencesProvider>
+        <ChatOverlay
+          attachments={[]}
+          draft=""
+          error={null}
+          focusLabel="当前咨询人：自动识别"
+          isBusy={false}
+          isUploading={false}
+          memberOptions={[]}
+          messages={[
+            {
+              id: "assistant-1",
+              role: "assistant",
+              content: "第一段输出，继续补充第二段和第三段以及第四段",
+              sortKey: 1,
+            },
+          ]}
+          onAttachmentRemove={() => {}}
+          onAttachmentUpload={() => {}}
+          onClose={() => {}}
+          onConfirmToolDraft={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+          toolCards={[]}
+        />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(metrics.scrollTo).toHaveBeenCalledTimes(1);
+    });
   });
 });

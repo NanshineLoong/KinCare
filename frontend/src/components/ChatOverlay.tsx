@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 
 import type {
   ChatToolResult,
@@ -28,10 +28,13 @@ type MemberOption = {
   name: string;
 };
 
+const AUTO_SCROLL_BOTTOM_THRESHOLD = 48;
+
 type ChatOverlayProps = {
   attachments: ComposerAttachment[];
   draft: string;
   error: string | null;
+  focusLabel: string;
   isBusy: boolean;
   isUploading: boolean;
   memberOptions: MemberOption[];
@@ -90,6 +93,7 @@ export function ChatOverlay({
   attachments,
   draft,
   error,
+  focusLabel,
   isBusy,
   isUploading,
   memberOptions,
@@ -107,11 +111,19 @@ export function ChatOverlay({
   const { t } = usePreferences();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const [dismissedToolIds, setDismissedToolIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     panelRef.current?.focus();
   }, []);
+
+  useLayoutEffect(() => {
+    if (!shouldAutoScrollRef.current) {
+      return;
+    }
+    scrollPanelToBottom(panelRef.current);
+  }, [messages, toolCards, isBusy]);
 
   function handleAudioChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -136,6 +148,13 @@ export function ChatOverlay({
       payload: toolCard,
     })),
   ].sort((a, b) => a.sortKey - b.sortKey);
+
+  function handlePanelScroll() {
+    if (!panelRef.current) {
+      return;
+    }
+    shouldAutoScrollRef.current = isPanelNearBottom(panelRef.current);
+  }
 
   return (
     <div
@@ -173,6 +192,7 @@ export function ChatOverlay({
 
         <div
           className="mx-auto mt-6 flex w-full max-w-3xl flex-1 flex-col gap-5 overflow-y-auto pb-36 outline-none"
+          onScroll={handlePanelScroll}
           ref={panelRef}
           tabIndex={-1}
         >
@@ -292,6 +312,7 @@ export function ChatOverlay({
           <ChatInput
             attachments={attachments}
             draft={draft}
+            focusLabel={focusLabel}
             isBusy={isBusy}
             isUploading={isUploading}
             memberOptions={memberOptions}
@@ -306,4 +327,20 @@ export function ChatOverlay({
       </div>
     </div>
   );
+}
+
+function isPanelNearBottom(panel: HTMLDivElement): boolean {
+  return panel.scrollHeight - panel.scrollTop - panel.clientHeight <= AUTO_SCROLL_BOTTOM_THRESHOLD;
+}
+
+function scrollPanelToBottom(panel: HTMLDivElement | null): void {
+  if (!panel) {
+    return;
+  }
+  const targetTop = panel.scrollHeight;
+  if (typeof panel.scrollTo === "function") {
+    panel.scrollTo({ top: targetTop, behavior: "auto" });
+    return;
+  }
+  panel.scrollTop = targetTop;
 }

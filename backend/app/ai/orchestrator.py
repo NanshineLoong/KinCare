@@ -12,6 +12,8 @@ from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
     ToolCallPart,
 )
 from pydantic_ai.usage import UsageLimits
@@ -210,11 +212,10 @@ class ChatOrchestrator:
                         try:
                             async with node.stream(run.ctx) as request_stream:
                                 async for event in request_stream:
-                                    if isinstance(event, PartDeltaEvent) and hasattr(event.delta, "content_delta"):
-                                        delta = str(event.delta.content_delta or "")
-                                        if delta:
-                                            yielded_delta = True
-                                            yield StreamEvent("message.delta", {"content": delta})
+                                    delta = _stream_text_from_model_event(event)
+                                    if delta:
+                                        yielded_delta = True
+                                        yield StreamEvent("message.delta", {"content": delta})
                         except Exception as error:
                             if not self._is_empty_stream_error(error):
                                 raise
@@ -572,3 +573,11 @@ class ChatOrchestrator:
 
 def format_sse_event(event: StreamEvent) -> str:
     return f"event: {event.name}\ndata: {json.dumps(event.data, ensure_ascii=False)}\n\n"
+
+
+def _stream_text_from_model_event(event: Any) -> str:
+    if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart):
+        return str(event.part.content or "")
+    if isinstance(event, PartDeltaEvent) and hasattr(event.delta, "content_delta"):
+        return str(event.delta.content_delta or "")
+    return ""

@@ -332,6 +332,32 @@ def shanghai_today(hour: int, minute: int = 0) -> str:
     return now.replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
 
 
+def test_chat_stream_text_extractor_reads_part_start_and_part_delta(client: TestClient) -> None:
+    del client
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    orchestrator_module = importlib.import_module("app.ai.orchestrator")
+
+    PartDeltaEvent = messages_module.PartDeltaEvent
+    PartStartEvent = messages_module.PartStartEvent
+    TextPart = messages_module.TextPart
+    TextPartDelta = messages_module.TextPartDelta
+
+    extract_text = orchestrator_module._stream_text_from_model_event
+
+    assert extract_text(
+        PartStartEvent(
+            index=0,
+            part=TextPart("奶奶"),
+        )
+    ) == "奶奶"
+    assert extract_text(
+        PartDeltaEvent(
+            index=0,
+            delta=TextPartDelta("今天情况稳定"),
+        )
+    ) == "今天情况稳定"
+
+
 def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_events(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
