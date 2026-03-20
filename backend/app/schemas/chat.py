@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -35,6 +35,7 @@ class ChatSessionListItem(BaseModel):
 class ChatMessageCreate(BaseModel):
     content: str
     member_id: str | None = None
+    member_selection_mode: Literal["explicit", "auto"] = "explicit"
     page_context: str | None = None
     attachments: list["ChatAttachmentContext"] = Field(default_factory=list)
 

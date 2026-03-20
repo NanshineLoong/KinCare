@@ -12,7 +12,7 @@ import { MarkdownContent } from "./MarkdownContent";
 
 export type ChatMessage = {
   id: string;
-  role: "assistant" | "user";
+  role: "assistant" | "system" | "user";
   content: string;
   sortKey: number;
 };
@@ -32,6 +32,7 @@ type ChatOverlayProps = {
   attachments: ComposerAttachment[];
   draft: string;
   error: string | null;
+  focusLabel: string;
   isBusy: boolean;
   isUploading: boolean;
   memberOptions: MemberOption[];
@@ -90,6 +91,7 @@ export function ChatOverlay({
   attachments,
   draft,
   error,
+  focusLabel,
   isBusy,
   isUploading,
   memberOptions,
@@ -249,6 +251,15 @@ export function ChatOverlay({
             }
 
             const message = item.payload as ChatMessage;
+            if (message.role === "system") {
+              return (
+                <div className="flex justify-center" key={message.id}>
+                  <div className="rounded-full bg-[#F5F0EA] px-4 py-2 text-xs font-semibold text-[#6D8295]">
+                    {message.content}
+                  </div>
+                </div>
+              );
+            }
             return message.role === "assistant" ? (
               <div className="flex max-w-[85%] items-start gap-4" key={message.id}>
                 <div className="rounded-[2rem] rounded-tl-none bg-transparent p-4">
@@ -283,6 +294,7 @@ export function ChatOverlay({
           <ChatInput
             attachments={attachments}
             draft={draft}
+            focusLabel={focusLabel}
             isBusy={isBusy}
             isUploading={isUploading}
             memberOptions={memberOptions}

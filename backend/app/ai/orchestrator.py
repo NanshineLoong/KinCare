@@ -19,6 +19,7 @@ from pydantic_graph import End
 
 from app.ai.agent import create_agent
 from app.ai.deps import AIDeps
+from app.ai.focus import ResolvedChatFocus, resolve_chat_focus
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
@@ -74,13 +75,12 @@ class ChatOrchestrator:
                 page_context=page_context,
             )
 
-    def resolve_session(
+    def get_session(
         self,
         *,
         current_user: CurrentUser,
         session_id: str,
-        member_id: str | None,
-    ) -> tuple[dict[str, Any], str | None]:
+    ) -> dict[str, Any]:
         with self._database.connection() as connection:
             session = chat_sessions.get_session_by_id(connection, session_id)
         if (
@@ -89,15 +89,25 @@ class ChatOrchestrator:
             or session["user_id"] != current_user.id
         ):
             raise ValueError("Chat session not found.")
-        focus_member_id = member_id or session["member_id"]
-        if focus_member_id is not None:
+        return session
+
+    def validate_message_request(
+        self,
+        *,
+        current_user: CurrentUser,
+        session_id: str,
+        member_id: str | None,
+        member_selection_mode: str,
+    ) -> dict[str, Any]:
+        session = self.get_session(current_user=current_user, session_id=session_id)
+        if member_selection_mode == "explicit" and member_id is not None:
             ensure_member_access(
                 self._database,
                 current_user,
-                focus_member_id,
+                member_id,
                 required_permission="read",
             )
-        return session, focus_member_id
+        return session
 
     async def stream_chat(
         self,
@@ -106,25 +116,38 @@ class ChatOrchestrator:
         session_id: str,
         content: str,
         member_id: str | None,
+        member_selection_mode: str,
         page_context: str | None,
         attachments: tuple[Any, ...] = (),
     ) -> AsyncIterator[StreamEvent]:
-        session, focus_member_id = self.resolve_session(
+        session = self.get_session(
             current_user=current_user,
             session_id=session_id,
-            member_id=member_id,
         )
+        focus = resolve_chat_focus(
+            database=self._database,
+            current_user=current_user,
+            previous_member_id=session["member_id"],
+            requested_member_id=member_id,
+            member_selection_mode=member_selection_mode,
+            content=content,
+            attachments=attachments,
+        )
+        focus_metadata = self._focus_metadata(focus)
         history = self._load_latest_message_history(session_id)
         effective_page_context = page_context or session["page_context"]
 
         with self._database.connection() as connection:
+            if focus.member_id is not None and focus.member_id != session["member_id"]:
+                chat_sessions.update_session_member(connection, session_id, focus.member_id)
             chat_sessions.create_message(
                 connection,
                 session_id=session_id,
                 role="user",
                 content=content,
                 metadata={
-                    "member_id": focus_member_id,
+                    **focus_metadata,
+                    "member_id": focus.member_id,
                     "page_context": effective_page_context,
                     "attachments": [attachment.model_dump() for attachment in attachments],
                 },
@@ -134,7 +157,13 @@ class ChatOrchestrator:
             database=self._database,
             current_user=current_user,
             family_space_id=current_user.family_space_id,
-            focus_member_id=focus_member_id,
+            focus_member_id=focus.member_id,
+            focus_member_name=focus.member_name,
+            previous_focus_member_id=focus.previous_member_id,
+            previous_focus_member_name=focus.previous_member_name,
+            focus_resolution_source=focus.resolution_source,
+            focus_changed=focus.focus_changed,
+            visible_members=focus.visible_members,
             scheduler=self._scheduler,
             session_id=session_id,
             page_context=effective_page_context,
@@ -147,7 +176,12 @@ class ChatOrchestrator:
             "session.started",
             {
                 "session_id": session_id,
-                "member_id": focus_member_id,
+                "member_id": focus.member_id,
+                "member_name": focus.member_name,
+                "previous_member_id": focus.previous_member_id,
+                "previous_member_name": focus.previous_member_name,
+                "focus_changed": focus.focus_changed,
+                "resolution_source": focus.resolution_source,
             },
         )
 
@@ -159,7 +193,7 @@ class ChatOrchestrator:
                     "error": "AI 模型尚未配置。请设置 HOMEVITAL_AI_BASE_URL 和 HOMEVITAL_AI_API_KEY。",
                 },
             )
-            self._persist_tool_message(session_id, error_event)
+            self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
             yield error_event
             return
 
@@ -192,14 +226,18 @@ class ChatOrchestrator:
                                     yield StreamEvent("tool.started", {"tool_name": event.part.tool_name})
                                 elif isinstance(event, FunctionToolResultEvent):
                                     tool_event = self._tool_result_event(event)
-                                    self._persist_tool_message(session_id, tool_event)
+                                    self._persist_tool_message(
+                                        session_id,
+                                        tool_event,
+                                        extra_metadata=focus_metadata,
+                                    )
                                     yield tool_event
                     node = await run.next(node)
 
                 result = run.result
         except UsageLimitExceeded as error:
             error_event = StreamEvent("tool.error", {"tool_name": "agent", "error": str(error)})
-            self._persist_tool_message(session_id, error_event)
+            self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
             yield error_event
             return
 
@@ -209,7 +247,10 @@ class ChatOrchestrator:
             self._persist_tool_message(
                 session_id,
                 draft_event,
-                extra_metadata={"message_history": history_payload},
+                extra_metadata={
+                    **focus_metadata,
+                    "message_history": history_payload,
+                },
             )
             yield draft_event
             return
@@ -225,7 +266,8 @@ class ChatOrchestrator:
                 role="assistant",
                 content=assistant_text,
                 metadata={
-                    "member_id": focus_member_id,
+                    **focus_metadata,
+                    "member_id": focus.member_id,
                     "message_history": history_payload,
                 },
             )
@@ -239,10 +281,9 @@ class ChatOrchestrator:
         approvals: dict[str, bool],
         edits: dict[str, dict[str, Any]],
     ) -> dict[str, Any]:
-        session, focus_member_id = self.resolve_session(
+        session = self.get_session(
             current_user=current_user,
             session_id=session_id,
-            member_id=None,
         )
         pending_message = self._load_latest_pending_draft_message(session_id)
         if pending_message is None:
@@ -256,12 +297,24 @@ class ChatOrchestrator:
         if edits:
             raw_history = self._apply_edits_to_history(raw_history, edits)
 
+        focus = self._focus_from_metadata(
+            current_user=current_user,
+            session=session,
+            metadata=metadata,
+        )
+        focus_metadata = self._focus_metadata(focus)
         history = ModelMessagesTypeAdapter.validate_python(raw_history)
         deps = AIDeps(
             database=self._database,
             current_user=current_user,
             family_space_id=current_user.family_space_id,
-            focus_member_id=focus_member_id,
+            focus_member_id=focus.member_id,
+            focus_member_name=focus.member_name,
+            previous_focus_member_id=focus.previous_member_id,
+            previous_focus_member_name=focus.previous_member_name,
+            focus_resolution_source=focus.resolution_source,
+            focus_changed=focus.focus_changed,
+            visible_members=focus.visible_members,
             scheduler=self._scheduler,
             session_id=session_id,
             page_context=session["page_context"],
@@ -293,13 +346,17 @@ class ChatOrchestrator:
                             async for event in tool_stream:
                                 if isinstance(event, FunctionToolResultEvent):
                                     tool_event = self._tool_result_event(event)
-                                    self._persist_tool_message(session_id, tool_event)
+                                    self._persist_tool_message(
+                                        session_id,
+                                        tool_event,
+                                        extra_metadata=focus_metadata,
+                                    )
                                     if tool_event.name == "tool.write_ok":
                                         self._merge_created_counts(created_counts, tool_event.data)
                 result = run.result
         except UsageLimitExceeded as error:
             error_event = StreamEvent("tool.error", {"tool_name": "agent", "error": str(error)})
-            self._persist_tool_message(session_id, error_event)
+            self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
             return {
                 "created_counts": created_counts,
                 "assistant_message": "审批后的执行超过循环上限，请重试。",
@@ -311,7 +368,10 @@ class ChatOrchestrator:
             self._persist_tool_message(
                 session_id,
                 draft_event,
-                extra_metadata={"message_history": history_payload},
+                extra_metadata={
+                    **focus_metadata,
+                    "message_history": history_payload,
+                },
             )
             return {
                 "created_counts": created_counts,
@@ -326,7 +386,8 @@ class ChatOrchestrator:
                 role="assistant",
                 content=assistant_text,
                 metadata={
-                    "member_id": focus_member_id,
+                    **focus_metadata,
+                    "member_id": focus.member_id,
                     "message_history": history_payload,
                 },
             )
@@ -355,6 +416,43 @@ class ChatOrchestrator:
                 continue
             return message
         return None
+
+    def _focus_metadata(self, focus: ResolvedChatFocus) -> dict[str, Any]:
+        return {
+            "resolved_member_id": focus.member_id,
+            "member_name": focus.member_name,
+            "previous_member_id": focus.previous_member_id,
+            "previous_member_name": focus.previous_member_name,
+            "resolution_source": focus.resolution_source,
+            "focus_changed": focus.focus_changed,
+        }
+
+    def _focus_from_metadata(
+        self,
+        *,
+        current_user: CurrentUser,
+        session: dict[str, Any],
+        metadata: dict[str, Any],
+    ) -> ResolvedChatFocus:
+        session_member_id = metadata.get("resolved_member_id") or metadata.get("member_id") or session["member_id"]
+        focus = resolve_chat_focus(
+            database=self._database,
+            current_user=current_user,
+            previous_member_id=metadata.get("previous_member_id"),
+            requested_member_id=session_member_id,
+            member_selection_mode="explicit",
+            content="",
+            attachments=(),
+        )
+        return ResolvedChatFocus(
+            member_id=focus.member_id,
+            member_name=focus.member_name,
+            previous_member_id=focus.previous_member_id,
+            previous_member_name=focus.previous_member_name,
+            focus_changed=bool(metadata.get("focus_changed", focus.focus_changed)),
+            resolution_source=str(metadata.get("resolution_source") or focus.resolution_source),
+            visible_members=focus.visible_members,
+        )
 
     def _persist_tool_message(
         self,

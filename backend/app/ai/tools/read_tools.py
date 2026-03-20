@@ -14,7 +14,7 @@ def register(agent: object) -> None:
     async def get_member_summary(ctx: RunContext[AIDeps]) -> dict[str, Any]:
         member_id = ctx.deps.focus_member_id
         if member_id is None:
-            return {"content": "请先选择要关注的家庭成员。", "meta": {"member_id": None}}
+            return {"content": "当前咨询人还不明确，请先确认是哪位家庭成员。", "meta": {"member_id": None}}
 
         member = ensure_member_access(
             ctx.deps.database,
@@ -59,7 +59,7 @@ def register(agent: object) -> None:
     ) -> dict[str, Any]:
         member_id = ctx.deps.focus_member_id
         if member_id is None:
-            return {"content": "请先选择要关注的家庭成员。", "meta": {"items": []}}
+            return {"content": "当前咨询人还不明确，请先确认是哪位家庭成员。", "meta": {"items": []}}
 
         ensure_member_access(
             ctx.deps.database,
@@ -112,7 +112,7 @@ def register(agent: object) -> None:
 async def _list_resource(ctx: RunContext[AIDeps], resource: str, empty_text: str) -> dict[str, Any]:
     member_id = ctx.deps.focus_member_id
     if member_id is None:
-        return {"content": "请先选择要关注的家庭成员。", "meta": {"items": []}}
+        return {"content": "当前咨询人还不明确，请先确认是哪位家庭成员。", "meta": {"items": []}}
 
     ensure_member_access(
         ctx.deps.database,

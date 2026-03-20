@@ -1135,6 +1135,413 @@ describe("App", () => {
     });
   });
 
+  it("keeps the same chat session when manually switching members and shows a switch marker", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    let sessionCreateCount = 0;
+    let messagePostCount = 0;
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        sessionCreateCount += 1;
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: "member-2",
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        messagePostCount += 1;
+        const body = JSON.parse(String(init?.body));
+        if (messagePostCount === 1) {
+          expect(body.member_id).toBe("member-2");
+          expect(body.member_selection_mode).toBe("explicit");
+          return sseResponse([
+            {
+              event: "session.started",
+              data: {
+                session_id: "chat-1",
+                member_id: "member-2",
+                member_name: "张妈妈",
+                previous_member_id: null,
+                previous_member_name: null,
+                focus_changed: false,
+                resolution_source: "explicit",
+              },
+            },
+            {
+              event: "message.completed",
+              data: { content: "先继续看张妈妈。" },
+            },
+          ]);
+        }
+
+        expect(body.member_id).toBe("member-1");
+        expect(body.member_selection_mode).toBe("explicit");
+        return sseResponse([
+          {
+            event: "session.started",
+            data: {
+              session_id: "chat-1",
+              member_id: "member-1",
+              member_name: "管理员",
+              previous_member_id: "member-2",
+              previous_member_name: "张妈妈",
+              focus_changed: true,
+              resolution_source: "explicit",
+            },
+          },
+          {
+            event: "message.completed",
+            data: { content: "现在改看管理员。" },
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    fireEvent.change(within(dialog).getByRole("combobox"), {
+      target: { value: "member-2" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "先看张妈妈" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(await within(dialog).findByText("先继续看张妈妈。")).toBeInTheDocument();
+    expect(within(dialog).getByText("当前咨询人：张妈妈")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByRole("combobox"), {
+      target: { value: "member-1" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "现在看管理员" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(await within(dialog).findByText("现在改看管理员。")).toBeInTheDocument();
+    expect(within(dialog).getByText("先继续看张妈妈。")).toBeInTheDocument();
+    expect(within(dialog).getByText("已切换咨询人到管理员")).toBeInTheDocument();
+    expect(within(dialog).getByText("当前咨询人：管理员")).toBeInTheDocument();
+    expect(sessionCreateCount).toBe(1);
+  });
+
+  it("shows inferred focus markers when auto mode resolves a member", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: null,
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.member_id).toBeNull();
+        expect(body.member_selection_mode).toBe("auto");
+        return sseResponse([
+          {
+            event: "session.started",
+            data: {
+              session_id: "chat-1",
+              member_id: "member-2",
+              member_name: "张妈妈",
+              previous_member_id: null,
+              previous_member_name: null,
+              focus_changed: true,
+              resolution_source: "inferred",
+            },
+          },
+          {
+            event: "message.completed",
+            data: { content: "已自动识别当前咨询人为张妈妈。" },
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "请根据刚才的报告继续分析" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(
+      await within(dialog).findByText("已自动识别当前咨询人为张妈妈"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("当前咨询人：张妈妈")).toBeInTheDocument();
+  });
+
+  it("restores focus switch markers and the latest focus member from history", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions") {
+        return jsonResponse([
+          {
+            id: "chat-1",
+            member_id: "member-1",
+            title: "家庭健康回顾",
+            summary: "最近一次会话",
+            updated_at: "2026-03-15T08:30:00+08:00",
+          },
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions/chat-1/messages") {
+        return jsonResponse([
+          {
+            id: "msg-1",
+            role: "user",
+            content: "先看张妈妈",
+            metadata: {
+              resolved_member_id: "member-2",
+              member_name: "张妈妈",
+              previous_member_id: null,
+              previous_member_name: null,
+              resolution_source: "explicit",
+              focus_changed: true,
+            },
+            created_at: "2026-03-15T08:10:00+08:00",
+          },
+          {
+            id: "msg-2",
+            role: "assistant",
+            content: "好的，先看张妈妈。",
+            metadata: {
+              resolved_member_id: "member-2",
+              member_name: "张妈妈",
+              previous_member_id: null,
+              previous_member_name: null,
+              resolution_source: "explicit",
+              focus_changed: true,
+            },
+            created_at: "2026-03-15T08:10:05+08:00",
+          },
+          {
+            id: "msg-3",
+            role: "user",
+            content: "再看管理员",
+            metadata: {
+              resolved_member_id: "member-1",
+              member_name: "管理员",
+              previous_member_id: "member-2",
+              previous_member_name: "张妈妈",
+              resolution_source: "explicit",
+              focus_changed: true,
+            },
+            created_at: "2026-03-15T08:12:00+08:00",
+          },
+          {
+            id: "msg-4",
+            role: "assistant",
+            content: "好的，现在切换到管理员。",
+            metadata: {
+              resolved_member_id: "member-1",
+              member_name: "管理员",
+              previous_member_id: "member-2",
+              previous_member_name: "张妈妈",
+              resolution_source: "explicit",
+              focus_changed: true,
+            },
+            created_at: "2026-03-15T08:12:05+08:00",
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("option", { name: /家庭健康回顾/ }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    expect(await within(dialog).findByText("先看张妈妈")).toBeInTheDocument();
+    expect(within(dialog).getByText("好的，现在切换到管理员。")).toBeInTheDocument();
+    expect(within(dialog).getByText("已切换咨询人到管理员")).toBeInTheDocument();
+    expect(within(dialog).getByText("当前咨询人：管理员")).toBeInTheDocument();
+  });
+
+  it("starts a fresh chat only when the new session action is used", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    let sessionCreateCount = 0;
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions") {
+        return jsonResponse([]);
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        sessionCreateCount += 1;
+        return jsonResponse(
+          {
+            id: `chat-${sessionCreateCount}`,
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: null,
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        return sseResponse([
+          {
+            event: "session.started",
+            data: {
+              session_id: "chat-1",
+              member_id: null,
+              member_name: null,
+              previous_member_id: null,
+              previous_member_name: null,
+              focus_changed: false,
+              resolution_source: "unresolved",
+            },
+          },
+          {
+            event: "message.completed",
+            data: { content: "这是第一段会话。" },
+          },
+        ]);
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-2/messages") {
+        return sseResponse([
+          {
+            event: "session.started",
+            data: {
+              session_id: "chat-2",
+              member_id: null,
+              member_name: null,
+              previous_member_id: null,
+              previous_member_name: null,
+              focus_changed: false,
+              resolution_source: "unresolved",
+            },
+          },
+          {
+            event: "message.completed",
+            data: { content: "这是第二段新会话。" },
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "第一段" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+    expect(await within(dialog).findByText("这是第一段会话。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText("这是第一段会话。")).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "第二段" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+    expect(await within(dialog).findByText("这是第二段新会话。")).toBeInTheDocument();
+    expect(sessionCreateCount).toBe(2);
+  });
+
   it("submits remember_me when the login checkbox is selected", async () => {
     fetchMock.mockImplementation(async (input, init) => {
       const pathname = requestPath(input);

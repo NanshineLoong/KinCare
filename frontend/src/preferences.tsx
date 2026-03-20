@@ -165,13 +165,20 @@ const translations = {
     authFooter: "© 2026 家庭健康管理助手. 您的健康，我们的承诺.",
     chatInputLabel: "对话输入框",
     chatInputAddAttachment: "添加附件",
-    chatInputNoMember: "暂不指定成员",
+    chatInputNoMember: "自动识别成员",
+    chatInputFocusMember: (variables?: TemplateVariables) =>
+      `当前咨询人：${variables?.member ?? ""}`,
+    chatInputAutoMember: "自动识别咨询人",
     chatInputCancelVoice: "取消录音",
     chatInputFinishVoice: "结束录音并发送",
     chatInputVoice: "语音输入",
     chatInputSend: "发送文本",
     chatInputMicError: (variables?: TemplateVariables) =>
       `无法访问麦克风: ${variables?.message ?? ""}`,
+    chatFocusSwitched: (variables?: TemplateVariables) =>
+      `已切换咨询人到${variables?.member ?? ""}`,
+    chatFocusInferred: (variables?: TemplateVariables) =>
+      `已自动识别当前咨询人为${variables?.member ?? ""}`,
     chatOverlayLabel: "AI 健康助手",
     chatOverlayUploadAudio: "上传语音",
     chatOverlayClose: "关闭 AI 对话",
@@ -319,13 +326,20 @@ const translations = {
     authFooter: "© 2026 Family Health Companion. Your health, our promise.",
     chatInputLabel: "Chat input",
     chatInputAddAttachment: "Add attachment",
-    chatInputNoMember: "No member selected",
+    chatInputNoMember: "Auto-detect member",
+    chatInputFocusMember: (variables?: TemplateVariables) =>
+      `Current member: ${variables?.member ?? ""}`,
+    chatInputAutoMember: "Auto-detecting member",
     chatInputCancelVoice: "Cancel recording",
     chatInputFinishVoice: "Finish recording and send",
     chatInputVoice: "Voice input",
     chatInputSend: "Send text",
     chatInputMicError: (variables?: TemplateVariables) =>
       `Microphone unavailable: ${variables?.message ?? ""}`,
+    chatFocusSwitched: (variables?: TemplateVariables) =>
+      `Switched focus to ${variables?.member ?? ""}`,
+    chatFocusInferred: (variables?: TemplateVariables) =>
+      `Automatically identified ${variables?.member ?? ""} as the current member`,
     chatOverlayLabel: "AI Health Assistant",
     chatOverlayUploadAudio: "Upload audio",
     chatOverlayClose: "Close AI chat",
