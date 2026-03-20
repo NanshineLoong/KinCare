@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-fixed-dim": "#e8e5e1",
+                        "error": "#9f403d",
+                        "secondary": "#5f5f5f",
+                        "secondary-fixed": "#e3e2e2",
+                        "outline": "#7b7b74",
+                        "surface-container-low": "#f6f3ee",
+                        "primary-container": "#e7e2d9",
+                        "on-tertiary": "#fcf8f4",
+                        "inverse-surface": "#0e0e0c",
+                        "secondary-dim": "#535353",
+                        "on-primary-fixed": "#413f39",
+                        "on-error-container": "#752121",
+                        "secondary-container": "#e3e2e2",
+                        "outline-variant": "#b3b2ab",
+                        "on-secondary-fixed": "#3f3f3f",
+                        "surface-bright": "#fcf9f5",
+                        "inverse-on-surface": "#9e9d99",
+                        "on-primary": "#fdf7ee",
+                        "background": "#fcf9f5",
+                        "primary-fixed": "#e7e2d9",
+                        "primary": "#615e57",
+                        "on-surface-variant": "#5f5f59",
+                        "surface-dim": "#dbdad1",
+                        "on-secondary": "#faf8f8",
+                        "tertiary-dim": "#545350",
+                        "on-tertiary-fixed": "#4a4a47",
+                        "tertiary-fixed": "#f6f3ef",
+                        "surface-container-highest": "#e4e3db",
+                        "on-background": "#32332d",
+                        "on-tertiary-container": "#5d5c59",
+                        "surface-tint": "#615e57",
+                        "surface-variant": "#e4e3db",
+                        "on-primary-container": "#54514b",
+                        "on-secondary-container": "#515252",
+                        "error-container": "#fe8983",
+                        "primary-fixed-dim": "#d9d4cb",
+                        "on-primary-fixed-variant": "#5e5b54",
+                        "on-surface": "#32332d",
+                        "tertiary-container": "#f6f3ef",
+                        "primary-dim": "#55524c",
+                        "surface-container": "#f0eee8",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error": "#fff7f6",
+                        "inverse-primary": "#fef9ef",
+                        "error-dim": "#4e0309",
+                        "surface": "#fcf9f5",
+                        "on-tertiary-fixed-variant": "#676663",
+                        "secondary-fixed-dim": "#d5d4d4",
+                        "on-secondary-fixed-variant": "#5b5b5b",
+                        "tertiary": "#605f5c",
+                        "surface-container-high": "#eae8e1"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #FCF9F5; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e4e3db; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased overflow-hidden">
+<div class="fixed inset-0 z-0 flex flex-col p-12 opacity-40 select-none pointer-events-none">
+<header class="flex justify-between items-center mb-16">
+<h1 class="text-4xl font-headline font-extrabold tracking-tighter text-primary">The Mindful Curator</h1>
+<div class="flex gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-high"></div>
+<div class="w-10 h-10 rounded-full bg-surface-container-high"></div>
+</div>
+</header>
+<div class="grid grid-cols-3 gap-8">
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+</div>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-12 bg-on-surface/5 backdrop-blur-sm">
+<div class="bg-surface-container-lowest w-full max-w-6xl h-[870px] rounded-xl flex shadow-[0_32px_64px_rgba(50,51,45,0.06)] overflow-hidden">
+<aside class="w-64 bg-surface-container-low flex flex-col h-full py-8 space-y-4 border-r-0">
+<div class="px-8 mb-8">
+<h2 class="font-headline font-black text-primary text-xl tracking-tight">设置</h2>
+<p class="font-headline text-xs text-on-surface-variant/60 tracking-tight">管理您的家庭账户</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="group flex items-center px-8 py-3 text-primary font-semibold font-headline text-sm tracking-tight border-r-2 border-primary bg-surface-container-high scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="settings">settings</span>
+                    偏好设置
+                </a>
+<a class="group flex items-center px-8 py-3 text-on-surface-variant/50 font-headline text-sm tracking-tight hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="group">group</span>
+                    成员管理
+                </a>
+<a class="group flex items-center px-8 py-3 text-on-surface-variant/50 font-headline text-sm tracking-tight hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="psychology">psychology</span>
+                    AI 配置
+                </a>
+</nav>
+</aside>
+<main class="flex-1 flex flex-col overflow-hidden bg-surface-container-lowest">
+<header class="px-10 py-8 flex justify-between items-center bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-10">
+<div class="space-y-1">
+<h3 class="text-2xl font-headline font-bold text-primary">偏好设置</h3>
+<p class="text-on-surface-variant text-sm font-body">自定义您的个性化使用体验。</p>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto px-10 pb-12 custom-scrollbar">
+<div class="space-y-4">
+<div class="bg-surface-container rounded-xl overflow-hidden ring-1 ring-primary/5">
+<div class="p-6 flex items-center justify-between">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary shadow-sm">
+<span class="material-symbols-outlined text-2xl" data-icon="language">language</span>
+</div>
+<div>
+<h4 class="font-headline font-bold text-primary">通用设置</h4>
+<p class="text-xs text-on-surface-variant font-medium">语言、时区及地区偏好</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="keyboard_arrow_up">keyboard_arrow_up</span>
+</div>
+<div class="px-8 pb-8 space-y-8">
+<section class="space-y-6 pt-4 border-t border-on-surface/5">
+<div class="flex flex-col gap-1">
+<h5 class="font-headline font-bold text-sm text-on-surface">选择语言</h5>
+<p class="text-xs text-on-surface-variant">选择您在整个界面中偏好使用的语言</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<label class="relative flex items-center justify-between p-8 bg-surface-container-lowest rounded-xl border-2 border-primary cursor-pointer transition-all shadow-sm">
+<div class="flex flex-col">
+<span class="font-headline font-bold text-lg text-primary">简体中文</span>
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-medium mt-1">当前系统语言</span>
+</div>
+<div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px] text-on-primary font-bold" data-icon="check">check</span>
+</div>
+<input checked="" class="hidden" name="language" type="radio"/>
+</label>
+<label class="relative flex items-center justify-between p-8 bg-surface-container-low rounded-xl border-2 border-transparent hover:border-outline-variant/30 cursor-pointer transition-all">
+<div class="flex flex-col">
+<span class="font-headline font-bold text-lg text-on-surface">English</span>
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-medium mt-1">英语</span>
+</div>
+<input class="hidden" name="language" type="radio"/>
+</label>
+</div>
+</section>
+<div class="flex justify-end gap-3 pt-6">
+<button class="px-6 py-2 text-on-surface-variant text-sm font-semibold hover:bg-surface-container-high rounded-md transition-colors">重置</button>
+<button class="px-6 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md shadow-sm">保存通用设置</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

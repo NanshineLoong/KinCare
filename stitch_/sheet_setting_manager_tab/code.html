@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+          tailwind.config = {
+            darkMode: "class",
+            theme: {
+              extend: {
+                colors: {
+                  "tertiary-fixed-dim": "#e8e5e1",
+                  "error": "#9f403d",
+                  "secondary": "#5f5f5f",
+                  "secondary-fixed": "#e3e2e2",
+                  "outline": "#7b7b74",
+                  "surface-container-low": "#f6f3ee",
+                  "primary-container": "#e7e2d9",
+                  "on-tertiary": "#fcf8f4",
+                  "inverse-surface": "#0e0e0c",
+                  "secondary-dim": "#535353",
+                  "on-primary-fixed": "#413f39",
+                  "on-error-container": "#752121",
+                  "secondary-container": "#e3e2e2",
+                  "outline-variant": "#b3b2ab",
+                  "on-secondary-fixed": "#3f3f3f",
+                  "surface-bright": "#fcf9f5",
+                  "inverse-on-surface": "#9e9d99",
+                  "on-primary": "#fdf7ee",
+                  "background": "#fcf9f5",
+                  "primary-fixed": "#e7e2d9",
+                  "primary": "#615e57",
+                  "on-surface-variant": "#5f5f59",
+                  "surface-dim": "#dbdad1",
+                  "on-secondary": "#faf8f8",
+                  "tertiary-dim": "#545350",
+                  "on-tertiary-fixed": "#4a4a47",
+                  "tertiary-fixed": "#f6f3ef",
+                  "surface-container-highest": "#e4e3db",
+                  "on-background": "#32332d",
+                  "on-tertiary-container": "#5d5c59",
+                  "surface-tint": "#615e57",
+                  "surface-variant": "#e4e3db",
+                  "on-primary-container": "#54514b",
+                  "on-secondary-container": "#515252",
+                  "error-container": "#fe8983",
+                  "primary-fixed-dim": "#d9d4cb",
+                  "on-primary-fixed-variant": "#5e5b54",
+                  "on-surface": "#32332d",
+                  "tertiary-container": "#f6f3ef",
+                  "primary-dim": "#55524c",
+                  "surface-container": "#f0eee8",
+                  "surface-container-lowest": "#ffffff",
+                  "on-error": "#fff7f6",
+                  "inverse-primary": "#fef9ef",
+                  "error-dim": "#4e0309",
+                  "surface": "#fcf9f5",
+                  "on-tertiary-fixed-variant": "#676663",
+                  "secondary-fixed-dim": "#d5d4d4",
+                  "on-secondary-fixed-variant": "#5b5b5b",
+                  "tertiary": "#605f5c",
+                  "surface-container-high": "#eae8e1"
+                },
+                fontFamily: {
+                  "headline": ["Manrope"],
+                  "body": ["Inter"],
+                  "label": ["Inter"]
+                },
+                borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+              },
+            },
+          }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #FCF9F5; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e4e3db; border-radius: 10px; }
+        input[type="time"]::-webkit-calendar-picker-indicator {
+            filter: invert(38%) sepia(8%) saturate(343%) hue-rotate(5deg) brightness(94%) contrast(88%);
+        }
+        select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased overflow-hidden">
+<div class="fixed inset-0 z-0 flex flex-col p-12 opacity-40 select-none pointer-events-none">
+<header class="flex justify-between items-center mb-16">
+<h1 class="text-4xl font-headline font-extrabold tracking-tighter text-primary">The Mindful Curator</h1>
+<div class="flex gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-high"></div>
+<div class="w-10 h-10 rounded-full bg-surface-container-high"></div>
+</div>
+</header>
+<div class="grid grid-cols-3 gap-8">
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+</div>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-12 bg-on-surface/5 backdrop-blur-sm">
+<div class="bg-surface-container-lowest w-full max-w-6xl h-[870px] rounded-xl flex shadow-[0_32px_64px_rgba(50,51,45,0.06)] overflow-hidden">
+<aside class="w-64 bg-surface-container-low flex flex-col h-full py-8 space-y-4 border-r-0">
+<div class="px-8 mb-8">
+<h2 class="font-headline font-black text-primary text-xl tracking-tight">设置</h2>
+<p class="font-headline text-xs text-on-surface-variant/60 tracking-tight">管理您的家庭账户</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="group flex items-center px-8 py-3 text-on-surface-variant/50 font-headline text-sm tracking-tight hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="settings">settings</span>
+                        偏好设置
+                    </a>
+<a class="group flex items-center px-8 py-3 text-on-surface-variant/50 font-headline text-sm tracking-tight hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="group">group</span>
+                        成员管理
+                    </a>
+<a class="group flex items-center px-8 py-3 text-primary font-semibold font-headline text-sm tracking-tight border-r-2 border-primary bg-surface-container-high scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="admin_panel_settings">admin_panel_settings</span>
+                        管理员配置
+                    </a>
+</nav>
+</aside>
+<main class="flex-1 flex flex-col overflow-hidden bg-surface-container-lowest">
+<header class="px-10 py-8 flex justify-between items-center bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-10">
+<div class="space-y-1">
+<h3 class="text-2xl font-headline font-bold text-primary">管理员配置</h3>
+<p class="text-on-surface-variant text-sm font-body">配置系统核心参数、更新频率及 AI 模型服务。</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="h-8 w-[1px] bg-outline-variant mx-2 opacity-30"></div>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer" data-icon="notifications">notifications</span>
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Admin user portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOXPbZTKgWtcYaHMum3uYy9RvQLqApouC-1kOmm_ya29C8CsnnPAR32RWlx442pKlUon78iLYPXPwCv7HDq-AfNZmP3VeJ9Kn0XlfEOMyGnkFoRInUB4B0PI8BaPYWR1XH-cjwILPhZBY2yFAuanZO0bDN-6ms5vPaIDCqzpGKcqgWIZhyrPZw-vbIPEuD5UFcOCjQLmgm-lEnRWiEgsnoEOV224LpsjE02sO12WPZKJmOje6a3PlHtRs8_FvcQKmbt73j34dT9VM"/>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto px-10 pb-12 custom-scrollbar">
+<div class="space-y-4">
+<div class="bg-surface-container-low rounded-xl overflow-hidden transition-all group">
+<button class="w-full p-6 flex items-center justify-between text-left focus:outline-none">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary" data-icon="calendar_today">calendar_today</span>
+<h4 class="font-headline font-bold text-on-surface">每日计划更新时间</h4>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-primary transition-colors" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</button>
+</div>
+<div class="bg-surface-container-low rounded-xl overflow-hidden transition-all group">
+<button class="w-full p-6 flex items-center justify-between text-left focus:outline-none">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary" data-icon="health_and_safety">health_and_safety</span>
+<h4 class="font-headline font-bold text-on-surface">每日健康状态更新时间</h4>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-primary transition-colors" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</button>
+</div>
+<div class="bg-surface-container rounded-xl overflow-hidden ring-1 ring-primary/5">
+<button class="w-full p-6 flex items-center justify-between text-left focus:outline-none">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary" data-icon="chat_bubble_outline">chat_bubble_outline</span>
+<h4 class="font-headline font-bold text-primary">对话模型配置</h4>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="keyboard_arrow_up">keyboard_arrow_up</span>
+</button>
+<div class="px-8 pb-8 space-y-6">
+<div class="grid grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Base URL</label>
+<input class="w-full bg-surface-container-lowest border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm focus:ring-primary focus:border-primary transition-all" placeholder="API 基础地址" type="text" value="https://api.openai.com/v1"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">API Key</label>
+<input class="w-full bg-surface-container-lowest border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm focus:ring-primary focus:border-primary transition-all" placeholder="您的 API 密钥" type="password" value="sk-••••••••••••••••"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">模型名称</label>
+<select class="w-full bg-surface-container-lowest border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm focus:ring-primary focus:border-primary transition-all">
+<option>gpt-4-turbo</option>
+<option>gpt-4o</option>
+<option>gpt-3.5-turbo</option>
+<option>claude-3-5-sonnet</option>
+</select>
+</div>
+<div class="flex justify-end pt-4 border-t border-on-surface/5">
+<button class="px-6 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md shadow-sm hover:opacity-90 transition-opacity">保存模型更改</button>
+</div>
+</div>
+</div>
+<div class="bg-surface-container rounded-xl overflow-hidden ring-1 ring-primary/5">
+<button class="w-full p-6 flex items-center justify-between text-left focus:outline-none">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary" data-icon="record_voice_over">record_voice_over</span>
+<h4 class="font-headline font-bold text-primary">语音转录配置</h4>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="keyboard_arrow_up">keyboard_arrow_up</span>
+</button>
+<div class="px-8 pb-8 space-y-6">
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">提供商 (Provider)</label>
+<div class="flex gap-4">
+<label class="flex-1 cursor-pointer">
+<input checked="" class="hidden peer" name="provider" type="radio" value="openai"/>
+<div class="p-4 border-2 border-outline-variant/20 rounded-xl flex items-center gap-3 peer-checked:border-primary peer-checked:bg-primary/5 transition-all">
+<span class="material-symbols-outlined text-primary" data-icon="cloud">cloud</span>
+<span class="text-sm font-semibold">OpenAI API</span>
+</div>
+</label>
+<label class="flex-1 cursor-pointer">
+<input class="hidden peer" name="provider" type="radio" value="local"/>
+<div class="p-4 border-2 border-outline-variant/20 rounded-xl flex items-center gap-3 peer-checked:border-primary peer-checked:bg-primary/5 transition-all">
+<span class="material-symbols-outlined text-primary" data-icon="computer">computer</span>
+<span class="text-sm font-semibold">本地 Whisper 模型</span>
+</div>
+</label>
+</div>
+</div>
+<div class="space-y-6 bg-surface-container-lowest/50 p-6 rounded-xl border border-outline-variant/10">
+<div class="grid grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">API Key</label>
+<input class="w-full bg-surface-container-lowest border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm focus:ring-primary focus:border-primary transition-all" type="password" value="sk-••••••••"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">模型</label>
+<select class="w-full bg-surface-container-lowest border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm focus:ring-primary focus:border-primary transition-all">
+<option>whisper-1</option>
+</select>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">转录语言</label>
+<select class="w-full bg-surface-container-lowest border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm focus:ring-primary focus:border-primary transition-all">
+<option>自动检测</option>
+<option>简体中文</option>
+<option>英语</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">转录超时时间 (秒)</label>
+<input class="w-full bg-surface-container-lowest border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm focus:ring-primary focus:border-primary transition-all" type="number" value="60"/>
+</div>
+</div>
+</div>
+<div class="flex justify-end pt-4 border-t border-on-surface/5">
+<button class="px-6 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md shadow-sm hover:opacity-90 transition-opacity">应用转录配置</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

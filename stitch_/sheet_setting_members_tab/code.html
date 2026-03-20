@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+          tailwind.config = {
+            darkMode: "class",
+            theme: {
+              extend: {
+                colors: {
+                  "tertiary-fixed-dim": "#e8e5e1",
+                  "error": "#9f403d",
+                  "secondary": "#5f5f5f",
+                  "secondary-fixed": "#e3e2e2",
+                  "outline": "#7b7b74",
+                  "surface-container-low": "#f6f3ee",
+                  "primary-container": "#e7e2d9",
+                  "on-tertiary": "#fcf8f4",
+                  "inverse-surface": "#0e0e0c",
+                  "secondary-dim": "#535353",
+                  "on-primary-fixed": "#413f39",
+                  "on-error-container": "#752121",
+                  "secondary-container": "#e3e2e2",
+                  "outline-variant": "#b3b2ab",
+                  "on-secondary-fixed": "#3f3f3f",
+                  "surface-bright": "#fcf9f5",
+                  "inverse-on-surface": "#9e9d99",
+                  "on-primary": "#fdf7ee",
+                  "background": "#fcf9f5",
+                  "primary-fixed": "#e7e2d9",
+                  "primary": "#615e57",
+                  "on-surface-variant": "#5f5f59",
+                  "surface-dim": "#dbdad1",
+                  "on-secondary": "#faf8f8",
+                  "tertiary-dim": "#545350",
+                  "on-tertiary-fixed": "#4a4a47",
+                  "tertiary-fixed": "#f6f3ef",
+                  "surface-container-highest": "#e4e3db",
+                  "on-background": "#32332d",
+                  "on-tertiary-container": "#5d5c59",
+                  "surface-tint": "#615e57",
+                  "surface-variant": "#e4e3db",
+                  "on-primary-container": "#54514b",
+                  "on-secondary-container": "#515252",
+                  "error-container": "#fe8983",
+                  "primary-fixed-dim": "#d9d4cb",
+                  "on-primary-fixed-variant": "#5e5b54",
+                  "on-surface": "#32332d",
+                  "tertiary-container": "#f6f3ef",
+                  "primary-dim": "#55524c",
+                  "surface-container": "#f0eee8",
+                  "surface-container-lowest": "#ffffff",
+                  "on-error": "#fff7f6",
+                  "inverse-primary": "#fef9ef",
+                  "error-dim": "#4e0309",
+                  "surface": "#fcf9f5",
+                  "on-tertiary-fixed-variant": "#676663",
+                  "secondary-fixed-dim": "#d5d4d4",
+                  "on-secondary-fixed-variant": "#5b5b5b",
+                  "tertiary": "#605f5c",
+                  "surface-container-high": "#eae8e1"
+                },
+                fontFamily: {
+                  "headline": ["Manrope"],
+                  "body": ["Inter"],
+                  "label": ["Inter"]
+                },
+                borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+              },
+            },
+          }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #FCF9F5; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e4e3db; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased overflow-hidden">
+<div class="fixed inset-0 z-0 flex flex-col p-12 opacity-40 select-none pointer-events-none">
+<header class="flex justify-between items-center mb-16">
+<h1 class="text-4xl font-headline font-extrabold tracking-tighter text-primary">The Mindful Curator</h1>
+<div class="flex gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-high"></div>
+<div class="w-10 h-10 rounded-full bg-surface-container-high"></div>
+</div>
+</header>
+<div class="grid grid-cols-3 gap-8">
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+</div>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-12 bg-on-surface/5 backdrop-blur-sm">
+<div class="bg-surface-container-lowest w-full max-w-6xl h-[870px] rounded-xl flex shadow-[0_32px_64px_rgba(50,51,45,0.06)] overflow-hidden">
+<aside class="w-64 bg-surface-container-low flex flex-col h-full py-8 space-y-4 border-r-0">
+<div class="px-8 mb-8">
+<h2 class="font-headline font-black text-primary text-xl tracking-tight">设置</h2>
+<p class="font-headline text-xs text-on-surface-variant/60 tracking-tight">管理您的家庭账户</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="group flex items-center px-8 py-3 text-on-surface-variant/50 font-headline text-sm tracking-tight hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="settings">settings</span>
+                        偏好设置
+                    </a>
+<a class="group flex items-center px-8 py-3 text-primary font-semibold font-headline text-sm tracking-tight border-r-2 border-primary bg-surface-container-high scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="group">group</span>
+                        成员管理
+                    </a>
+<a class="group flex items-center px-8 py-3 text-on-surface-variant/50 font-headline text-sm tracking-tight hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined mr-3 text-lg" data-icon="psychology">psychology</span>
+                        AI 配置
+                    </a>
+</nav>
+</aside>
+<main class="flex-1 flex flex-col overflow-hidden bg-surface-container-lowest">
+<header class="px-10 py-8 flex justify-between items-center bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-10">
+<div class="space-y-1">
+<h3 class="text-2xl font-headline font-bold text-primary">成员管理</h3>
+<p class="text-on-surface-variant text-sm font-body">管理家庭圈的权限和数据可见性。</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-5 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+                            添加新成员
+                        </button>
+<div class="h-8 w-[1px] bg-outline-variant mx-2 opacity-30"></div>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="notifications">notifications</span>
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Admin user portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOXPbZTKgWtcYaHMum3uYy9RvQLqApouC-1kOmm_ya29C8CsnnPAR32RWlx442pKlUon78iLYPXPwCv7HDq-AfNZmP3VeJ9Kn0XlfEOMyGnkFoRInUB4B0PI8BaPYWR1XH-cjwILPhZBY2yFAuanZO0bDN-6ms5vPaIDCqzpGKcqgWIZhyrPZw-vbIPEuD5UFcOCjQLmgm-lEnRWiEgsnoEOV224LpsjE02sO12WPZKJmOje6a3PlHtRs8_FvcQKmbt73j34dT9VM"/>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto px-10 pb-12 custom-scrollbar">
+<div class="space-y-4">
+<div class="p-6 bg-surface-container-low rounded-xl flex items-center justify-between border-transparent transition-all">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 rounded-full border-2 border-surface-container-lowest overflow-hidden shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Sarah Chen portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBqwClOWmuoxHn3Ne8lkI8KHipVOXg7Pj4ucYhiFj80sG_PhhVGuaTUSXRZfTeZvdpiiTRu_aLYpL_OkwvVKH4qzBQApy45NEw0eIuOJWelklLm4hMZ_OcKa6J2Zt4KoxfSCQmaLm6mbt_O8NQIalR4cDRa0R8OKtxaqEb1pZ-Z62W1frgxwBc1LiyvUv8e5oOF9qLgloqyOiSkrTWa0MjBcWnzmw9xAyDIuPgjGiVHMK9rKeoTdZcDf6T85MfwF1o50Ihuar5OMFE"/>
+</div>
+<div>
+<h4 class="font-headline font-bold text-on-surface">Sarah Chen</h4>
+<p class="text-xs text-on-surface-variant font-medium">家庭管理员</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</div>
+<div class="bg-surface-container rounded-xl overflow-hidden ring-1 ring-primary/5">
+<div class="p-6 flex items-center justify-between">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 rounded-full border-2 border-surface-container-lowest overflow-hidden shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Julianne Moore portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUQLOhPP2GqFu3ML-jrL-HDZfMUSkgsGeRE810KVG4ng1GqJ4QYIoulC4Vj8EfvRPCaihfwljSnsgZY3dkD6z0ZwNNY966FU5NH1Cd1ha-ycXHlE3ZAtFr1qr27I7w4DFTpKvdfi55F456nJh6wcKxjqK40iG2UsApVtcwXf9Ud45dE6Wzi6Semm5tvnzoRpMDkO0ZxtC_Ckt_r7dwQzvnhCLyeRG8OSrC6qY16m9-soDAgNVIA6i3RJJgvYxzvz6Y1dUeP1Z1-Oo"/>
+</div>
+<div>
+<h4 class="font-headline font-bold text-primary">Julianne Moore</h4>
+<p class="text-xs text-on-surface-variant font-medium">普通成员</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="keyboard_arrow_up">keyboard_arrow_up</span>
+</div>
+<div class="px-8 pb-8 space-y-8">
+<div class="flex items-center justify-between py-4 border-t border-on-surface/5">
+<div class="flex flex-col">
+<span class="font-headline font-bold text-on-surface text-sm">管理权限</span>
+<span class="text-xs text-on-surface-variant">允许该用户管理其他成员的权限</span>
+</div>
+<div class="w-11 h-6 bg-primary rounded-full relative cursor-pointer shadow-inner">
+<div class="absolute right-1 top-1 w-4 h-4 bg-surface-container-lowest rounded-full shadow-sm"></div>
+</div>
+</div>
+<section class="space-y-4">
+<h5 class="font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant">读取权限</h5>
+<div class="flex gap-4 items-center">
+<div class="relative group">
+<div class="w-10 h-10 rounded-full border-2 border-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Self portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgB3_Z6IA75J7Zn_kQU3-EVNlIZd7777QJo5jA4p2ax4lfawtOqQdRE0J_IO38Z0u6-9LsaJRVc-I5WfnDaJKb_U1tOtGepSuMBds9MwOYvVaXx2EHeZQtXf3L5VpIHLhnQFfNlus9dNHh7ylTgf_te5nesNyzAiabdRsnX2KPK-zYt3ZUB4oFKWLtMfYKDZBDnSHa9nYAmHKcHyvDruf16NJMiRff3ZbSmMxw6ngtdNIJlq7wlP6sgX1rHas6jH7YxJXaPLQSgvs"/>
+</div>
+<div class="absolute -top-1 -right-1 w-4 h-4 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[10px] font-bold" data-icon="check">check</span>
+</div>
+</div>
+<div class="relative group opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all cursor-pointer">
+<div class="w-10 h-10 rounded-full border-2 border-surface-container-lowest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Sarah member" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNLiU4s2TpBdO0F_C0UOvFmkC8OoHFJ2-EQPHyjnV7U7as-ahwiOT5lucXxtX654e_QWbGdOG0E5X2RXUay86Gqag947wq3ffntpJXRxFE8srF0PGcpoBVUyFIUeams5c4mjZXikEnlUG8pjNMfvkw_Un1nObVFboSmtveK29mLI9rUCmHNSqJy5mq5iFlORJpLlP_Gbojm_hXtTHfTYIgPQVfVADZ7SrI9oI6m0I9cKi_O7ege05aU4SdfMvJsiHtzd9IQQmQ11I"/>
+</div>
+</div>
+<div class="relative group">
+<div class="w-10 h-10 rounded-full border-2 border-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Julian member" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmVbz9xJBNpQqmFYiRDpfWeoOreTUMpwqPuIQc2L2_RX-hOouagVGflGNMunz8dTU5l6Sszx8S_ojLCIdOoMba4lEVphH2WfL-4UNowkF7K7jVFZZNzrXMqiCpOgwpGvoOBTWT91P8YZisoYDzys9C82XlboaGOhyFseeNpb3SmzesMbzNor2M_g_g0V2CaV5kvwtXsPq4LhDszIJ-mwXCezpnAQm8yH1T5JPUh-3Cdis1VXF_Fyphissf78NzpPwH-ot_mmJ3NGM"/>
+</div>
+<div class="absolute -top-1 -right-1 w-4 h-4 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[10px] font-bold" data-icon="check">check</span>
+</div>
+</div>
+<button class="w-10 h-10 rounded-full border border-dashed border-on-surface-variant/30 flex items-center justify-center text-on-surface-variant hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+</section>
+<section class="space-y-4">
+<h5 class="font-headline font-bold text-xs uppercase tracking-widest text-on-surface-variant">写入权限</h5>
+<div class="flex gap-4 items-center">
+<div class="relative group">
+<div class="w-10 h-10 rounded-full border-2 border-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Self portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHJ9ltd933GMggljvSmC74oWC4P9ohtQgI6ZHNeeYy5606p9jcKe17hTX1pvm8Zd3yob7h49re3p3unDcih1q8NTDAKr1DC_nnuzbLku7yb3VPk7xzjGAHCWBKmowfCfcMNXve750jsR0YshG5vmpmkab4NgW1DNrm_djCCkvTdFnuY7UqDMCqMGEmXISwXQDzI9o7OoKYEAXr3nfq1oxsZddVhfndN8_SW-Engd-D8w_3VR9GiGazYqMkDhe2qpBN8SRfdla_m9s"/>
+</div>
+<div class="absolute -top-1 -right-1 w-4 h-4 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[10px] font-bold" data-icon="check">check</span>
+</div>
+</div>
+<div class="relative group opacity-50 grayscale cursor-pointer">
+<div class="w-10 h-10 rounded-full border-2 border-surface-container-lowest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Other member" src="https://lh3.googleusercontent.com/aida-public/AB6AXuALVPnY5taNwCICM-e73sA2M5BQrF4qAy-AcMEwD5epc8gvXyLYu2JPnFUOaBiguYpoEXnMKxvz69fVJhgxNDbWyVUTJUoFIKeWhI30PkNWT7oO_fsMDwIQ08CPufUtHWejqp9a7Wd0c0WyvRan33YgagDVW_yYbGP7FYtf-zqwlfGhGxEEhuqpm0C_cJJ0i2YUWR2v4oXlUhRMDSjvU56ANsEX1lXS2Hb8JvITaG8NAjXW8m7qutlCmNE86tkDBxgltZ9qqNGaU3g"/>
+</div>
+</div>
+<button class="w-10 h-10 rounded-full border border-dashed border-on-surface-variant/30 flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+</button>
+</div>
+</section>
+<div class="flex justify-end gap-3 pt-4 border-t border-on-surface/5">
+<button class="px-6 py-2 text-on-surface-variant text-sm font-semibold hover:bg-surface-container-high rounded-md transition-colors">取消</button>
+<button class="px-6 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md shadow-sm">保存更改</button>
+</div>
+</div>
+</div>
+<div class="p-6 bg-surface-container-low rounded-xl flex items-center justify-between border-transparent transition-all">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 rounded-full border-2 border-surface-container-lowest overflow-hidden shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Julian Chen portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQydNPhdoH0qB1oQBxWCcvcuEBTMtwUV97gBN2wF1wwl-DvfEPxO8tfFdQdUMUpRcvAq9FaXUFD8myrFw6yqY-234kZjZcV0b_Y2Qs8xKGCmG4XXDiJOM3fKC7yniKBG2H2xDsFvlKKGca_rvT51baklVc3q7vFtHPCA00mrH4eJj1Oq4f8Ly2mldPRvLG6_mdLIlIV8v3eWoVg84IDCCq0JC19LJOHVaJFV5Wb1V_z_43XVP35qLbmimZ59pdIDhOev9fW1LkT2U"/>
+</div>
+<div>
+<h4 class="font-headline font-bold text-on-surface">Julian Chen</h4>
+<p class="text-xs text-on-surface-variant font-medium">子女成员</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>
