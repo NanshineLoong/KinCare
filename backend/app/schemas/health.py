@@ -497,6 +497,12 @@ class DashboardRead(BaseModel):
     reminder_groups: list[DashboardReminderGroup] = Field(default_factory=list)
 
 
+class DailyGenerationRefreshResult(BaseModel):
+    member_ids: list[str] = Field(default_factory=list)
+    failed_member_ids: list[str] = Field(default_factory=list)
+    errors: dict[str, str] = Field(default_factory=dict)
+
+
 _HEALTH_RECORD_CREATE_PAYLOAD_MODELS = {
     "observations": HealthRecordObservationDraft,
     "conditions": HealthRecordConditionDraft,

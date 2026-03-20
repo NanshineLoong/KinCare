@@ -7,6 +7,8 @@ import { HomePage } from "./HomePage";
 
 const transcribeAudioMock = vi.fn();
 const getDashboardMock = vi.fn();
+const refreshDashboardTodayRemindersMock = vi.fn();
+const refreshMemberHealthSummariesMock = vi.fn();
 
 vi.mock("../api/chat", () => ({
   transcribeAudio: (...args: unknown[]) => transcribeAudioMock(...args),
@@ -14,6 +16,10 @@ vi.mock("../api/chat", () => ({
 
 vi.mock("../api/health", () => ({
   getDashboard: (...args: unknown[]) => getDashboardMock(...args),
+  refreshDashboardTodayReminders: (...args: unknown[]) =>
+    refreshDashboardTodayRemindersMock(...args),
+  refreshMemberHealthSummaries: (...args: unknown[]) =>
+    refreshMemberHealthSummariesMock(...args),
 }));
 
 vi.mock("../components/ChatInput", () => ({
@@ -74,6 +80,8 @@ describe("HomePage", () => {
   beforeEach(() => {
     transcribeAudioMock.mockReset();
     getDashboardMock.mockReset();
+    refreshDashboardTodayRemindersMock.mockReset();
+    refreshMemberHealthSummariesMock.mockReset();
     getDashboardMock.mockResolvedValue({
       members: [],
       today_reminders: [],
@@ -103,5 +111,55 @@ describe("HomePage", () => {
         "帮妈妈记录今天血压正常",
       );
     });
+  });
+
+  it("renders a single untitled placeholder when a member has no summaries", async () => {
+    getDashboardMock.mockResolvedValue({
+      members: [
+        {
+          member: {
+            id: "member-2",
+            name: "张妈妈",
+            gender: "female",
+            avatar_url: null,
+            blood_type: "A+",
+          },
+          health_summaries: [],
+        },
+      ],
+      today_reminders: [],
+      reminder_groups: [],
+    });
+
+    render(
+      <PreferencesProvider>
+        <HomePage
+          isLoadingMembers={false}
+          members={[
+            {
+              id: "member-2",
+              family_space_id: "family-1",
+              user_account_id: null,
+              name: "张妈妈",
+              gender: "female",
+              birth_date: "1958-04-12",
+              height_cm: 158,
+              blood_type: "A+",
+              avatar_url: null,
+              created_at: "2026-03-15T08:00:00Z",
+              updated_at: "2026-03-15T08:00:00Z",
+              permission_level: "read",
+            },
+          ]}
+          membersError={null}
+          session={session}
+        />
+      </PreferencesProvider>,
+    );
+
+    expect(await screen.findByText("期待新纪录")).toBeInTheDocument();
+    expect(screen.queryByText("慢病管理")).not.toBeInTheDocument();
+    expect(screen.queryByText("生活习惯")).not.toBeInTheDocument();
+    expect(screen.queryByText("生理指标")).not.toBeInTheDocument();
   });
 });

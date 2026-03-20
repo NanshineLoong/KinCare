@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 
 import {
   getDashboard,
+  refreshDashboardTodayReminders,
+  refreshMemberHealthSummaries,
+  type DailyGenerationRefreshResponse,
   type DashboardMemberSummary,
   type DashboardReminder,
   type DashboardResponse,
 } from "../api/health";
 import { transcribeAudio } from "../api/chat";
 import type { AuthMember, AuthSession } from "../auth/session";
+import { buildHealthSummaryCards } from "../healthSummaryCards";
 import { usePreferences } from "../preferences";
 
 // ─── Tiny helpers ──────────────────────────────────────────────────────────────
@@ -53,13 +57,14 @@ type HomePageProps = {
   onOpenChat?: () => void;
   onOpenMemberProfile?: (memberId: string) => void;
   onQueueChatMessage?: (message: string) => void;
+  onRefreshData?: () => void;
   onAudioUpload?: (file: File) => void;
   refreshToken?: number;
   session: AuthSession;
 };
 
 type SummaryChip = {
-  label: string;
+  label: string | null;
   summary: string;
   tone: string;
   status: "good" | "warning" | "alert" | undefined;
@@ -111,13 +116,6 @@ function statusDot(status: "good" | "warning" | "alert" | undefined): string {
   return "bg-gray-300";
 }
 
-function healthSummaryItem(
-  summary: DashboardMemberSummary | undefined,
-  category: string,
-) {
-  return summary?.health_summaries?.find((item) => item.category === category);
-}
-
 function latestSummaryTime(
   summary: DashboardMemberSummary | undefined,
 ): string | null {
@@ -149,61 +147,15 @@ function formatRefreshTime(value: string | null): string {
 function buildSummaryChips(
   summary: DashboardMemberSummary | undefined,
 ): SummaryChip[] {
-  const fallback = (label: string): SummaryChip => ({
-    label,
-    summary: "期待新记录",
-    tone: "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray",
-    status: undefined,
-  });
-
-  const categories: { cat: string; fallbackLabel: string }[] = [
-    { cat: "chronic-vitals", fallbackLabel: "慢病管理" },
-    { cat: "lifestyle", fallbackLabel: "生活习惯" },
-    { cat: "body-vitals", fallbackLabel: "生理指标" },
-  ];
-
-  const chips: SummaryChip[] = categories.map(({ cat, fallbackLabel }) => {
-    const item = healthSummaryItem(summary, cat);
-    if (!item) return fallback(fallbackLabel);
-    return {
-      label: item.label,
-      summary: item.value,
-      tone: dashboardChipTone(
-        item.status,
-        "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray",
-      ),
-      status: item.status,
-    };
-  });
-
-  // 4th chip: mood or overall status
-  const moodItem =
-    healthSummaryItem(summary, "mood") ?? summary?.health_summaries?.[3];
-  if (moodItem) {
-    chips.push({
-      label: moodItem.label,
-      summary: moodItem.value,
-      tone: dashboardChipTone(
-        moodItem.status,
-        "border-[#FAE6D8] bg-[#FEF5ED] text-[#A67C52]",
-      ),
-      status: moodItem.status,
-    });
-  } else {
-    const count = summary?.health_summaries?.length ?? 0;
-    chips.push(
-      count > 0
-        ? {
-          label: "摘要状态",
-          summary: `已生成 ${count} 条摘要`,
-          tone: "border-[#FAE6D8] bg-[#FEF5ED] text-[#A67C52]",
-          status: undefined,
-        }
-        : fallback("摘要状态"),
-    );
-  }
-
-  return chips;
+  return buildHealthSummaryCards(summary?.health_summaries).map((item) => ({
+    label: item.label,
+    summary: item.content,
+    tone: dashboardChipTone(
+      item.status,
+      "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray",
+    ),
+    status: item.status,
+  }));
 }
 
 // ─── Reminder grouping ─────────────────────────────────────────────────────────
@@ -314,9 +266,34 @@ function permissionLabel(
   };
 }
 
+function canRefreshMemberSummary(member: AuthMember, session: AuthSession) {
+  return (
+    session.user.role === "admin" ||
+    member.id === session.member.id ||
+    member.permission_level === "write" ||
+    member.permission_level === "manage"
+  );
+}
+
+function buildRefreshError(
+  result: DailyGenerationRefreshResponse,
+  fallbackMessage: string,
+) {
+  if (result.member_ids.length > 0) {
+    return null;
+  }
+
+  const firstError = Object.values(result.errors)[0];
+  return firstError || fallbackMessage;
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
 import { ChatInput } from "../components/ChatInput";
+
+/** Space below scrollable panels so content clears the fixed bottom composer (gradient + ChatInput, incl. multi-line). */
+const HOME_SCROLL_BOTTOM_PAD =
+  "pb-[calc(16rem+env(safe-area-inset-bottom,0px))]";
 
 export function HomePage({
   isLoadingMembers,
@@ -325,6 +302,7 @@ export function HomePage({
   onOpenChat,
   onOpenMemberProfile,
   onQueueChatMessage,
+  onRefreshData,
   onAudioUpload,
   refreshToken = 0,
   session,
@@ -333,6 +311,10 @@ export function HomePage({
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const [isRefreshingCarePlans, setIsRefreshingCarePlans] = useState(false);
+  const [refreshingMemberId, setRefreshingMemberId] = useState<string | null>(
+    null,
+  );
   const [isTranscribingComposer, setIsTranscribingComposer] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
@@ -344,6 +326,9 @@ export function HomePage({
   );
   const reminderGroups = groupReminders(dashboard?.today_reminders ?? []);
   const totalReminders = dashboard?.today_reminders?.length ?? 0;
+  const canRefreshAnyCarePlan = visibleMembers.some((member) =>
+    canRefreshMemberSummary(member, session),
+  );
 
   async function loadDashboardData() {
     setIsLoadingDashboard(true);
@@ -368,6 +353,14 @@ export function HomePage({
     void loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshToken, session]);
+
+  async function syncAfterManualRefresh() {
+    if (onRefreshData) {
+      onRefreshData();
+      return;
+    }
+    await loadDashboardData();
+  }
 
   function handleOpenChat() {
     onOpenChat?.();
@@ -396,6 +389,52 @@ export function HomePage({
       );
     } finally {
       setIsTranscribingComposer(false);
+    }
+  }
+
+  async function handleRefreshMemberSummary(member: AuthMember) {
+    setRefreshingMemberId(member.id);
+    setDashboardError(null);
+    try {
+      const result = await refreshMemberHealthSummaries(session, member.id);
+      const errorMessage = buildRefreshError(
+        result,
+        "AI 健康摘要刷新失败，请稍后重试。",
+      );
+      if (errorMessage) {
+        throw new Error(errorMessage);
+      }
+      await syncAfterManualRefresh();
+    } catch (error) {
+      setDashboardError(
+        error instanceof Error
+          ? error.message
+          : "AI 健康摘要刷新失败，请稍后重试。",
+      );
+    } finally {
+      setRefreshingMemberId(null);
+    }
+  }
+
+  async function handleRefreshCarePlans() {
+    setIsRefreshingCarePlans(true);
+    setDashboardError(null);
+    try {
+      const result = await refreshDashboardTodayReminders(session);
+      const errorMessage = buildRefreshError(
+        result,
+        "今日提醒刷新失败，请稍后重试。",
+      );
+      if (errorMessage) {
+        throw new Error(errorMessage);
+      }
+      await syncAfterManualRefresh();
+    } catch (error) {
+      setDashboardError(
+        error instanceof Error ? error.message : "今日提醒刷新失败，请稍后重试。",
+      );
+    } finally {
+      setIsRefreshingCarePlans(false);
     }
   }
 
@@ -431,7 +470,9 @@ export function HomePage({
           ) : null}
 
           {/* Member cards — scrollable */}
-          <div className="flex-1 min-h-0 space-y-4 overflow-y-auto no-scrollbar pb-24">
+          <div
+            className={`flex-1 min-h-0 space-y-4 overflow-y-auto no-scrollbar ${HOME_SCROLL_BOTTOM_PAD}`}
+          >
             {visibleMembers.map((member) => {
               const summaryData = memberSummaries.get(member.id);
               const chips = buildSummaryChips(summaryData);
@@ -482,10 +523,14 @@ export function HomePage({
                           className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${statusDot(chip.status)}`}
                         />
                         <div className="min-w-0">
-                          <p className="font-semibold uppercase tracking-[0.18em] text-current/60 truncate">
-                            {chip.label}
-                          </p>
-                          <p className="mt-1 font-bold text-current leading-snug">
+                          {chip.label ? (
+                            <p className="font-semibold uppercase tracking-[0.18em] text-current/60 truncate">
+                              {chip.label}
+                            </p>
+                          ) : null}
+                          <p
+                            className={`${chip.label ? "mt-1 " : ""}font-bold text-current leading-snug`}
+                          >
                             {chip.summary}
                           </p>
                         </div>
@@ -507,10 +552,17 @@ export function HomePage({
                     <button
                       aria-label={`刷新 ${member.name} 的数据`}
                       className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#4A443F]"
-                      onClick={() => void loadDashboardData()}
+                      disabled={
+                        refreshingMemberId === member.id ||
+                        !canRefreshMemberSummary(member, session)
+                      }
+                      onClick={() => void handleRefreshMemberSummary(member)}
                       type="button"
                     >
-                      <MaterialIcon className="text-base" name="refresh" />
+                      <MaterialIcon
+                        className={`text-base ${refreshingMemberId === member.id ? "animate-spin" : ""}`}
+                        name="refresh"
+                      />
                     </button>
                   </div>
                 </article>
@@ -542,14 +594,15 @@ export function HomePage({
             </div>
             <button
               className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-[#4A443F] shadow-soft transition hover:shadow-md"
-              onClick={() => void loadDashboardData()}
+              disabled={isRefreshingCarePlans || !canRefreshAnyCarePlan}
+              onClick={() => void handleRefreshCarePlans()}
               type="button"
             >
               <MaterialIcon
-                className={`text-sm ${isLoadingDashboard ? "animate-spin" : ""}`}
+                className={`text-sm ${(isRefreshingCarePlans || isLoadingDashboard) ? "animate-spin" : ""}`}
                 name="event_repeat"
               />
-              {isLoadingDashboard ? t("homeRefreshing") : t("homeRefresh")}
+              {isRefreshingCarePlans ? t("homeRefreshing") : t("homeRefresh")}
             </button>
           </div>
 
@@ -584,34 +637,30 @@ export function HomePage({
           ) : null}
 
           {/* Reminder groups — scrollable */}
-          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-8 pb-24 pr-2">
+          <div
+            className={`flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-6 pr-2 ${HOME_SCROLL_BOTTOM_PAD}`}
+          >
             {reminderGroups.map((group) => (
-              <section className="space-y-4" key={group.key}>
+              <section className="space-y-3" key={group.key}>
                 {/* Group header */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full ${group.iconBg} ${group.iconColor}`}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full ${group.iconBg} ${group.iconColor}`}
                   >
-                    <MaterialIcon
-                      className="text-xl"
-                      name={group.materialIcon}
-                    />
+                    <MaterialIcon className="text-lg" name={group.materialIcon} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-[#2D2926]">
+                    <h3 className="text-base font-bold text-[#2D2926]">
                       {group.label}
                     </h3>
-                    <p className="text-xs text-warm-gray">
+                    <p className="text-[11px] text-warm-gray">
                       {group.reminders.length} 项提醒
                     </p>
                   </div>
                 </div>
 
-                {/* Cards grid */}
-                <div
-                  className={`grid gap-4 ${group.reminders.length > 1 ? "xl:grid-cols-2" : ""
-                    }`}
-                >
+                {/* Cards grid — 小屏单列，md+ 双列（对齐 stitch 参考） */}
+                <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 md:gap-4">
                   {group.reminders.map((reminder) => {
                     const reminderIcon = resolveReminderIcon(
                       reminder.icon_key ?? null,
@@ -620,62 +669,58 @@ export function HomePage({
 
                     return (
                       <article
-                        className="flex h-full flex-col justify-between rounded-[2rem] border border-[#F2EDE7]/40 bg-white px-6 py-5 shadow-card"
+                        className="flex w-full flex-col rounded-2xl border border-[#F2EDE7]/40 bg-white px-4 py-3 shadow-card"
                         key={reminder.id}
                       >
-                        {/* Top: icon + assignee avatar */}
-                        <div className="flex items-start justify-between gap-4">
+                        {/* Top: task icon + 成员头像（点击进档案） */}
+                        <div className="flex items-start justify-between gap-3">
                           <div
-                            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.2rem] ${group.iconBg} ${group.iconColor}`}
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${group.iconBg} ${group.iconColor}`}
                           >
                             <MaterialIcon
-                              className="text-2xl"
+                              className="text-xl"
                               name={reminderIcon}
                             />
                           </div>
-                          <div
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white"
+                          <button
+                            aria-label={`查看 ${reminder.member_name} 档案`}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ring-2 ring-[#F9F7F4] transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/50 focus-visible:ring-offset-2"
+                            onClick={() =>
+                              onOpenMemberProfile?.(reminder.member_id)
+                            }
                             style={{ backgroundColor: assigneeBg }}
                             title={reminder.member_name}
+                            type="button"
                           >
                             {reminder.member_name.charAt(0)}
-                          </div>
+                          </button>
                         </div>
 
                         {/* Content */}
-                        <div className="mt-4">
-                          <p className="text-xs font-semibold text-warm-gray">
+                        <div className="mt-2.5 min-w-0">
+                          <p className="text-[11px] font-semibold text-warm-gray">
                             给 {reminder.member_name}
                           </p>
-                          <h4 className="mt-1.5 text-xl font-bold leading-snug text-[#2D2926]">
+                          <h4 className="mt-1 text-base font-bold leading-snug text-[#2D2926]">
                             {reminder.title}
                           </h4>
                           {reminder.description ? (
-                            <p className="mt-2 text-sm leading-relaxed text-warm-gray line-clamp-2">
+                            <p className="mt-1 text-xs leading-snug text-warm-gray line-clamp-2">
                               {reminder.description}
                             </p>
                           ) : null}
                           {reminder.notes ? (
-                            <p className="mt-1.5 text-xs leading-relaxed text-warm-gray/80 italic line-clamp-2">
+                            <p className="mt-1 text-[11px] leading-snug text-warm-gray/80 italic line-clamp-2">
                               {reminder.notes}
                             </p>
                           ) : null}
                         </div>
 
-                        {/* Footer */}
-                        <div className="mt-5 flex items-center justify-between gap-3">
-                          <span className="rounded-full bg-[#F5F0EA] px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-warm-gray">
+                        {/* Time */}
+                        <div className="mt-3 flex items-center">
+                          <span className="rounded-full bg-[#F5F0EA] px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] text-warm-gray">
                             {formatReminderTime(reminder.scheduled_at)}
                           </span>
-                          <button
-                            className="text-sm font-semibold text-apple-blue transition hover:text-[#005fcc]"
-                            onClick={() =>
-                              onOpenMemberProfile?.(reminder.member_id)
-                            }
-                            type="button"
-                          >
-                            去档案页
-                          </button>
                         </div>
                       </article>
                     );

@@ -15,7 +15,7 @@ from app.ai.daily_generation import DailyGenerationService
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
-from app.services import health_repository, scheduled_tasks
+from app.services import health_repository, repository, scheduled_tasks
 from app.services.health_records import (
     build_member_daily_generation_snapshot,
     ensure_member_access,
@@ -160,6 +160,11 @@ class HomeVitalScheduler:
         return self.execute_task(task_id)
 
     def refresh_health_summaries(self) -> dict[str, Any]:
+        with self.database.connection() as connection:
+            members = list_all_members_for_scheduler(connection)
+        return self.refresh_health_summaries_for_member_ids([member["id"] for member in members])
+
+    def refresh_health_summaries_for_member_ids(self, member_ids: list[str]) -> dict[str, Any]:
         refreshed_member_ids: list[str] = []
         failed_member_ids: list[str] = []
         errors: dict[str, str] = {}
@@ -167,7 +172,8 @@ class HomeVitalScheduler:
         generated_at = now.isoformat()
 
         with self.database.connection() as connection:
-            for member in list_all_members_for_scheduler(connection):
+            members = _resolve_members_for_refresh(connection, member_ids)
+            for member in members:
                 try:
                     snapshot = build_member_daily_generation_snapshot(
                         connection,
@@ -196,13 +202,19 @@ class HomeVitalScheduler:
         }
 
     def refresh_daily_care_plans(self) -> dict[str, Any]:
+        with self.database.connection() as connection:
+            members = list_all_members_for_scheduler(connection)
+        return self.refresh_daily_care_plans_for_member_ids([member["id"] for member in members])
+
+    def refresh_daily_care_plans_for_member_ids(self, member_ids: list[str]) -> dict[str, Any]:
         refreshed_member_ids: list[str] = []
         failed_member_ids: list[str] = []
         errors: dict[str, str] = {}
         now = _now_in_timezone(self._timezone)
 
         with self.database.connection() as connection:
-            for member in list_all_members_for_scheduler(connection):
+            members = _resolve_members_for_refresh(connection, member_ids)
+            for member in members:
                 try:
                     snapshot = build_member_daily_generation_snapshot(
                         connection,
@@ -315,6 +327,21 @@ def _title_for_task(task: dict[str, Any]) -> str:
     if task["schedule_type"] == "weekly":
         return "每周健康提醒"
     return "定时健康提醒"
+
+
+def _resolve_members_for_refresh(connection: Any, member_ids: list[str]) -> list[dict[str, Any]]:
+    members: list[dict[str, Any]] = []
+    seen_member_ids: set[str] = set()
+
+    for member_id in member_ids:
+        if member_id in seen_member_ids:
+            continue
+        seen_member_ids.add(member_id)
+        member = repository.get_member_by_id(connection, member_id)
+        if member is not None:
+            members.append(member)
+
+    return members
 
 
 def _now_in_timezone(timezone: ZoneInfo) -> datetime:

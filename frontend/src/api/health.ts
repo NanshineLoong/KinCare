@@ -150,8 +150,22 @@ export type DashboardResponse = {
   reminder_groups?: DashboardReminderGroup[];
 };
 
+export type DailyGenerationRefreshResponse = {
+  member_ids: string[];
+  failed_member_ids: string[];
+  errors: Record<string, string>;
+};
+
 export function getDashboard(session: AuthSession) {
   return getAuthorized<DashboardResponse>("/api/dashboard", session);
+}
+
+export function refreshDashboardTodayReminders(session: AuthSession) {
+  return sendAuthorized<DailyGenerationRefreshResponse, Record<string, never>>(
+    "/api/dashboard/today-reminders/refresh",
+    session,
+    { method: "POST", payload: {} },
+  );
 }
 
 export function listObservations(session: AuthSession, memberId: string) {
@@ -184,6 +198,14 @@ export function listWorkoutRecords(session: AuthSession, memberId: string) {
 
 export function listHealthSummaries(session: AuthSession, memberId: string) {
   return getAuthorized<HealthSummaryRecord[]>(`/api/members/${memberId}/health-summaries`, session);
+}
+
+export function refreshMemberHealthSummaries(session: AuthSession, memberId: string) {
+  return sendAuthorized<DailyGenerationRefreshResponse, Record<string, never>>(
+    `/api/members/${memberId}/health-summaries/refresh`,
+    session,
+    { method: "POST", payload: {} },
+  );
 }
 
 // ─── Observation CRUD ─────────────────────────────────────────────────────────

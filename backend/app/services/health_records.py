@@ -420,6 +420,29 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
     }
 
 
+def list_visible_members_with_permission(
+    database: Database,
+    current_user: CurrentUser,
+    *,
+    required_permission: str,
+) -> list[dict[str, Any]]:
+    members = _visible_members(database, current_user)
+    visible_members: list[dict[str, Any]] = []
+
+    with database.connection() as connection:
+        for member in members:
+            permission_level = resolve_member_permission_level(connection, current_user, member["id"])
+            if PERMISSION_LEVEL_RANK[permission_level] >= PERMISSION_LEVEL_RANK[required_permission]:
+                visible_members.append(
+                    {
+                        **member,
+                        "permission_level": permission_level,
+                    }
+                )
+
+    return visible_members
+
+
 def list_all_members_for_scheduler(connection: Any) -> list[dict[str, Any]]:
     family_space_rows = connection.execute(
         "SELECT id FROM family_space ORDER BY created_at ASC"
@@ -481,7 +504,7 @@ def replace_generated_health_summaries(
     for item in existing:
         health_repository.delete_resource(connection, "health-summaries", item["id"])
 
-    for summary in summaries:
+    for summary in reversed(summaries):
         health_repository.create_resource(
             connection,
             "health-summaries",

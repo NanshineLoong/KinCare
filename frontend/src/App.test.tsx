@@ -437,7 +437,7 @@ describe("App", () => {
     renderApp("/app");
 
     expect(await screen.findByText("家人状态")).toBeInTheDocument();
-    expect((await screen.findAllByText("慢病管理")).length).toBeGreaterThan(0);
+    expect(screen.getByText("最新收缩压 126mmHg。")).toBeInTheDocument();
     expect(screen.getByText("早餐后服药")).toBeInTheDocument();
     expect(screen.queryByText("等待活动记录")).not.toBeInTheDocument();
   });
@@ -570,6 +570,157 @@ describe("App", () => {
     expect(await within(dialog).findByText("慢病指标")).toBeInTheDocument();
     expect(within(dialog).getByText("睡眠")).toBeInTheDocument();
     expect(within(dialog).getByText("运动记录")).toBeInTheDocument();
+  });
+
+  it("refreshes AI summaries and reminders so home and member overview stay in sync", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    const dashboard = createDashboard();
+    const detail = createProfileDetail("member-2");
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(dashboard);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2") {
+        return jsonResponse(detail.member);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/observations") {
+        return jsonResponse(detail.observations);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/sleep-records") {
+        return jsonResponse(detail.sleepRecords);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/workout-records") {
+        return jsonResponse(detail.workoutRecords);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/conditions") {
+        return jsonResponse(detail.conditions);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/medications") {
+        return jsonResponse(detail.medications);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/encounters") {
+        return jsonResponse(detail.encounters);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/health-summaries") {
+        return jsonResponse(detail.healthSummaries);
+      }
+      if (method === "GET" && pathname === "/api/members/member-2/care-plans") {
+        return jsonResponse(detail.carePlans);
+      }
+      if (method === "POST" && pathname === "/api/members/member-2/health-summaries/refresh") {
+        const refreshedSummary = {
+          id: "summary-refresh-1",
+          member_id: "member-2",
+          category: "chronic-vitals",
+          label: "晨间血压",
+          value: "今天血压稳定，晚间继续按时测量。",
+          status: "good" as const,
+          generated_at: "2026-03-15T10:00:00+08:00",
+          created_at: "2026-03-15T10:00:00+08:00",
+        };
+        dashboard.members[1].health_summaries = [
+          refreshedSummary,
+          ...dashboard.members[1].health_summaries.slice(1),
+        ];
+        detail.healthSummaries = [
+          refreshedSummary,
+          ...detail.healthSummaries.filter((item) => item.category !== "chronic-vitals"),
+        ];
+        return jsonResponse({
+          member_ids: ["member-2"],
+          failed_member_ids: [],
+          errors: {},
+        });
+      }
+      if (method === "POST" && pathname === "/api/dashboard/today-reminders/refresh") {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, "0");
+        const day = String(today.getDate()).padStart(2, "0");
+        const scheduledAt = `${year}-${month}-${day}T14:00:00+08:00`;
+        const refreshedPlan = {
+          id: "plan-refresh-1",
+          member_id: "member-2",
+          member_name: "张妈妈",
+          assignee_member_id: "member-2",
+          category: "activity-reminder",
+          icon_key: "exercise" as const,
+          time_slot: "午后" as const,
+          title: "午后散步 20 分钟",
+          description: "午饭后安排一段轻量散步。",
+          notes: "以舒缓步行为主。",
+          status: "active" as const,
+          scheduled_at: scheduledAt,
+          completed_at: null,
+          generated_by: "ai" as const,
+          created_at: "2026-03-15T10:05:00+08:00",
+          updated_at: "2026-03-15T10:05:00+08:00",
+        };
+        dashboard.today_reminders = [dashboard.today_reminders[0], refreshedPlan];
+        dashboard.reminder_groups = [
+          {
+            time_slot: "清晨",
+            reminders: [dashboard.today_reminders[0]],
+          },
+          {
+            time_slot: "午后",
+            reminders: [refreshedPlan],
+          },
+        ];
+        detail.carePlans = [dashboard.today_reminders[0], refreshedPlan];
+        return jsonResponse({
+          member_ids: ["member-2"],
+          failed_member_ids: [],
+          errors: {},
+        });
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /查看 张妈妈 档案/ }),
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "成员档案" });
+    expect(screen.getAllByText("最新收缩压 126mmHg。").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText("最新收缩压 126mmHg。")).toBeInTheDocument();
+    expect(screen.queryByText("午后散步 20 分钟")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("午后散步 20 分钟")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "刷新 张妈妈 的数据" }));
+
+    expect(await screen.findByText("今天血压稳定，晚间继续按时测量。")).toBeInTheDocument();
+    expect(await within(dialog).findByText("今天血压稳定，晚间继续按时测量。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "event_repeat 刷新" }));
+
+    expect(await screen.findByText("午后散步 20 分钟")).toBeInTheDocument();
+    expect(await within(dialog).findByText("午后散步 20 分钟")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/members/member-2/health-summaries/refresh"),
+        expect.objectContaining({ method: "POST" }),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/dashboard/today-reminders/refresh"),
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
   });
 
   it("streams chat draft cards and confirms them through confirm-draft endpoint", async () => {

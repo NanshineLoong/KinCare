@@ -1711,3 +1711,214 @@ def test_scheduler_continues_refresh_when_one_member_generation_fails(client: Te
     )
     assert bad_summaries.status_code == 200, bad_summaries.text
     assert [item["value"] for item in bad_summaries.json()] == ["不要被覆盖"]
+
+
+def test_manual_member_health_summary_refresh_endpoint_generates_latest_summary(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    headers = auth_headers(admin["tokens"]["access_token"])
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+
+    old_summary_response = client.post(
+        f"/api/members/{managed_member['id']}/health-summaries",
+        headers=headers,
+        json={
+            "category": "旧主题",
+            "label": "旧摘要",
+            "value": "应被新的 AI 摘要替换。",
+            "status": "warning",
+            "generated_at": "2026-03-12T08:00:00+08:00",
+        },
+    )
+    assert old_summary_response.status_code == 201, old_summary_response.text
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def summary_model(messages: list[Any], info: Any) -> Any:
+        del messages
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "summaries": [
+                            {
+                                "category": "血压趋势",
+                                "label": "血压控制",
+                                "value": "今天收缩压更稳定，继续保持监测。",
+                                "status": "good",
+                            },
+                            {
+                                "category": "睡眠恢复",
+                                "label": "睡眠节律",
+                                "value": "昨晚睡眠完整，白天可以安排轻量活动。",
+                                "status": "warning",
+                            },
+                            {
+                                "category": "活动表现",
+                                "label": "活动恢复",
+                                "value": "上午活动量适中，可以继续保持。",
+                                "status": "good",
+                            },
+                            {
+                                "category": "代谢监测",
+                                "label": "血糖波动",
+                                "value": "空腹血糖平稳，继续关注饮食节奏。",
+                                "status": "good",
+                            },
+                            {
+                                "category": "额外提示",
+                                "label": "应被截断",
+                                "value": "这是第五条，不应写入数据库。",
+                                "status": "warning",
+                            },
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(client, summary_function=summary_model):
+        refresh_response = client.post(
+            f"/api/members/{managed_member['id']}/health-summaries/refresh",
+            headers=headers,
+        )
+
+    assert refresh_response.status_code == 200, refresh_response.text
+    payload = refresh_response.json()
+    assert payload["member_ids"] == [managed_member["id"]]
+    assert payload["failed_member_ids"] == []
+
+    summaries_response = client.get(
+        f"/api/members/{managed_member['id']}/health-summaries",
+        headers=headers,
+    )
+    assert summaries_response.status_code == 200, summaries_response.text
+    summaries = summaries_response.json()
+    assert [item["label"] for item in summaries] == [
+        "血压控制",
+        "睡眠节律",
+        "活动恢复",
+        "血糖波动",
+    ]
+    assert {item["value"] for item in summaries} == {
+        "今天收缩压更稳定，继续保持监测。",
+        "昨晚睡眠完整，白天可以安排轻量活动。",
+        "上午活动量适中，可以继续保持。",
+        "空腹血糖平稳，继续关注饮食节奏。",
+    }
+    assert all(item["label"] != "应被截断" for item in summaries)
+
+    dashboard_response = client.get("/api/dashboard", headers=headers)
+    assert dashboard_response.status_code == 200, dashboard_response.text
+    dashboard_payload = dashboard_response.json()
+    member_summary = next(item for item in dashboard_payload["members"] if item["member"]["id"] == managed_member["id"])
+    assert [item["label"] for item in member_summary["health_summaries"]] == [
+        "血压控制",
+        "睡眠节律",
+        "活动恢复",
+        "血糖波动",
+    ]
+
+
+def test_manual_dashboard_care_plan_refresh_endpoint_generates_latest_reminders(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    headers = auth_headers(admin["tokens"]["access_token"])
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+    manual_care_plan = client.post(
+        f"/api/members/{managed_member['id']}/care-plans",
+        headers=headers,
+        json={
+            "category": "medication-reminder",
+            "title": "早餐后服药",
+            "description": "08:30 服用降压药",
+            "status": "active",
+            "scheduled_at": shanghai_today(8, 30),
+            "generated_by": "manual",
+        },
+    )
+    assert manual_care_plan.status_code == 201, manual_care_plan.text
+
+    old_ai_care_plan = client.post(
+        f"/api/members/{managed_member['id']}/care-plans",
+        headers=headers,
+        json={
+            "category": "daily-tip",
+            "title": "旧的 AI 提醒",
+            "description": "应被新的 AI 提醒替换。",
+            "status": "active",
+            "scheduled_at": shanghai_today(7, 0),
+            "generated_by": "ai",
+        },
+    )
+    assert old_ai_care_plan.status_code == 201, old_ai_care_plan.text
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def care_plan_model(messages: list[Any], info: Any) -> Any:
+        del messages
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "care_plans": [
+                            {
+                                "category": "activity-reminder",
+                                "icon_key": "exercise",
+                                "time_slot": "午后",
+                                "assignee_member_id": managed_member["id"],
+                                "title": "午后散步 20 分钟",
+                                "description": "午饭后安排一段轻量散步。",
+                                "notes": "以舒缓步行为主。",
+                            },
+                            {
+                                "category": "medication-reminder",
+                                "icon_key": "medication",
+                                "time_slot": "晚间",
+                                "assignee_member_id": managed_member["id"],
+                                "title": "晚间按时服药",
+                                "description": "睡前按既定计划服用降压药。",
+                                "notes": "服药后记录体感。",
+                            },
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(client, care_plan_function=care_plan_model):
+        refresh_response = client.post("/api/dashboard/today-reminders/refresh", headers=headers)
+
+    assert refresh_response.status_code == 200, refresh_response.text
+    payload = refresh_response.json()
+    assert managed_member["id"] in payload["member_ids"]
+    assert payload["failed_member_ids"] == []
+
+    care_plans_response = client.get(
+        f"/api/members/{managed_member['id']}/care-plans",
+        headers=headers,
+    )
+    assert care_plans_response.status_code == 200, care_plans_response.text
+    care_plans = care_plans_response.json()
+    titles = {item["title"] for item in care_plans}
+    assert "早餐后服药" in titles
+    assert "旧的 AI 提醒" not in titles
+    assert "午后散步 20 分钟" in titles
+    assert "晚间按时服药" in titles
+
+    dashboard_response = client.get("/api/dashboard", headers=headers)
+    assert dashboard_response.status_code == 200, dashboard_response.text
+    dashboard_payload = dashboard_response.json()
+    assert {item["title"] for item in dashboard_payload["today_reminders"]} == {
+        "早餐后服药",
+        "午后散步 20 分钟",
+        "晚间按时服药",
+    }

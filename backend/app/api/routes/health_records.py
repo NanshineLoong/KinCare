@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.core.database import Database
 from app.core.dependencies import CurrentUser, get_current_user, get_database
@@ -14,6 +14,7 @@ from app.schemas.health import (
     ConditionRead,
     ConditionUpdate,
     DashboardRead,
+    DailyGenerationRefreshResult,
     EncounterCreate,
     EncounterRead,
     EncounterUpdate,
@@ -40,8 +41,10 @@ from app.services.health_records import (
     get_dashboard,
     get_observation_trend,
     get_resource,
+    list_visible_members_with_permission,
     list_resource,
     update_resource,
+    ensure_member_access,
 )
 
 
@@ -62,6 +65,21 @@ def read_dashboard(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     return get_dashboard(database, current_user)
+
+
+@dashboard_router.post("/api/dashboard/today-reminders/refresh", response_model=DailyGenerationRefreshResult)
+def refresh_dashboard_today_reminders(
+    request: Request,
+    database: Database = Depends(get_database),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    members = list_visible_members_with_permission(
+        database,
+        current_user,
+        required_permission="write",
+    )
+    scheduler = request.app.state.scheduler
+    return scheduler.refresh_daily_care_plans_for_member_ids([member["id"] for member in members])
 
 
 @observations_router.get("", response_model=list[ObservationRead])
@@ -438,6 +456,18 @@ def read_health_summaries(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     return list_resource("health-summaries", member_id, database, current_user)
+
+
+@health_summaries_router.post("/refresh", response_model=DailyGenerationRefreshResult)
+def refresh_health_summaries_for_member(
+    member_id: str,
+    request: Request,
+    database: Database = Depends(get_database),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    ensure_member_access(database, current_user, member_id, required_permission="write")
+    scheduler = request.app.state.scheduler
+    return scheduler.refresh_health_summaries_for_member_ids([member_id])
 
 
 @health_summaries_router.post("", response_model=HealthSummaryRead, status_code=status.HTTP_201_CREATED)

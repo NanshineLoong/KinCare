@@ -101,7 +101,7 @@ class DailyGenerationService:
             raise RuntimeError("AI daily generation is not configured.")
         validated_snapshot = _validated_snapshot(snapshot)
         result = await self.summary_agent.run(_snapshot_prompt(validated_snapshot))
-        return result.output
+        return _normalized_summary_bundle(result.output)
 
     async def generate_care_plan(self, snapshot: DailyHealthSnapshot) -> DailyCarePlanDecision:
         if self.care_plan_agent is None:
@@ -124,7 +124,8 @@ SUMMARY_AGENT_INSTRUCTIONS = "\n".join(
     [
         "你负责为 HomeVital 首页生成每日健康摘要。",
         "只能使用输入快照中的事实，不要补充未提供的数据。",
-        "输出 2-5 条结构化摘要，category 使用中文动态主题，不要复用固定枚举。",
+        "按重要程度从高到低输出 0-4 条结构化摘要；如果没有值得提示的状态，返回 summaries = []。",
+        "category 与 label 使用中文动态主题，不要复用固定分类，也不要为了凑数补标题。",
         "label 使用中文短标题，value 用一句简短中文说明，status 只能是 good、warning、alert。",
         "不要输出 Markdown、列表或自由文本解释。",
     ]
@@ -161,3 +162,7 @@ def _validated_snapshot(snapshot: DailyHealthSnapshot | dict[str, Any]) -> Daily
     if isinstance(snapshot, DailyHealthSnapshot):
         return snapshot
     return DailyHealthSnapshot.model_validate(snapshot)
+
+
+def _normalized_summary_bundle(bundle: DailyHealthSummaryBundle) -> DailyHealthSummaryBundle:
+    return DailyHealthSummaryBundle(summaries=bundle.summaries[:4])

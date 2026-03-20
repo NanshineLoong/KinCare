@@ -38,6 +38,7 @@ import {
   type WorkoutRecord,
 } from "../api/health";
 import type { AuthMember, AuthSession } from "../auth/session";
+import { buildHealthSummaryCards } from "../healthSummaryCards";
 import { Button } from "./Button";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { ResourceFormModal } from "./ResourceFormModal";
@@ -46,6 +47,7 @@ type MemberProfileModalProps = {
   open: boolean;
   onClose: () => void;
   memberId: string;
+  refreshToken?: number;
   session: AuthSession;
   members: AuthMember[];
 };
@@ -150,10 +152,10 @@ function sortByEffectiveAtDesc(observations: ObservationRecord[]): ObservationRe
   return [...observations].sort((left, right) => (right.effective_at || "").localeCompare(left.effective_at || ""));
 }
 
-function summaryTone(status: "good" | "warning" | "alert" | "attention" | "none") {
+function summaryTone(status: "good" | "warning" | "alert" | undefined) {
   if (status === "good") return "bg-emerald-500";
   if (status === "alert") return "bg-rose-500";
-  if (status === "warning" || status === "attention") return "bg-amber-500";
+  if (status === "warning") return "bg-amber-500";
   return "bg-gray-300";
 }
 
@@ -320,69 +322,8 @@ function OverviewTabContent({
 
   const allergyConditions = conditions.filter((item) => item.category === "allergy");
   const allergyText = allergyConditions.length > 0 ? allergyConditions.map((item) => item.display_name).join("、") : "—";
-  const activeConditions = conditions.filter(
-    (item) => item.clinical_status === "active" && item.category !== "allergy" && item.category !== "family-history",
-  );
-
-  const stepObservation = latestObservationByCode(observations, "step-count");
-  const sleepObservation = latestObservationByCode(observations, "sleep-duration");
-  const oxygenObservation = latestObservationByCode(observations, "blood-oxygen");
-  const temperatureObservation = latestObservationByCode(observations, "body-temperature");
-  const heartObservation = latestObservationByCode(observations, "heart-rate");
-  
-  const summaryLookup = new Map(healthSummaries.map((item) => [item.category, item]));
-  const orderedSummaries = healthSummaries;
   const todayReminders = carePlans.filter((item) => item.status === "active" && isToday(item.scheduled_at));
-
-  const summaryCardValue = (
-    preferredCategory: string,
-    fallbackIndex: number,
-    fallbackLabel: string,
-    fallbackContent: string,
-    fallbackStatus: "good" | "warning" | "alert" | "attention" | "none",
-  ) => {
-    const item = summaryLookup.get(preferredCategory) ?? orderedSummaries[fallbackIndex];
-    if (item) {
-      return { label: item.label, content: item.value, status: item.status as any };
-    }
-    return { label: fallbackLabel, content: fallbackContent, status: fallbackStatus };
-  };
-
-  const summaryCards = [
-    summaryCardValue(
-      "chronic-vitals",
-      0,
-      "慢病管理",
-      activeConditions.length > 0 ? activeConditions.map((item) => item.display_name).join("、") : "期待新记录",
-      activeConditions.length > 0 ? "attention" : "none",
-    ),
-    summaryCardValue(
-      "lifestyle",
-      1,
-      "生活习惯",
-      stepObservation || sleepObservation
-        ? [
-            stepObservation ? `步数 ${getNumericValue(stepObservation) ?? stepObservation.value_string ?? "—"}` : null,
-            sleepObservation ? `睡眠 ${getNumericValue(sleepObservation) ?? sleepObservation.value_string ?? "—"}h` : null,
-          ].filter(Boolean).join(" · ")
-        : "期待新记录",
-      stepObservation || sleepObservation ? "good" : "none",
-    ),
-    summaryCardValue(
-      "body-vitals",
-      2,
-      "生理指标",
-      oxygenObservation || temperatureObservation || heartObservation
-        ? [
-            heartObservation ? `心率 ${getNumericValue(heartObservation) ?? "—"}` : null,
-            oxygenObservation ? `血氧 ${getNumericValue(oxygenObservation) ?? "—"}%` : null,
-            temperatureObservation ? `体温 ${getNumericValue(temperatureObservation) ?? "—"}°C` : null,
-          ].filter(Boolean).join(" · ")
-        : "期待新记录",
-      oxygenObservation || temperatureObservation || heartObservation ? "good" : "none",
-    ),
-    summaryCardValue("mood", 3, "心理情绪", "期待新记录", "none"),
-  ] as const;
+  const summaryCards = buildHealthSummaryCards(healthSummaries);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -503,9 +444,11 @@ function OverviewTabContent({
           {summaryCards.map((card, cardIndex) => (
             <div
               className="flex h-28 flex-col justify-center rounded-2xl border border-[#F2EDE7]/50 bg-[#F9F6F3] p-5 cursor-pointer hover:bg-[#F5F0EA] transition group"
-              key={`${card.label}-${cardIndex}`}
+              key={`${card.label ?? "placeholder"}-${cardIndex}`}
             >
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{card.label}</p>
+              {card.label ? (
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{card.label}</p>
+              ) : null}
               <div className="flex items-center gap-2">
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full shadow-apple-sm ${summaryTone(card.status)}`} />
                 <p className="text-[13px] text-[#4A443F] font-medium leading-relaxed line-clamp-2">{card.content}</p>
@@ -1569,6 +1512,7 @@ export function MemberProfileModal({
   open,
   onClose,
   memberId,
+  refreshToken = 0,
   session,
   members,
 }: MemberProfileModalProps) {
@@ -1638,7 +1582,7 @@ export function MemberProfileModal({
     if (!open || !memberId) return;
     void loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, memberId, session]);
+  }, [open, memberId, refreshToken, session]);
 
   useEffect(() => {
     if (open) {

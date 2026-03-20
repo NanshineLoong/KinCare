@@ -527,6 +527,9 @@ export default function App() {
                     setProfileMemberId(memberId)
                   }
                   onQueueChatMessage={handleQueueHomeMessage}
+                  onRefreshData={() =>
+                    setDashboardRefreshToken((current) => current + 1)
+                  }
                   refreshToken={dashboardRefreshToken}
                   session={session}
                 />
@@ -543,6 +546,7 @@ export default function App() {
           members={memberOptions}
           onClose={() => setProfileMemberId(null)}
           open={!!profileMemberId}
+          refreshToken={dashboardRefreshToken}
           session={session}
         />
       )}
