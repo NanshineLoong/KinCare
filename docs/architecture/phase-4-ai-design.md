@@ -92,6 +92,15 @@ STT provider 是实现细节，必须封装在 `backend/app/ai/transcription.py`
 
 `ChatSession` 需要持久化 `title` 与 `summary`。摘要在首个有效用户回合后自动生成，当前优先简单规则；后续可以替换为模型生成，但不改变 API 与存储边界。
 
+### 8. 附件解析先于对话链路，并保持独立边界
+
+附件处理采用单独的附件解析入口，而不是复用音频转写实现：
+
+- 音频文件继续走 `transcription.py` 的 STT 链路
+- PDF / 图片 / DOCX 先在 `backend/app/attachments/` 中完成解析
+- `.doc` 允许走本地回退适配，但仍属于附件解析边界，不回到 STT 链路
+- 进入 prompt / `AIDeps` 的只能是受控摘录，而不是整份原文
+
 ## 运行时模块边界
 
 当前 AI 代码应围绕以下职责组织：
@@ -104,11 +113,13 @@ STT provider 是实现细节，必须封装在 `backend/app/ai/transcription.py`
 - `backend/app/ai/transcription.py`：真实 STT provider 适配
 - `backend/app/ai/extraction.py`：从对话和附件上下文生成结构化草稿
 - `backend/app/ai/scheduler.py`：每日摘要与提醒生成任务
+- `backend/app/attachments/`：附件解析、Docling 适配、`.doc` 回退解析与附件摘录生成
 
 ## 对话链路
 
 ```text
 用户输入（文字 / 语音 / 附件上下文）
+  → 附件先走独立解析入口（音频仍走 STT）
   → FastAPI 路由鉴权
   → 组装 AIDeps 与最小上下文
   → PydanticAI agent.iter()

@@ -80,6 +80,7 @@ cd frontend && npm test
 - 成员级权限以 `read / write / manage` + `specific / all` 为准；不要继续沿用 `can_write` 布尔语义
 - 不要把全量或未授权的健康数据直接拼进 prompt；优先使用最小上下文 + 受控工具调用
 - 优先沿用 `backend/app/ai/` 下的 `deps.py`、`agent.py`、`daily_generation.py`、`orchestrator.py`、`tools/`、`transcription.py`、`extraction.py`、`scheduler.py` 职责边界
+- 附件解析优先沿用 `backend/app/attachments/` 边界；音频继续走 `transcription.py`，不要再把 PDF / 图片 / 文档解析塞回音频转写链路
 - 不要重新把旧的关键字路由 orchestrator、`providers/` 主抽象、`DocumentReference` 独立文档资源链路当作当前方案
 - 健康档案类高风险写入必须保持“生成草稿 -> 用户确认 -> 服务层写入”
 - 建议与草稿写回优先复用统一 `HealthRecordAction` 结构，不要再为 create / update / delete 走分叉协议

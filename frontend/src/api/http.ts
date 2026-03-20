@@ -96,6 +96,7 @@ export async function sendAuthorized<TResponse, TPayload extends object>(
   options: {
     method: "POST" | "PUT";
     payload: TPayload;
+    signal?: AbortSignal;
   },
 ): Promise<TResponse> {
   const response = await authorizedFetch(path, session, {
@@ -104,6 +105,7 @@ export async function sendAuthorized<TResponse, TPayload extends object>(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(options.payload),
+    signal: options.signal,
   });
 
   return parseResponse<TResponse>(response);
@@ -121,10 +123,14 @@ export async function sendAuthorizedFormData<TResponse>(
   path: string,
   session: AuthSession,
   formData: FormData,
+  options?: {
+    signal?: AbortSignal;
+  },
 ): Promise<TResponse> {
   const response = await authorizedFetch(path, session, {
     method: "POST",
     body: formData,
+    signal: options?.signal,
   });
 
   return parseResponse<TResponse>(response);

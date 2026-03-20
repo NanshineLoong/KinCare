@@ -71,7 +71,7 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 
 - 认证、成员级权限、健康数据 CRUD
 - Dashboard 聚合、成员详情与会话历史查询
-- AI 会话入口、SSE 流式输出、草稿确认和音频转写接口
+- AI 会话入口、附件解析接口、SSE 流式输出、草稿确认和音频转写接口
 - 定时任务触发与健康摘要 / 提醒写入
 - 管理员系统配置 API（`GET/PUT /api/admin/settings`）：读写 `system_config` 表，AI / STT 运行参数及每日刷新时间覆盖 `.env` 默认值
 
@@ -85,6 +85,11 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 - `transcription.py`：真实 STT provider 适配与转写入口
 - `extraction.py`：从对话或附件上下文生成结构化草稿
 - `scheduler.py`：每日摘要与提醒任务
+
+### Attachments
+
+- `backend/app/attachments/`：独立附件解析边界，负责文档 / 图片解析、`.doc` 本地回退，以及把受控摘录交给对话链路
+- 音频附件继续走 `transcription.py`，不与 PDF / 图片 / 文档解析复用同一实现
 
 ### Database
 
@@ -115,6 +120,7 @@ Web App
 ```text
 用户消息 / 语音 / 附件上下文
   → Web App
+  → 附件先经过独立解析接口（音频例外仍走 STT）
   → API Server 鉴权与会话加载
   → AI Runtime 组装最小上下文与授权范围
   → PydanticAI agent.iter()
