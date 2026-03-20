@@ -99,6 +99,33 @@ def touch_session(connection: sqlite3.Connection, session_id: str) -> None:
     )
 
 
+def update_session_member(
+    connection: sqlite3.Connection,
+    session_id: str,
+    member_id: str | None,
+    *,
+    touch: bool = True,
+) -> dict[str, Any]:
+    session = get_session_by_id(connection, session_id)
+    if session is None:
+        raise KeyError(session_id)
+
+    params: dict[str, Any] = {
+        "id": session_id,
+        "member_id": member_id,
+    }
+    assignments = ["member_id = :member_id"]
+    if touch:
+        params["updated_at"] = now_iso()
+        assignments.append("updated_at = :updated_at")
+
+    connection.execute(
+        f"UPDATE chat_session SET {', '.join(assignments)} WHERE id = :id",
+        params,
+    )
+    return get_session_by_id(connection, session_id)
+
+
 def list_sessions(
     connection: sqlite3.Connection,
     *,

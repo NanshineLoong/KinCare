@@ -93,7 +93,15 @@ export type ChatToolResult = {
 export type ChatStreamEvent =
   | {
       event: "session.started";
-      data: { session_id: string; member_id: string | null };
+      data: {
+        session_id: string;
+        member_id: string | null;
+        member_name?: string | null;
+        previous_member_id?: string | null;
+        previous_member_name?: string | null;
+        focus_changed?: boolean;
+        resolution_source?: "explicit" | "inferred" | "carried" | "unresolved";
+      };
     }
   | { event: "tool.started"; data: { tool_name: string } }
   | { event: "tool.result"; data: ChatToolResult }
@@ -199,6 +207,7 @@ export async function streamChatMessage(
   payload: {
     content: string;
     member_id?: string | null;
+    member_selection_mode?: "explicit" | "auto";
     page_context?: string | null;
     attachments?: ChatAttachmentContext[];
   },

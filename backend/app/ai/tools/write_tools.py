@@ -22,7 +22,7 @@ def register(agent: object) -> None:
     ) -> dict[str, Any]:
         member_id = ctx.deps.focus_member_id
         if member_id is None:
-            return {"content": "请先选择家庭成员后再创建提醒。", "meta": {"created": False}}
+            return {"content": "当前咨询人还不明确，请先确认是哪位家庭成员后再创建提醒。", "meta": {"created": False}}
 
         ensure_member_access(
             ctx.deps.database,
@@ -87,7 +87,7 @@ def register(agent: object) -> None:
     async def mark_care_plan_done(ctx: RunContext[AIDeps], care_plan_id: str) -> dict[str, Any]:
         member_id = ctx.deps.focus_member_id
         if member_id is None:
-            return {"content": "请先选择家庭成员。", "meta": {"updated": False}}
+            return {"content": "当前咨询人还不明确，请先确认是哪位家庭成员。", "meta": {"updated": False}}
 
         ensure_member_access(
             ctx.deps.database,

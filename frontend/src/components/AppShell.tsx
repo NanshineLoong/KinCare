@@ -8,6 +8,7 @@ import { usePreferences, type TranslationKey } from "../preferences";
 type AppShellProps = {
   onSignOut: () => void;
   session: AuthSession;
+  onNewChatSession?: () => void;
   onOpenSettings?: () => void;
   onOpenChat?: () => void;
   onRestoreChatSession?: (sessionId: string) => void;
@@ -68,6 +69,7 @@ function formatRelativeTime(
 }
 
 export function AppShell({
+  onNewChatSession,
   onSignOut,
   session,
   onOpenSettings,
@@ -193,7 +195,7 @@ export function AppShell({
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-[#4A443F] transition hover:bg-[#F5F0EA]"
                       onClick={() => {
                         setHistoryOpen(false);
-                        onOpenChat?.();
+                        onNewChatSession?.();
                       }}
                       type="button"
                     >

@@ -6,6 +6,7 @@ import {
   createChatSession,
   listChatMessages,
   streamChatMessage,
+  type ChatMessageRead,
   type ChatSession,
 } from "./api/chat";
 import { listMembers } from "./api/members";
@@ -36,6 +37,7 @@ import {
 import { useComposerAttachments } from "./hooks/useComposerAttachments";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
+import { usePreferences } from "./preferences";
 import { RegisterPage } from "./pages/RegisterPage";
 
 function nextId(prefix: string) {
@@ -58,6 +60,7 @@ function loadStoredSession(): AuthSession | null {
 }
 
 export default function App() {
+  const { t } = usePreferences();
   const timelineSequenceRef = useRef(0);
   const [session, setSession] = useState<AuthSession | null>(loadStoredSession);
   const [isSessionReady, setIsSessionReady] = useState(() => {
@@ -78,6 +81,7 @@ export default function App() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatBusy, setIsChatBusy] = useState(false);
   const [selectedChatMemberId, setSelectedChatMemberId] = useState("");
+  const [resolvedChatMemberName, setResolvedChatMemberName] = useState<string | null>(null);
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
   const [queuedMessage, setQueuedMessage] = useState<{
     content: string;
@@ -128,6 +132,16 @@ export default function App() {
     setMembers(nextMembers);
   }
 
+  const memberOptions =
+    members.length > 0 ? members : session ? [session.member] : [];
+
+  function memberNameForId(memberId: string | null | undefined) {
+    if (!memberId) {
+      return null;
+    }
+    return memberOptions.find((member) => member.id === memberId)?.name ?? null;
+  }
+
   function resetChatState() {
     timelineSequenceRef.current = 0;
     setChatDraft("");
@@ -136,11 +150,137 @@ export default function App() {
     setChatToolCards([]);
     setChatError(null);
     setChatSession(null);
+    setSelectedChatMemberId("");
+    setResolvedChatMemberName(null);
   }
 
   function handleChatMemberChange(memberId: string) {
     setSelectedChatMemberId(memberId);
-    resetChatState();
+    setChatError(null);
+  }
+
+  function focusLabelForMember(memberName: string | null) {
+    return memberName
+      ? t("chatInputFocusMember", { member: memberName })
+      : t("chatInputAutoMember");
+  }
+
+  function appendSystemMessage(content: string) {
+    setChatMessages((current) => [
+      ...current,
+      {
+        id: nextId("system"),
+        role: "system",
+        content,
+        sortKey: nextTimelineSortKey(),
+      },
+    ]);
+  }
+
+  function syncResolvedFocus(
+    payload: {
+      member_id?: string | null;
+      member_name?: string | null;
+      resolution_source?: string | null;
+    },
+    options?: {
+      restoreSelection?: boolean;
+    },
+  ) {
+    const memberId = payload.member_id ?? null;
+    const memberName = payload.member_name ?? memberNameForId(memberId);
+    setResolvedChatMemberName(memberName);
+    setChatSession((current) =>
+      current
+        ? {
+            ...current,
+            member_id: memberId ?? current.member_id,
+          }
+        : current,
+    );
+    if (options?.restoreSelection) {
+      if (payload.resolution_source === "explicit" && memberId) {
+        setSelectedChatMemberId(memberId);
+      } else {
+        setSelectedChatMemberId("");
+      }
+    }
+  }
+
+  function buildFocusMarker(payload: {
+    member_id?: string | null;
+    member_name?: string | null;
+    previous_member_id?: string | null;
+    focus_changed?: boolean;
+    resolution_source?: string | null;
+  }) {
+    const memberName = payload.member_name ?? memberNameForId(payload.member_id);
+    if (!payload.focus_changed || !memberName) {
+      return null;
+    }
+    if (payload.resolution_source === "inferred") {
+      return t("chatFocusInferred", { member: memberName });
+    }
+    if (payload.resolution_source === "explicit" && payload.previous_member_id) {
+      return t("chatFocusSwitched", { member: memberName });
+    }
+    return null;
+  }
+
+  function buildRestoredTimeline(messages: ChatMessageRead[]) {
+    const restoredMessages: ChatMessage[] = [];
+    let sortKey = 0;
+    let latestFocus: {
+      member_id?: string | null;
+      member_name?: string | null;
+      resolution_source?: string | null;
+    } | null = null;
+
+    for (const message of messages) {
+      const metadata = (message.metadata ?? {}) as Record<string, unknown>;
+      const focusPayload = {
+        member_id: typeof metadata.resolved_member_id === "string" ? metadata.resolved_member_id : null,
+        member_name: typeof metadata.member_name === "string" ? metadata.member_name : null,
+        previous_member_id:
+          typeof metadata.previous_member_id === "string" ? metadata.previous_member_id : null,
+        focus_changed: metadata.focus_changed === true,
+        resolution_source:
+          typeof metadata.resolution_source === "string" ? metadata.resolution_source : null,
+      };
+
+      if (message.role === "user") {
+        const marker = buildFocusMarker(focusPayload);
+        if (marker) {
+          sortKey += 1;
+          restoredMessages.push({
+            id: `system-${message.id}`,
+            role: "system",
+            content: marker,
+            sortKey,
+          });
+        }
+      }
+
+      if (message.role === "user" || message.role === "assistant") {
+        sortKey += 1;
+        restoredMessages.push({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          sortKey,
+        });
+      }
+
+      if (focusPayload.member_id || focusPayload.member_name) {
+        latestFocus = focusPayload;
+      }
+    }
+
+    timelineSequenceRef.current = sortKey;
+    return {
+      messages: restoredMessages,
+      latestFocus,
+    };
   }
 
   useEffect(() => {
@@ -251,17 +391,12 @@ export default function App() {
   async function ensureChatSession(
     currentSession: AuthSession,
   ): Promise<ChatSession> {
-    const currentMemberId = selectedChatMemberId || null;
-    if (
-      chatSession &&
-      chatSession.member_id === currentMemberId &&
-      chatSession.page_context === "home"
-    ) {
+    if (chatSession && chatSession.page_context === "home") {
       return chatSession;
     }
 
     const nextSession = await createChatSession(currentSession, {
-      member_id: currentMemberId,
+      member_id: selectedChatMemberId || null,
       page_context: "home",
     });
     setChatSession(nextSession);
@@ -349,8 +484,18 @@ export default function App() {
         content,
         attachments: pendingAttachments,
         member_id: selectedChatMemberId || null,
+        member_selection_mode: selectedChatMemberId ? "explicit" : "auto",
         page_context: "home",
       }, (event) => {
+        if (event.event === "session.started") {
+          syncResolvedFocus(event.data);
+          const marker = buildFocusMarker(event.data);
+          if (marker) {
+            appendSystemMessage(marker);
+          }
+          return;
+        }
+
         if (event.event === "message.delta") {
           assistantContent += event.data.content;
           syncAssistantMessage(assistantContent);
@@ -449,18 +594,22 @@ export default function App() {
     setIsChatOpen(true);
   }
 
+  function handleNewChatSession() {
+    resetChatState();
+    setIsChatOpen(true);
+  }
+
   const restoringSessionIdRef = useRef<string | null>(null);
 
   async function handleRestoreChatSession(sessionId: string) {
     if (!session) return;
     resetChatState();
     restoringSessionIdRef.current = sessionId;
-    // Construct a minimal ChatSession so ensureChatSession reuses it
     setChatSession({
       id: sessionId,
       user_id: session.user.id,
       family_space_id: session.user.family_space_id,
-      member_id: selectedChatMemberId || null,
+      member_id: null,
       title: null,
       summary: null,
       page_context: "home",
@@ -472,16 +621,11 @@ export default function App() {
     try {
       const messages = await listChatMessages(session, sessionId);
       if (restoringSessionIdRef.current !== sessionId) return;
-      setChatMessages(
-        messages
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m, i) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            sortKey: i + 1,
-          })),
-      );
+      const restored = buildRestoredTimeline(messages);
+      setChatMessages(restored.messages);
+      if (restored.latestFocus) {
+        syncResolvedFocus(restored.latestFocus, { restoreSelection: true });
+      }
     } catch {
       if (restoringSessionIdRef.current === sessionId) {
         setChatError("加载历史消息失败，请稍后重试。");
@@ -497,13 +641,13 @@ export default function App() {
     message: string,
     attachments: ComposerAttachment[],
   ) {
-    resetChatState();
     setQueuedMessage({ content: message, attachments });
     setIsChatOpen(true);
   }
-
-  const memberOptions =
-    members.length > 0 ? members : session ? [session.member] : [];
+  const selectedMemberName = memberNameForId(selectedChatMemberId);
+  const chatFocusLabel = selectedMemberName
+    ? focusLabelForMember(selectedMemberName)
+    : focusLabelForMember(resolvedChatMemberName);
 
   if (session && !isSessionReady) {
     return null;
@@ -540,6 +684,7 @@ export default function App() {
           element={
             session ? (
               <AppShell
+                onNewChatSession={handleNewChatSession}
                 onOpenChat={handleOpenChat}
                 onOpenSettings={() => setIsSettingsOpen(true)}
                 onRestoreChatSession={handleRestoreChatSession}
@@ -603,6 +748,7 @@ export default function App() {
           attachments={chatAttachments}
           draft={chatDraft}
           error={chatError}
+          focusLabel={chatFocusLabel}
           isBusy={isChatBusy}
           isUploading={isChatUploadingAttachment}
           memberOptions={memberOptions.map((member) => ({

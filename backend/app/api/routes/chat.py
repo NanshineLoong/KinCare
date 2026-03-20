@@ -92,10 +92,9 @@ def list_session_messages(
 ) -> list[dict[str, Any]]:
     orchestrator: ChatOrchestrator = app_request.app.state.chat_orchestrator
     try:
-        orchestrator.resolve_session(
+        orchestrator.get_session(
             current_user=current_user,
             session_id=session_id,
-            member_id=None,
         )
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
@@ -170,10 +169,11 @@ async def create_message(
 ) -> StreamingResponse:
     orchestrator: ChatOrchestrator = app_request.app.state.chat_orchestrator
     try:
-        orchestrator.resolve_session(
+        orchestrator.validate_message_request(
             current_user=current_user,
             session_id=session_id,
             member_id=request.member_id,
+            member_selection_mode=request.member_selection_mode,
         )
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
@@ -184,6 +184,7 @@ async def create_message(
             session_id=session_id,
             content=request.content,
             member_id=request.member_id,
+            member_selection_mode=request.member_selection_mode,
             page_context=request.page_context,
             attachments=tuple(request.attachments),
         ):

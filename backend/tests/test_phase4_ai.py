@@ -255,10 +255,11 @@ def stream_chat_message(
     *,
     token: str,
     session_id: str,
-    member_id: str,
+    member_id: str | None,
     page_context: str,
     content: str,
     attachments: list[dict[str, Any]] | None = None,
+    member_selection_mode: str = "explicit",
 ) -> list[dict[str, Any]]:
     with client.stream(
         "POST",
@@ -267,6 +268,7 @@ def stream_chat_message(
         json={
             "content": content,
             "member_id": member_id,
+            "member_selection_mode": member_selection_mode,
             "page_context": page_context,
             "attachments": attachments or [],
         },
@@ -507,6 +509,231 @@ def test_chat_session_messages_endpoint_returns_owned_history_without_internal_t
     assert payload[2]["content"] == "奶奶最近血压稳定，早餐后服药提醒保持即可。"
     assert "message_history" not in (payload[2]["metadata"] or {})
 
+
+def test_chat_auto_resolves_focus_member_from_message_text_and_persists_switch_metadata(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    grandma = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    grandpa = create_managed_member(client, admin["tokens"]["access_token"], "外婆")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=grandma["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        return ModelResponse(parts=[TextPart("已切换到外婆并继续分析。")])
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=None,
+            member_selection_mode="auto",
+            page_context="home",
+            content="请继续看外婆今天的情况",
+        )
+
+    assert events[0]["event"] == "session.started"
+    assert events[0]["data"]["member_id"] == grandpa["id"]
+    assert events[0]["data"]["member_name"] == "外婆"
+    assert events[0]["data"]["previous_member_id"] == grandma["id"]
+    assert events[0]["data"]["previous_member_name"] == "奶奶"
+    assert events[0]["data"]["focus_changed"] is True
+    assert events[0]["data"]["resolution_source"] == "inferred"
+
+    messages_response = client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert messages_response.status_code == 200, messages_response.text
+    payload = messages_response.json()
+    assert payload[0]["metadata"]["resolved_member_id"] == grandpa["id"]
+    assert payload[0]["metadata"]["previous_member_id"] == grandma["id"]
+    assert payload[0]["metadata"]["resolution_source"] == "inferred"
+    assert payload[0]["metadata"]["focus_changed"] is True
+
+    sessions_response = client.get(
+        "/api/chat/sessions",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert sessions_response.status_code == 200, sessions_response.text
+    assert sessions_response.json()[0]["member_id"] == grandpa["id"]
+
+
+def test_chat_auto_resolves_focus_member_from_attachment_excerpt(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    grandma = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=None,
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        return ModelResponse(parts=[TextPart("已根据附件识别到当前咨询人为奶奶。")])
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=None,
+            member_selection_mode="auto",
+            page_context="home",
+            content="请根据我上传的报告继续分析",
+            attachments=[
+                {
+                    "filename": "奶奶-门诊报告.pdf",
+                    "media_type": "application/pdf",
+                    "source_type": "docling",
+                    "ocr_used": False,
+                    "excerpt": "奶奶今天复查血压，建议继续监测。",
+                    "markdown_excerpt": "## 奶奶门诊报告\n建议继续监测血压。",
+                }
+            ],
+        )
+
+    assert events[0]["event"] == "session.started"
+    assert events[0]["data"]["member_id"] == grandma["id"]
+    assert events[0]["data"]["member_name"] == "奶奶"
+    assert events[0]["data"]["previous_member_id"] is None
+    assert events[0]["data"]["focus_changed"] is True
+    assert events[0]["data"]["resolution_source"] == "inferred"
+
+
+def test_chat_confirm_draft_uses_pending_draft_focus_instead_of_latest_session_focus(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    grandma = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    grandpa = create_managed_member(client, admin["tokens"]["access_token"], "外婆")
+    create_observation(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=grandma["id"],
+        code="heart-rate",
+        display_name="奶奶心率",
+        value=72.0,
+        unit="bpm",
+    )
+    create_observation(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=grandpa["id"],
+        code="glucose",
+        display_name="外婆血糖",
+        value=6.4,
+        unit="mmol/L",
+    )
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=grandma["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def draft_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "draft_health_record_actions",
+                    {
+                        "summary": "记录奶奶今天心率。",
+                        "actions": [
+                            {
+                                "action": "create",
+                                "resource": "observations",
+                                "target_member_id": grandma["id"],
+                                "payload": {
+                                    "category": "body-vitals",
+                                    "code": "heart-rate",
+                                    "display_name": "心率",
+                                    "value": 75.0,
+                                    "unit": "bpm",
+                                    "effective_at": "2026-03-12T09:00:00+08:00",
+                                },
+                            }
+                        ],
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=draft_model):
+        draft_events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=grandma["id"],
+            member_selection_mode="explicit",
+            page_context="home",
+            content="帮我记录奶奶今天心率 75",
+        )
+    draft_tool_call_id = next(
+        item["data"]["tool_call_id"]
+        for item in draft_events
+        if item["event"] == "tool.draft"
+    )
+
+    with client.app.state.database.connection() as connection:
+        connection.execute(
+            "UPDATE chat_session SET member_id = ? WHERE id = ?",
+            (grandpa["id"], session_id),
+        )
+
+    confirm_state = {"step": 0}
+
+    async def confirm_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            if confirm_state["step"] == 0:
+                confirm_state["step"] = 1
+                return ModelResponse(parts=[ToolCallPart("get_member_summary", {})])
+            return ModelResponse(parts=[TextPart("已按待确认草稿所属成员完成保存。")])
+        return ModelResponse(parts=[TextPart("unexpected")])
+
+    with override_agent_model(client, function=confirm_model):
+        response = client.post(
+            f"/api/chat/{session_id}/confirm-draft",
+            headers=auth_headers(admin["tokens"]["access_token"]),
+            json={"approvals": {draft_tool_call_id: True}, "edits": {}},
+        )
+
+    assert response.status_code == 200, response.text
+
+    messages_response = client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert messages_response.status_code == 200, messages_response.text
+    payload = messages_response.json()
+    summary_tool_message = next(
+        item
+        for item in reversed(payload)
+        if item["role"] == "tool"
+        and item["event_type"] == "tool.result"
+        and item["metadata"]["tool_name"] == "get_member_summary"
+    )
+    assert "奶奶的健康摘要" in summary_tool_message["content"]
+    assert "外婆血糖" not in summary_tool_message["content"]
 
 def test_chat_follow_up_message_falls_back_when_stream_returns_empty(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
