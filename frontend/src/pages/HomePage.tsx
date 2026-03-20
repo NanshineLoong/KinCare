@@ -14,7 +14,11 @@ import { readyAttachmentContexts } from "../attachments";
 import type { AuthMember, AuthSession } from "../auth/session";
 import { buildHealthSummaryCards } from "../healthSummaryCards";
 import { useComposerAttachments } from "../hooks/useComposerAttachments";
-import { usePreferences } from "../preferences";
+import {
+  usePreferences,
+  type AppLanguage,
+  type TranslationKey,
+} from "../preferences";
 
 // ─── Tiny helpers ──────────────────────────────────────────────────────────────
 
@@ -128,7 +132,11 @@ function latestSummaryTime(
   );
 }
 
-function formatRefreshTime(value: string | null): string {
+function formatRefreshTime(
+  value: string | null,
+  language: AppLanguage,
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
@@ -136,34 +144,50 @@ function formatRefreshTime(value: string | null): string {
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60_000);
   const diffHours = Math.floor(diffMins / 60);
-  if (diffMins < 1) return "刚刚更新";
-  if (diffMins < 60) return `${diffMins} 分钟前更新`;
-  if (diffHours < 24) return `${diffHours} 小时前更新`;
-  return (
-    date.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }) +
-    " 更新"
-  );
+  const locale = language === "en" ? "en-US" : "zh-CN";
+  if (diffMins < 1) return t("homeSummaryUpdatedJustNow");
+  if (diffMins < 60)
+    return t("homeSummaryUpdatedMinutesAgo", { count: diffMins });
+  if (diffHours < 24)
+    return t("homeSummaryUpdatedHoursAgo", { count: diffHours });
+  const dateStr = date.toLocaleDateString(locale, {
+    month: "numeric",
+    day: "numeric",
+  });
+  return t("homeSummaryUpdatedOnDate", { date: dateStr });
 }
 
-function formatPanelRefreshTime(value: string | null | undefined): string | null {
+function formatPanelRefreshTime(
+  value: string | null | undefined,
+  language: AppLanguage,
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return `${date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 已刷新`;
+  const locale = language === "en" ? "en-US" : "zh-CN";
+  const time = date.toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return t("homePanelRefreshedAt", { time });
 }
 
 function buildSummaryChips(
   summary: DashboardMemberSummary | undefined,
+  emptySummaryText: string,
 ): SummaryChip[] {
-  return buildHealthSummaryCards(summary?.health_summaries).map((item) => ({
-    label: item.label,
-    summary: item.content,
-    tone: dashboardChipTone(
-      item.status,
-      "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray",
-    ),
-    status: item.status,
-  }));
+  return buildHealthSummaryCards(summary?.health_summaries, emptySummaryText).map(
+    (item) => ({
+      label: item.label,
+      summary: item.content,
+      tone: dashboardChipTone(
+        item.status,
+        "border-[#F2EDE7] bg-[#F8F6F3] text-warm-gray",
+      ),
+      status: item.status,
+    }),
+  );
 }
 
 // ─── Reminder grouping ─────────────────────────────────────────────────────────
@@ -174,11 +198,14 @@ function readHourFromIso(value: string | null) {
   return match ? Number(match[1]) : 12;
 }
 
-function groupReminders(reminders: DashboardReminder[]): ReminderGroup[] {
+function groupReminders(
+  reminders: DashboardReminder[],
+  groupLabels: { morning: string; afternoon: string; evening: string },
+): ReminderGroup[] {
   const buckets: Record<ReminderGroup["key"], ReminderGroup> = {
     morning: {
       key: "morning",
-      label: "清晨的叮嘱",
+      label: groupLabels.morning,
       reminders: [],
       iconBg: "bg-amber-50",
       iconColor: "text-amber-500",
@@ -186,7 +213,7 @@ function groupReminders(reminders: DashboardReminder[]): ReminderGroup[] {
     },
     afternoon: {
       key: "afternoon",
-      label: "午后的守候",
+      label: groupLabels.afternoon,
       reminders: [],
       iconBg: "bg-sky-50",
       iconColor: "text-sky-500",
@@ -194,7 +221,7 @@ function groupReminders(reminders: DashboardReminder[]): ReminderGroup[] {
     },
     evening: {
       key: "evening",
-      label: "晚间小结",
+      label: groupLabels.evening,
       reminders: [],
       iconBg: "bg-violet-50",
       iconColor: "text-violet-500",
@@ -229,8 +256,8 @@ function groupReminders(reminders: DashboardReminder[]): ReminderGroup[] {
   return Object.values(buckets).filter((g) => g.reminders.length > 0);
 }
 
-function formatReminderTime(value: string | null) {
-  if (!value) return "待安排";
+function formatReminderTime(value: string | null, pendingLabel: string) {
+  if (!value) return pendingLabel;
   const match = value.match(/T(\d{2}:\d{2})/);
   return match ? match[1] : value;
 }
@@ -240,36 +267,39 @@ function formatReminderTime(value: string | null) {
 function permissionLabel(
   member: AuthMember,
   session: AuthSession,
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
 ): { text: string; style: string } {
   if (
     member.user_account_id === session.user.id &&
     session.user.role === "admin"
   ) {
     return {
-      text: "管理员",
+      text: t("appShellAdmin"),
       style: "bg-[#E8F0E6] text-[#2D4F3E] border-[#C6DBC2]",
     };
   }
   if (member.permission_level === "manage") {
     return {
-      text: "可管理",
+      text: t("homePermissionManage"),
       style: "bg-[#EBF2F7] text-[#4A6076] border-[#C4D9E9]",
     };
   }
   if (member.permission_level === "write") {
     return {
-      text: "可写入",
+      text: t("homePermissionWrite"),
       style: "bg-[#FEF5ED] text-[#A67C52] border-[#FAE6D8]",
     };
   }
   if (member.permission_level === "read") {
     return {
-      text: "可读取",
+      text: t("homePermissionRead"),
       style: "bg-[#F8F6F3] text-warm-gray border-[#F2EDE7]",
     };
   }
   return {
-    text: member.user_account_id ? "已绑定" : "待完善",
+    text: member.user_account_id
+      ? t("homePermissionBound")
+      : t("homePermissionIncomplete"),
     style: "bg-[#F8F6F3] text-warm-gray border-[#F2EDE7]",
   };
 }
@@ -314,7 +344,7 @@ export function HomePage({
   refreshToken = 0,
   session,
 }: HomePageProps) {
-  const { t } = usePreferences();
+  const { t, language } = usePreferences();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
@@ -342,10 +372,19 @@ export function HomePage({
   const memberSummaries = new Map(
     (dashboard?.members ?? []).map((item) => [item.member.id, item]),
   );
-  const reminderGroups = groupReminders(dashboard?.today_reminders ?? []);
+  const reminderGroups = groupReminders(
+    dashboard?.today_reminders ?? [],
+    {
+      morning: t("homeReminderGroupMorning"),
+      afternoon: t("homeReminderGroupAfternoon"),
+      evening: t("homeReminderGroupEvening"),
+    },
+  );
   const totalReminders = dashboard?.today_reminders?.length ?? 0;
   const reminderRefreshText = formatPanelRefreshTime(
     dashboard?.today_reminders_refreshed_at,
+    language,
+    t,
   );
   const canRefreshAnyCarePlan = visibleMembers.some((member) =>
     canRefreshMemberSummary(member, session),
@@ -362,7 +401,7 @@ export function HomePage({
       setDashboardError(
         error instanceof Error
           ? error.message
-          : "首页聚合数据加载失败，请重试。",
+          : t("homeDashboardLoadError"),
       );
     } finally {
       setIsLoadingDashboard(false);
@@ -391,7 +430,9 @@ export function HomePage({
     const readyComposerAttachments = readyAttachmentContexts(composerAttachments);
     const content = trimmed || (
       readyComposerAttachments.length > 0
-        ? `请结合我刚上传的 ${readyComposerAttachments.length} 个附件继续分析。`
+        ? t("homeAttachmentAnalysisPrompt", {
+            count: readyComposerAttachments.length,
+          })
         : ""
     );
     if (!content) {
@@ -419,7 +460,7 @@ export function HomePage({
       const result = await refreshMemberHealthSummaries(session, member.id);
       const errorMessage = buildRefreshError(
         result,
-        "AI 健康摘要刷新失败，请稍后重试。",
+        t("homeAiSummaryRefreshError"),
       );
       if (errorMessage) {
         throw new Error(errorMessage);
@@ -429,7 +470,7 @@ export function HomePage({
       setDashboardError(
         error instanceof Error
           ? error.message
-          : "AI 健康摘要刷新失败，请稍后重试。",
+          : t("homeAiSummaryRefreshError"),
       );
     } finally {
       setRefreshingMemberId(null);
@@ -443,7 +484,7 @@ export function HomePage({
       const result = await refreshDashboardTodayReminders(session);
       const errorMessage = buildRefreshError(
         result,
-        "今日提醒刷新失败，请稍后重试。",
+        t("homeRemindersRefreshError"),
       );
       if (errorMessage) {
         throw new Error(errorMessage);
@@ -451,7 +492,9 @@ export function HomePage({
       await syncAfterManualRefresh();
     } catch (error) {
       setDashboardError(
-        error instanceof Error ? error.message : "今日提醒刷新失败，请稍后重试。",
+        error instanceof Error
+          ? error.message
+          : t("homeRemindersRefreshError"),
       );
     } finally {
       setIsRefreshingCarePlans(false);
@@ -471,7 +514,7 @@ export function HomePage({
               {t("homeFamilyStatus")}
             </h2>
             <span className="rounded-full border border-[#F2EDE7] bg-white px-3 py-1 text-xs font-semibold text-warm-gray shadow-soft">
-              {visibleMembers.length} 位成员
+              {t("homeMemberCountBadge", { count: visibleMembers.length })}
             </span>
           </div>
 
@@ -485,7 +528,7 @@ export function HomePage({
           {/* Loading skeleton */}
           {isLoadingMembers && members.length === 0 ? (
             <div className="shrink-0 rounded-2xl border border-[#F2EDE7]/60 bg-white px-4 py-3 text-sm text-warm-gray">
-              正在加载家庭成员…
+              {t("homeLoadingMembers")}
             </div>
           ) : null}
 
@@ -495,9 +538,12 @@ export function HomePage({
           >
             {visibleMembers.map((member) => {
               const summaryData = memberSummaries.get(member.id);
-              const chips = buildSummaryChips(summaryData);
+              const chips = buildSummaryChips(
+                summaryData,
+                t("homeHealthSummaryAwaiting"),
+              );
               const avatarBg = getAvatarColor(member.name);
-              const perm = permissionLabel(member, session);
+              const perm = permissionLabel(member, session, t);
               const refreshedAt = latestSummaryTime(summaryData);
 
               return (
@@ -526,8 +572,8 @@ export function HomePage({
                       </div>
                       <p className="mt-0.5 text-[11px] text-warm-gray">
                         {refreshedAt
-                          ? formatRefreshTime(refreshedAt)
-                          : "暂无健康摘要"}
+                          ? formatRefreshTime(refreshedAt, language, t)
+                          : t("homeNoSummaryYet")}
                       </p>
                     </div>
                   </div>
@@ -561,16 +607,16 @@ export function HomePage({
                   {/* Footer row */}
                   <div className="mt-4 flex items-center justify-between gap-2">
                     <button
-                      aria-label={`查看 ${member.name} 档案`}
+                      aria-label={t("homeViewProfileAria", { name: member.name })}
                       className="inline-flex items-center gap-1.5 rounded-full bg-[#F5F0EA] px-4 py-2 text-sm font-semibold text-[#2D2926] transition hover:bg-[#efe7de]"
                       onClick={() => onOpenMemberProfile?.(member.id)}
                       type="button"
                     >
                       <MaterialIcon className="text-base" name="person" />
-                      查看档案
+                      {t("homeViewProfile")}
                     </button>
                     <button
-                      aria-label={`刷新 ${member.name} 的数据`}
+                      aria-label={t("homeRefreshMemberAria", { name: member.name })}
                       className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#4A443F]"
                       disabled={
                         refreshingMemberId === member.id ||
@@ -605,8 +651,11 @@ export function HomePage({
               </h2>
               <p className="mt-0.5 text-xs text-warm-gray">
                 {totalReminders > 0
-                  ? `共 ${totalReminders} 项健康任务，覆盖 ${reminderGroups.length} 个时段`
-                  : "暂无今日提醒"}
+                  ? t("homeReminderTasksLine", {
+                      total: totalReminders,
+                      slots: reminderGroups.length,
+                    })
+                  : t("homeNoRemindersSubtitle")}
                 {reminderRefreshText
                   ? `　·　${reminderRefreshText}`
                   : ""}
@@ -636,7 +685,7 @@ export function HomePage({
           {/* Loading */}
           {isLoadingDashboard && !dashboard ? (
             <div className="shrink-0 rounded-[2rem] border border-[#F2EDE7]/60 bg-white px-6 py-6 text-sm text-warm-gray shadow-card">
-              正在整理今日提醒…
+              {t("homeLoadingReminders")}
             </div>
           ) : null}
 
@@ -647,11 +696,10 @@ export function HomePage({
                 <MaterialIcon className="text-3xl" name="event_available" />
               </div>
               <h3 className="mt-5 text-xl font-bold text-[#2D2926]">
-                今天还没有待办提醒
+                {t("homeEmptyRemindersTitle")}
               </h3>
               <p className="mt-3 max-w-md text-sm leading-7 text-warm-gray">
-                可以先进入成员档案补充用药、复诊和指标记录，系统会在每日刷新时同步最新
-                AI 提醒。
+                {t("homeEmptyRemindersBody")}
               </p>
             </div>
           ) : null}
@@ -674,7 +722,9 @@ export function HomePage({
                       {group.label}
                     </h3>
                     <p className="text-[11px] text-warm-gray">
-                      {group.reminders.length} 项提醒
+                      {t("homeReminderCountInGroup", {
+                        count: group.reminders.length,
+                      })}
                     </p>
                   </div>
                 </div>
@@ -703,7 +753,9 @@ export function HomePage({
                             />
                           </div>
                           <button
-                            aria-label={`查看 ${reminder.member_name} 档案`}
+                            aria-label={t("homeViewReminderMemberAria", {
+                              name: reminder.member_name,
+                            })}
                             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ring-2 ring-[#F9F7F4] transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-apple-blue/50 focus-visible:ring-offset-2"
                             onClick={() =>
                               onOpenMemberProfile?.(reminder.member_id)
@@ -719,7 +771,9 @@ export function HomePage({
                         {/* Content */}
                         <div className="mt-2.5 min-w-0">
                           <p className="text-[11px] font-semibold text-warm-gray">
-                            给 {reminder.member_name}
+                            {t("homeReminderForMember", {
+                              name: reminder.member_name,
+                            })}
                           </p>
                           <h4 className="mt-1 text-base font-bold leading-snug text-[#2D2926]">
                             {reminder.title}
@@ -739,7 +793,10 @@ export function HomePage({
                         {/* Time */}
                         <div className="mt-3 flex items-center">
                           <span className="rounded-full bg-[#F5F0EA] px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] text-warm-gray">
-                            {formatReminderTime(reminder.scheduled_at)}
+                            {formatReminderTime(
+                              reminder.scheduled_at,
+                              t("homeReminderPendingSchedule"),
+                            )}
                           </span>
                         </div>
                       </article>

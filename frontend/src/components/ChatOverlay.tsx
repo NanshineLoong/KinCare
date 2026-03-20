@@ -32,7 +32,6 @@ type ChatOverlayProps = {
   attachments: ComposerAttachment[];
   draft: string;
   error: string | null;
-  focusLabel: string;
   isBusy: boolean;
   isUploading: boolean;
   memberOptions: MemberOption[];
@@ -91,7 +90,6 @@ export function ChatOverlay({
   attachments,
   draft,
   error,
-  focusLabel,
   isBusy,
   isUploading,
   memberOptions,
@@ -294,7 +292,6 @@ export function ChatOverlay({
           <ChatInput
             attachments={attachments}
             draft={draft}
-            focusLabel={focusLabel}
             isBusy={isBusy}
             isUploading={isUploading}
             memberOptions={memberOptions}

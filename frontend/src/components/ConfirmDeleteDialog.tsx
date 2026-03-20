@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+import { usePreferences } from "../preferences";
 import { Button } from "./Button";
 
 type ConfirmDeleteDialogProps = {
@@ -14,10 +16,12 @@ export function ConfirmDeleteDialog({
   isOpen,
   onClose,
   title,
-  message = "此操作不可恢复，确定要删除吗？",
+  message: messageProp,
   isDeleting = false,
   onConfirm,
 }: ConfirmDeleteDialogProps) {
+  const { t } = usePreferences();
+  const message = messageProp ?? t("confirmDeleteDefaultMessage");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -65,7 +69,6 @@ export function ConfirmDeleteDialog({
         </div>
         <div className="mt-6 flex flex-col gap-2 relative z-10 pointer-events-auto">
           <Button
-            dangerouslySetInnerHTML={{ __html: "确认删除" } as any}
             disabled={isDeleting}
             fullWidth
             loading={isDeleting}
@@ -76,7 +79,7 @@ export function ConfirmDeleteDialog({
             type="button"
             variant="danger"
           >
-            确认删除
+            {t("confirmDeleteButton")}
           </Button>
           <Button 
             disabled={isDeleting} 
@@ -88,7 +91,7 @@ export function ConfirmDeleteDialog({
             type="button"
             variant="secondary"
           >
-            取消
+            {t("commonCancel")}
           </Button>
         </div>
       </div>

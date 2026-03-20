@@ -1237,7 +1237,6 @@ describe("App", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
 
     expect(await within(dialog).findByText("先继续看张妈妈。")).toBeInTheDocument();
-    expect(within(dialog).getByText("当前咨询人：张妈妈")).toBeInTheDocument();
 
     fireEvent.change(within(dialog).getByRole("combobox"), {
       target: { value: "member-1" },
@@ -1250,7 +1249,6 @@ describe("App", () => {
     expect(await within(dialog).findByText("现在改看管理员。")).toBeInTheDocument();
     expect(within(dialog).getByText("先继续看张妈妈。")).toBeInTheDocument();
     expect(within(dialog).getByText("已切换咨询人到管理员")).toBeInTheDocument();
-    expect(within(dialog).getByText("当前咨询人：管理员")).toBeInTheDocument();
     expect(sessionCreateCount).toBe(1);
   });
 
@@ -1327,7 +1325,6 @@ describe("App", () => {
     expect(
       await within(dialog).findByText("已自动识别当前咨询人为张妈妈"),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText("当前咨询人：张妈妈")).toBeInTheDocument();
   });
 
   it("restores focus switch markers and the latest focus member from history", async () => {
@@ -1430,7 +1427,6 @@ describe("App", () => {
     expect(await within(dialog).findByText("先看张妈妈")).toBeInTheDocument();
     expect(within(dialog).getByText("好的，现在切换到管理员。")).toBeInTheDocument();
     expect(within(dialog).getByText("已切换咨询人到管理员")).toBeInTheDocument();
-    expect(within(dialog).getByText("当前咨询人：管理员")).toBeInTheDocument();
   });
 
   it("starts a fresh chat only when the new session action is used", async () => {

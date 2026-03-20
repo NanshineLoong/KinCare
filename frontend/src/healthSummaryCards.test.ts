@@ -15,6 +15,7 @@ describe("buildHealthSummaryCards", () => {
         generated_at: "2026-03-20T08:00:00+08:00",
         created_at: `2026-03-20T08:00:0${index}+08:00`,
       })),
+      "期待新纪录",
     );
 
     expect(cards).toHaveLength(MAX_HEALTH_SUMMARY_CARDS);
@@ -27,7 +28,7 @@ describe("buildHealthSummaryCards", () => {
   });
 
   it("returns a single untitled placeholder when there are no summaries", () => {
-    expect(buildHealthSummaryCards([])).toEqual([
+    expect(buildHealthSummaryCards([], "期待新纪录")).toEqual([
       {
         label: null,
         content: "期待新纪录",

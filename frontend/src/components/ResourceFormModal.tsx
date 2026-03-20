@@ -1,4 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
+
+import { usePreferences } from "../preferences";
 import { Button } from "./Button";
 
 type ResourceFormModalProps = {
@@ -15,11 +17,13 @@ export function ResourceFormModal({
   isOpen,
   onClose,
   title,
-  submitLabel = "保存",
+  submitLabel: submitLabelProp,
   isSubmitting = false,
   onSubmit,
   children,
 }: ResourceFormModalProps) {
+  const { t } = usePreferences();
+  const submitLabel = submitLabelProp ?? t("commonSave");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -64,7 +68,7 @@ export function ResourceFormModal({
             {title}
           </h2>
           <button
-            aria-label="关闭"
+            aria-label={t("commonClose")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#2D2926]"
             onClick={onClose}
             type="button"
@@ -77,7 +81,7 @@ export function ResourceFormModal({
         </div>
         <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#F2EDE7] bg-[#F9F6F3] px-6 py-4">
           <Button disabled={isSubmitting} onClick={onClose} variant="secondary">
-            取消
+            {t("commonCancel")}
           </Button>
           <Button
             loading={isSubmitting}

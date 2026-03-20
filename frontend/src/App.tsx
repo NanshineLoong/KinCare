@@ -159,12 +159,6 @@ export default function App() {
     setChatError(null);
   }
 
-  function focusLabelForMember(memberName: string | null) {
-    return memberName
-      ? t("chatInputFocusMember", { member: memberName })
-      : t("chatInputAutoMember");
-  }
-
   function appendSystemMessage(content: string) {
     setChatMessages((current) => [
       ...current,
@@ -644,11 +638,6 @@ export default function App() {
     setQueuedMessage({ content: message, attachments });
     setIsChatOpen(true);
   }
-  const selectedMemberName = memberNameForId(selectedChatMemberId);
-  const chatFocusLabel = selectedMemberName
-    ? focusLabelForMember(selectedMemberName)
-    : focusLabelForMember(resolvedChatMemberName);
-
   if (session && !isSessionReady) {
     return null;
   }
@@ -748,7 +737,6 @@ export default function App() {
           attachments={chatAttachments}
           draft={chatDraft}
           error={chatError}
-          focusLabel={chatFocusLabel}
           isBusy={isChatBusy}
           isUploading={isChatUploadingAttachment}
           memberOptions={memberOptions.map((member) => ({

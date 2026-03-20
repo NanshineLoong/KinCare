@@ -20,7 +20,6 @@ type MemberOption = {
 type ChatInputProps = {
   attachments?: ComposerAttachment[];
   draft: string;
-  focusLabel: string;
   isBusy: boolean;
   isUploading?: boolean;
   memberOptions: MemberOption[];
@@ -36,7 +35,6 @@ type ChatInputProps = {
 export function ChatInput({
   attachments = [],
   draft,
-  focusLabel,
   isBusy,
   isUploading = false,
   memberOptions,
@@ -344,10 +342,6 @@ export function ChatInput({
       {/* Row 2: Controls */}
       <div className="flex items-center justify-between border-t border-[#F8F6F3] pt-2">
         <div className="flex items-center gap-2">
-          <div className="rounded-full bg-[#F5F0EA] px-3 py-1 text-xs font-semibold text-[#4A443F]">
-            {focusLabel}
-          </div>
-
           {/* Add button for attachments */}
           <button
             aria-label={t("chatInputAddAttachment")}

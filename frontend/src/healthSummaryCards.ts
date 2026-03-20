@@ -10,6 +10,7 @@ export const MAX_HEALTH_SUMMARY_CARDS = 4;
 
 export function buildHealthSummaryCards(
   summaries: HealthSummaryRecord[] | undefined,
+  emptySummaryText: string,
 ): HealthSummaryCard[] {
   const cards =
     summaries?.slice(0, MAX_HEALTH_SUMMARY_CARDS).map((item) => ({
@@ -25,7 +26,7 @@ export function buildHealthSummaryCards(
   return [
     {
       label: null,
-      content: "期待新纪录",
+      content: emptySummaryText,
       status: undefined,
     },
   ];

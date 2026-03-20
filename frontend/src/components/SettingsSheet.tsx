@@ -304,10 +304,14 @@ function AvatarPill({ member }: { member: AuthMember }) {
 
 function AvatarPreview({
   allSelected,
+  everyoneLabel,
+  notSetLabel,
   selectedIds,
   targetMembers,
 }: {
   allSelected: boolean;
+  everyoneLabel: string;
+  notSetLabel: string;
   selectedIds: string[];
   targetMembers: AuthMember[];
 }) {
@@ -317,7 +321,7 @@ function AvatarPreview({
         <span className="material-symbols-outlined text-[18px] text-[#7D746D]">
           groups
         </span>
-        所有人
+        {everyoneLabel}
       </div>
     );
   }
@@ -327,7 +331,7 @@ function AvatarPreview({
   );
 
   if (selectedMembers.length === 0) {
-    return <span className="text-sm text-[#9C9288]">未设置</span>;
+    return <span className="text-sm text-[#9C9288]">{notSetLabel}</span>;
   }
 
   return (
@@ -354,13 +358,14 @@ function PermissionPicker({
   onToggleOpen,
 }: PermissionPickerProps) {
   const lockedIdSet = new Set(lockedIds);
+  const { t } = usePreferences();
 
   return (
     <div aria-label={`${memberName} ${label}`} className="space-y-2">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#5F5F59]">{label}</p>
       <button
         aria-expanded={open}
-        aria-label={`选择 ${memberName} 的${label}对象`}
+        aria-label={t("settingsPermissionPickTargetsAria", { memberName, label })}
         className="flex w-full items-center justify-between rounded-xl border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-3 text-left transition hover:border-[#B3B2AB] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled}
         onClick={onToggleOpen}
@@ -368,6 +373,8 @@ function PermissionPicker({
       >
         <AvatarPreview
           allSelected={allSelected}
+          everyoneLabel={t("settingsPermissionEveryone")}
+          notSetLabel={t("settingsPermissionNotSet")}
           selectedIds={selectedIds}
           targetMembers={targetMembers}
         />
@@ -380,7 +387,7 @@ function PermissionPicker({
         <div className="rounded-xl border border-[#D9D4CD] bg-white p-3 shadow-sm">
           <div className="space-y-2">
             <button
-              aria-label={`切换 ${label} 对象 所有人`}
+              aria-label={t("settingsPermissionToggleEveryoneAria", { label })}
               className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition ${
                 allSelected
                   ? "bg-[#F0EEE8] text-[#32332D]"
@@ -394,7 +401,7 @@ function PermissionPicker({
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F4EFE8] text-[#7D746D]">
                   <span className="material-symbols-outlined text-[18px]">groups</span>
                 </span>
-                <span className="font-medium">所有人</span>
+                <span className="font-medium">{t("settingsPermissionEveryone")}</span>
               </span>
               {allSelected && (
                 <span className="material-symbols-outlined text-[18px] text-[#4A6076]">
@@ -410,7 +417,10 @@ function PermissionPicker({
               const isSelected = allSelected || selectedIds.includes(member.id);
               return (
                 <button
-                  aria-label={`切换 ${label} 对象 ${member.name}`}
+                  aria-label={t("settingsPermissionToggleMemberAria", {
+                    label,
+                    name: member.name,
+                  })}
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition ${
                     isSelected
                       ? "bg-[#FBF8F5] text-[#32332D]"
@@ -431,7 +441,9 @@ function PermissionPicker({
                     <span>
                       <span className="block font-medium">{member.name}</span>
                       {isLocked && (
-                        <span className="text-xs text-[#9C9288]">已由写权限继承</span>
+                        <span className="text-xs text-[#9C9288]">
+                          {t("settingsPermissionWriteInheritedHint")}
+                        </span>
                       )}
                     </span>
                   </span>
@@ -555,7 +567,7 @@ function MemberPermissionRow({
           setError(
             loadError instanceof Error
               ? loadError.message
-              : "权限加载失败，请稍后重试。",
+              : t("settingsMembersPermissionLoadError"),
           );
         }
       } finally {
@@ -570,7 +582,7 @@ function MemberPermissionRow({
     return () => {
       cancelled = true;
     };
-  }, [expanded, member.user_account_id, members, session]);
+  }, [expanded, member.user_account_id, members, session, t]);
 
   useEffect(() => {
     if (!openPicker) {
@@ -618,7 +630,7 @@ function MemberPermissionRow({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "权限保存失败，请稍后重试。",
+          : t("settingsMembersPermissionSaveError"),
       );
     } finally {
       setSaving(false);
@@ -766,7 +778,9 @@ function MemberPermissionRow({
                     : "border-[#D9D4CD] bg-[#FCF9F5] text-[#7B7B74]"
                 }`}
               >
-                {member.user_account_id ? "已绑定" : "未绑定"}
+                {member.user_account_id
+                  ? t("homePermissionBound")
+                  : t("homePermissionNotBound")}
               </span>
             </div>
           </div>
@@ -787,8 +801,8 @@ function MemberPermissionRow({
           <button
             aria-label={
               expanded
-                ? `收起 ${member.name} 的权限设置`
-                : `展开 ${member.name} 的权限设置`
+                ? t("settingsMembersCollapsePermissionsAria", { name: member.name })
+                : t("settingsMembersExpandPermissionsAria", { name: member.name })
             }
             className="flex items-center justify-center rounded-full p-2 text-[#7D746D] transition hover:bg-[#F5F0EA] hover:text-[#2D2926] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!canEdit}
@@ -812,22 +826,24 @@ function MemberPermissionRow({
 
           {!member.user_account_id && (
             <div className="rounded-lg border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-4 text-sm text-[#5F5F59]">
-              未绑定账号，无法配置权限
+              {t("settingsMembersUnboundNoPermissions")}
             </div>
           )}
 
           {member.user_account_id && loading && (
             <div className="rounded-lg border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-5 text-sm text-[#5F5F59]">
-              权限加载中...
+              {t("settingsMembersPermissionLoading")}
             </div>
           )}
 
           {member.user_account_id && !loading && (
             <div className="space-y-8">
               <div className="flex items-center justify-between border-t border-[#32332D]/5 py-4 first:border-t-0">
-                <span className="text-sm font-semibold text-[#32332D]">管理权限</span>
+                <span className="text-sm font-semibold text-[#32332D]">
+                  {t("settingsMembersPermissionHeading")}
+                </span>
                 <button
-                  aria-label={`切换 ${member.name} 的管理全部成员权限`}
+                  aria-label={t("settingsMembersToggleManageAllAria", { name: member.name })}
                   aria-pressed={selection.manageAll}
                   className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 ${
                     selection.manageAll ? "bg-[#2D2926]" : "bg-[#D9D4CD]"
@@ -850,7 +866,7 @@ function MemberPermissionRow({
                   <PermissionPicker
                     allSelected={selection.readAll}
                     disabled={!canEdit || selection.manageAll}
-                    label="可读取"
+                    label={t("homePermissionRead")}
                     lockedIds={selection.writeIds}
                     memberName={member.name}
                     open={openPicker === "read"}
@@ -873,7 +889,7 @@ function MemberPermissionRow({
                   <PermissionPicker
                     allSelected={selection.writeAll}
                     disabled={!canEdit || selection.manageAll}
-                    label="可写入"
+                    label={t("homePermissionWrite")}
                     memberName={member.name}
                     open={openPicker === "write"}
                     saving={saving}

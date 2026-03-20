@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getMember, updateMember } from "../api/members";
 import {
@@ -39,6 +39,11 @@ import {
 } from "../api/health";
 import type { AuthMember, AuthSession } from "../auth/session";
 import { buildHealthSummaryCards } from "../healthSummaryCards";
+import {
+  usePreferences,
+  type AppLanguage,
+  type TranslationKey,
+} from "../preferences";
 import { Button } from "./Button";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { ResourceFormModal } from "./ResourceFormModal";
@@ -68,13 +73,51 @@ type MemberProfileState = {
 
 type MemberWithDetails = AuthMember & { weight_kg?: number };
 
-const navItems: { key: TabKey; label: string; icon: string }[] = [
-  { key: "overview", label: "概览", icon: "grid_view" },
-  { key: "health-data", label: "健康数据", icon: "monitoring" },
-  { key: "health-records", label: "健康档案", icon: "assignment" },
-  { key: "encounters", label: "就诊记录", icon: "local_hospital" },
-  { key: "medications", label: "药品管理", icon: "medication" },
-];
+function memberProfileNavItems(
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+): { key: TabKey; label: string; icon: string }[] {
+  return [
+    { key: "overview", label: t("memberProfileTabOverview"), icon: "grid_view" },
+    {
+      key: "health-data",
+      label: t("memberProfileTabHealthData"),
+      icon: "monitoring",
+    },
+    {
+      key: "health-records",
+      label: t("memberProfileTabHealthRecords"),
+      icon: "assignment",
+    },
+    {
+      key: "encounters",
+      label: t("memberProfileTabEncounters"),
+      icon: "local_hospital",
+    },
+    {
+      key: "medications",
+      label: t("memberProfileTabMedications"),
+      icon: "medication",
+    },
+  ];
+}
+
+function translateCareTimeSlot(
+  slot: string | null | undefined,
+  language: AppLanguage,
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+): string {
+  if (!slot) return "—";
+  if (language === "zh") return slot;
+  const map: Record<string, TranslationKey> = {
+    清晨: "homeCareTimeEarlyMorning",
+    上午: "homeCareTimeMorning",
+    午后: "homeCareTimeAfternoon",
+    晚间: "homeCareTimeEvening",
+    睡前: "homeCareTimeBedtime",
+  };
+  const key = map[slot];
+  return key ? t(key) : slot;
+}
 
 function calculateAge(birthDate: string | null): number | null {
   if (!birthDate) return null;
@@ -88,18 +131,18 @@ function calculateAge(birthDate: string | null): number | null {
   return age;
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, locale: string): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("zh-CN");
+  return date.toLocaleDateString(locale);
 }
 
-function formatTime(value: string | null): string {
+function formatTime(value: string | null, locale: string): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 }
 
 function isToday(value: string | null): boolean {
@@ -113,14 +156,22 @@ function isToday(value: string | null): boolean {
   );
 }
 
-function formatHealthTimestamp(value: string | null): string {
+function formatHealthTimestamp(
+  value: string | null,
+  locale: string,
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   if (isToday(value)) {
-    return `今天 ${formatTime(value)}`;
+    return t("memberProfileTodayAt", { time: formatTime(value, locale) });
   }
-  return `${date.getMonth() + 1}-${date.getDate().toString().padStart(2, "0")} ${formatTime(value)}`;
+  const datePart = date.toLocaleDateString(locale, {
+    month: "numeric",
+    day: "2-digit",
+  });
+  return `${datePart} ${formatTime(value, locale)}`;
 }
 
 function getNumericValue(observation?: ObservationRecord | null): number | null {
@@ -245,13 +296,14 @@ function CollapsibleSection({
 }
 
 function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const { t } = usePreferences();
   return (
     <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onEdit(); }}
         className="flex h-8 w-8 items-center justify-center rounded-full text-[#4A6076] hover:bg-[#F5F0EA] transition"
-        title="编辑"
+        title={t("memberProfileEditAction")}
       >
         <span className="material-symbols-outlined text-[18px]">edit</span>
       </button>
@@ -259,7 +311,7 @@ function EditDeleteActions({ onEdit, onDelete }: { onEdit: () => void; onDelete:
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
         className="flex h-8 w-8 items-center justify-center rounded-full text-red-500 hover:bg-[#FFF1F1] transition"
-        title="删除"
+        title={t("memberProfileDeleteAction")}
       >
         <span className="material-symbols-outlined text-[18px]">delete</span>
       </button>
@@ -277,6 +329,9 @@ function OverviewTabContent({
   carePlans,
   isEditing,
   onSaveBasicInfo,
+  t,
+  language,
+  locale,
 }: {
   member: MemberWithDetails | null;
   observations: ObservationRecord[];
@@ -285,6 +340,9 @@ function OverviewTabContent({
   carePlans: CarePlanRecord[];
   isEditing: boolean;
   onSaveBasicInfo: (data: Partial<AuthMember>) => Promise<void>;
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string;
+  language: AppLanguage;
+  locale: string;
 }) {
   const latestHeight = latestObservationByCode(observations, "body-height");
   const latestWeight = latestObservationByCode(observations, "body-weight");
@@ -323,7 +381,10 @@ function OverviewTabContent({
   const allergyConditions = conditions.filter((item) => item.category === "allergy");
   const allergyText = allergyConditions.length > 0 ? allergyConditions.map((item) => item.display_name).join("、") : "—";
   const todayReminders = carePlans.filter((item) => item.status === "active" && isToday(item.scheduled_at));
-  const summaryCards = buildHealthSummaryCards(healthSummaries);
+  const summaryCards = buildHealthSummaryCards(
+    healthSummaries,
+    t("homeHealthSummaryAwaiting"),
+  );
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -344,35 +405,35 @@ function OverviewTabContent({
     <div className="space-y-10">
       <section>
         <div className="flex items-center justify-between mb-6">
-          <SectionHeader title="基础信息" />
+          <SectionHeader title={t("memberProfileBasicInfo")} />
         </div>
         
         {isEditing ? (
           <div className="grid grid-cols-2 gap-4 rounded-3xl border border-[#F2EDE7] bg-[#F9F6F3] p-6">
             <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">姓名</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileName")}</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 className="w-full rounded-xl border border-[#F2EDE7] px-3 py-2 text-sm outline-none focus:border-[#4A6076]"
-                placeholder="成员姓名"
+                placeholder={t("memberProfileNamePlaceholder")}
               />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">性别</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileGender")}</label>
               <select
                 value={formData.gender}
                 onChange={e => setFormData({ ...formData, gender: e.target.value })}
                 className="w-full rounded-xl border border-[#F2EDE7] px-3 py-2 text-sm outline-none focus:border-[#4A6076]"
               >
-                <option value="male">男</option>
-                <option value="female">女</option>
-                <option value="other">其他</option>
+                <option value="male">{t("memberProfileGenderMale")}</option>
+                <option value="female">{t("memberProfileGenderFemale")}</option>
+                <option value="other">{t("memberProfileGenderOther")}</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">出生日期</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileBirthDate")}</label>
               <input
                 type="date"
                 value={formData.birth_date}
@@ -381,49 +442,49 @@ function OverviewTabContent({
               />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">身高 (cm)</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileHeightCm")}</label>
               <input
                 type="number"
                 value={formData.human_height}
                 onChange={e => setFormData({ ...formData, human_height: e.target.value })}
                 className="w-full rounded-xl border border-[#F2EDE7] px-3 py-2 text-sm outline-none focus:border-[#4A6076]"
-                placeholder="例如 170"
+                placeholder={t("memberProfileHeightPlaceholder")}
               />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">血型</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileBloodType")}</label>
               <select
                 value={formData.blood_type}
                 onChange={e => setFormData({ ...formData, blood_type: e.target.value })}
                 className="w-full rounded-xl border border-[#F2EDE7] px-3 py-2 text-sm outline-none focus:border-[#4A6076]"
               >
-                <option value="">未知</option>
-                <option value="A+">A型</option>
-                <option value="B+">B型</option>
-                <option value="AB+">AB型</option>
-                <option value="O+">O型</option>
+                <option value="">{t("memberProfileBloodUnknown")}</option>
+                <option value="A+">{t("memberProfileBloodTypeA")}</option>
+                <option value="B+">{t("memberProfileBloodTypeB")}</option>
+                <option value="AB+">{t("memberProfileBloodTypeAB")}</option>
+                <option value="O+">{t("memberProfileBloodTypeO")}</option>
               </select>
             </div>
             <div className="col-span-2 pt-2 flex justify-end">
-              <Button loading={isSaving} onClick={handleSave} size="sm">保存基础信息</Button>
+              <Button loading={isSaving} onClick={handleSave} size="sm">{t("memberProfileSaveBasic")}</Button>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-4 gap-6">
             <div>
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">身高/体重</p>
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileHeightWeight")}</p>
               <p className="text-[15px] text-[#2D2926]">{heightWeightText}</p>
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">血型</p>
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileBloodType")}</p>
               <p className="text-[15px] text-[#2D2926]">{member?.blood_type ?? "—"}</p>
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">年龄</p>
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileAge")}</p>
               <p className="text-[15px] text-[#2D2926]">{calculateAge(member?.birth_date ?? null) ?? "—"}</p>
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">过敏史</p>
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileAllergies")}</p>
               <p className="text-[15px] text-[#2D2926]">{allergyText}</p>
             </div>
           </div>
@@ -433,10 +494,10 @@ function OverviewTabContent({
 
       <section>
         <SectionHeader
-          title="AI 健康摘要"
+          title={t("memberProfileAiSummaryTitle")}
           badge={
             <span className="rounded-md border border-[#F2EDE7] bg-[#F9F6F3] px-2 py-0.5 text-[10px] text-[#7D746D]">
-              AI 每日生成 · 只读
+              {t("memberProfileAiSummaryBadge")}
             </span>
           }
         />
@@ -459,9 +520,9 @@ function OverviewTabContent({
       </section>
 
       <section>
-        <SectionHeader title="今日提醒" />
+        <SectionHeader title={t("memberProfileTodayReminders")} />
         {todayReminders.length === 0 ? (
-          <p className="py-5 text-[15px] text-[#7D746D]">暂无今日提醒</p>
+          <p className="py-5 text-[15px] text-[#7D746D]">{t("memberProfileNoRemindersToday")}</p>
         ) : (
           <div className="divide-y divide-[#F2EDE7]">
             {todayReminders.map((reminder) => (
@@ -472,7 +533,7 @@ function OverviewTabContent({
                 <div className="min-w-0 flex-1">
                   <p className="text-[15px] font-bold text-[#2D2926]">{reminder.title}</p>
                   <p className="mt-0.5 text-[13px] text-[#7D746D]">
-                    {reminder.time_slot} · {formatTime(reminder.scheduled_at)}
+                    {translateCareTimeSlot(reminder.time_slot, language, t)} · {formatTime(reminder.scheduled_at, locale)}
                   </p>
                 </div>
               </div>
@@ -495,6 +556,8 @@ function HealthDataTabContent({
   onDeleteSleepRecord,
   onSaveWorkoutRecord,
   onDeleteWorkoutRecord,
+  t,
+  locale,
 }: {
   observations: ObservationRecord[];
   sleepRecords: SleepRecord[];
@@ -504,6 +567,8 @@ function HealthDataTabContent({
   onDeleteSleepRecord: (id: string) => Promise<void>;
   onSaveWorkoutRecord: (id: string | null, payload: any) => Promise<void>;
   onDeleteWorkoutRecord: (id: string) => Promise<void>;
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string;
+  locale: string;
 }) {
   const [sleepForm, setSleepForm] = useState<{ id: string | null; start: string; end: string; nap: boolean } | null>(null);
   const [workoutForm, setWorkoutForm] = useState<{ id: string | null; type: string; start: string; end: string } | null>(null);
@@ -612,17 +677,17 @@ function HealthDataTabContent({
 
   return (
     <div className="space-y-6">
-      <CollapsibleSection accentClass="bg-rose-400" title="慢病指标">
+      <CollapsibleSection accentClass="bg-rose-400" title={t("memberProfileHealthChronicMetrics")}>
         {chronicObservations.length === 0 ? (
-          <p className="py-6 text-sm text-[#7D746D] px-4">暂无慢病指标数据</p>
+          <p className="py-6 text-sm text-[#7D746D] px-4">{t("memberProfileNoChronicData")}</p>
         ) : (
           <div className="grid grid-cols-2 gap-4 px-4 pb-4">
             {(latestSystolic || latestDiastolic) && (
               <MetricCard
                 history={bpHistory}
-                label="血压"
+                label={t("memberProfileLabelBloodPressure")}
                 showMiniChart
-                timestamp={formatHealthTimestamp(bpTimestamp)}
+                timestamp={formatHealthTimestamp(bpTimestamp, locale, t)}
                 unit="mmHg"
                 value={bpValue}
               />
@@ -630,9 +695,9 @@ function HealthDataTabContent({
             {latestGlucose && (
               <MetricCard
                 history={glucoseObservations}
-                label="血糖"
+                label={t("memberProfileLabelBloodGlucose")}
                 showMiniChart
-                timestamp={formatHealthTimestamp(latestGlucose.effective_at)}
+                timestamp={formatHealthTimestamp(latestGlucose.effective_at, locale, t)}
                 unit={latestGlucose.unit ?? "mmol/L"}
                 value={getNumericValue(latestGlucose) ?? latestGlucose.value_string ?? "—"}
               />
@@ -641,16 +706,16 @@ function HealthDataTabContent({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection accentClass="bg-[#4A6076]" title="生理指标">
+      <CollapsibleSection accentClass="bg-[#4A6076]" title={t("memberProfileVitalMetrics")}>
         {vitalObservations.length === 0 ? (
-          <p className="py-6 text-sm text-[#7D746D] px-4">暂无生理指标数据</p>
+          <p className="py-6 text-sm text-[#7D746D] px-4">{t("memberProfileNoVitalData")}</p>
         ) : (
           <div className="grid grid-cols-4 gap-4 px-4 pb-4">
             {latestHeart && (
               <MetricCard
                 history={[]}
-                label="心率"
-                timestamp={formatHealthTimestamp(latestHeart.effective_at)}
+                label={t("memberProfileLabelHeartRate")}
+                timestamp={formatHealthTimestamp(latestHeart.effective_at, locale, t)}
                 unit={latestHeart.unit ?? "bpm"}
                 value={getNumericValue(latestHeart) ?? "—"}
               />
@@ -658,8 +723,8 @@ function HealthDataTabContent({
             {latestOxygen && (
               <MetricCard
                 history={[]}
-                label="血氧"
-                timestamp={formatHealthTimestamp(latestOxygen.effective_at)}
+                label={t("memberProfileLabelSpO2")}
+                timestamp={formatHealthTimestamp(latestOxygen.effective_at, locale, t)}
                 unit={latestOxygen.unit ?? "%"}
                 value={getNumericValue(latestOxygen) ?? "—"}
               />
@@ -667,8 +732,8 @@ function HealthDataTabContent({
             {latestWeight && (
               <MetricCard
                 history={[]}
-                label="体重"
-                timestamp={formatHealthTimestamp(latestWeight.effective_at)}
+                label={t("memberProfileLabelWeight")}
+                timestamp={formatHealthTimestamp(latestWeight.effective_at, locale, t)}
                 unit={latestWeight.unit ?? "kg"}
                 value={getNumericValue(latestWeight) ?? "—"}
               />
@@ -676,8 +741,8 @@ function HealthDataTabContent({
             {latestTemperature && (
               <MetricCard
                 history={[]}
-                label="体温"
-                timestamp={formatHealthTimestamp(latestTemperature.effective_at)}
+                label={t("memberProfileLabelTemperature")}
+                timestamp={formatHealthTimestamp(latestTemperature.effective_at, locale, t)}
                 unit={latestTemperature.unit ?? "°C"}
                 value={getNumericValue(latestTemperature) ?? "—"}
               />
@@ -686,25 +751,25 @@ function HealthDataTabContent({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection accentClass="bg-emerald-400" title="生活习惯">
+      <CollapsibleSection accentClass="bg-emerald-400" title={t("memberProfileLifestyle")}>
         <div className="grid grid-cols-2 gap-4 px-4 pb-4">
           {latestStep && (
             <div className="rounded-2xl border border-[#F2EDE7] bg-[#F9F6F3] p-4">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#7D746D]">步数</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#7D746D]">{t("memberProfileSteps")}</p>
               <div className="flex items-center gap-4">
                 <span className="text-3xl font-bold text-[#2D2926]">
                   {getNumericValue(latestStep) ?? latestStep.value_string ?? "—"}
                 </span>
-                <span className="text-sm text-[#7D746D]">目标: {stepTarget.toLocaleString()}</span>
+                <span className="text-sm text-[#7D746D]">{t("memberProfileGoalPrefix", { value: stepTarget.toLocaleString(locale) })}</span>
               </div>
             </div>
           )}
           {latestWorkoutRecord && (
             <div className="rounded-2xl border border-[#F2EDE7] bg-[#F9F6F3] p-4">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#7D746D]">运动时长</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[#7D746D]">{t("memberProfileActiveMinutes")}</p>
               <div className="flex items-center gap-4">
                 <span className="text-3xl font-bold text-[#2D2926]">{latestWorkoutRecord.duration_minutes}</span>
-                <span className="text-sm text-[#7D746D]">分钟</span>
+                <span className="text-sm text-[#7D746D]">{t("memberProfileMinutes")}</span>
               </div>
             </div>
           )}
@@ -713,36 +778,36 @@ function HealthDataTabContent({
 
       <CollapsibleSection
         accentClass="bg-[#2D4F3E]"
-        title="睡眠"
+        title={t("memberProfileSleep")}
         actionButton={isEditing ? (
           <button
             onClick={() => setSleepForm({ id: null, start: "", end: "", nap: false })}
             className="flex items-center gap-1 rounded-full bg-[#F5F0EA] px-3 py-1 text-xs font-bold text-[#2D2926] transition hover:bg-[#F2EDE7]"
           >
-            <span className="material-symbols-outlined text-[16px]">add</span>新增
+            <span className="material-symbols-outlined text-[16px]">add</span>{t("memberProfileAdd")}
           </button>
         ) : null}
       >
         <div className="px-4 pb-4 space-y-4">
           {sleepRecords.length === 0 ? (
-            <p className="py-2 text-sm text-[#7D746D]">暂无睡眠数据</p>
+            <p className="py-2 text-sm text-[#7D746D]">{t("memberProfileNoSleepData")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#F2EDE7] text-[11px] uppercase tracking-wider text-[#7D746D]">
-                    <th className="py-2 text-left font-medium">起止时间</th>
-                    <th className="py-2 text-left font-medium">总时长</th>
-                    <th className="py-2 text-left font-medium">午休</th>
-                    {isEditing && <th className="py-2 text-right">操作</th>}
+                    <th className="py-2 text-left font-medium">{t("memberProfileSleepColPeriod")}</th>
+                    <th className="py-2 text-left font-medium">{t("memberProfileSleepColDuration")}</th>
+                    <th className="py-2 text-left font-medium">{t("memberProfileSleepColNap")}</th>
+                    {isEditing && <th className="py-2 text-right">{t("memberProfileColActions")}</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {[...sleepRecords].sort((l, r) => r.start_at.localeCompare(l.start_at)).slice(0, 10).map((item) => (
                     <tr className="border-b border-gray-50 group hover:bg-[#F9F6F3] transition-colors" key={item.id}>
-                      <td className="py-3 font-mono text-[#2D2926]">{formatHealthTimestamp(item.start_at)} - {formatTime(item.end_at)}</td>
+                      <td className="py-3 font-mono text-[#2D2926]">{formatHealthTimestamp(item.start_at, locale, t)} - {formatTime(item.end_at, locale)}</td>
                       <td className="py-3 font-bold text-[#2D2926]">{(item.total_minutes / 60).toFixed(1)}h</td>
-                      <td className="py-3 text-[#7D746D]">{item.is_nap ? "是" : "否"}</td>
+                      <td className="py-3 text-[#7D746D]">{item.is_nap ? t("commonYes") : t("commonNo")}</td>
                       {isEditing && (
                         <td className="py-3 text-right">
                           <EditDeleteActions
@@ -767,29 +832,32 @@ function HealthDataTabContent({
 
       <CollapsibleSection
         accentClass="bg-[#B8860B]"
-        title="运动记录"
+        title={t("memberProfileWorkouts")}
         actionButton={isEditing ? (
           <button
             onClick={() => setWorkoutForm({ id: null, type: "", start: "", end: "" })}
             className="flex items-center gap-1 rounded-full bg-[#F5F0EA] px-3 py-1 text-xs font-bold text-[#2D2926] transition hover:bg-[#F2EDE7]"
           >
-            <span className="material-symbols-outlined text-[16px]">add</span>新增
+            <span className="material-symbols-outlined text-[16px]">add</span>{t("memberProfileAdd")}
           </button>
         ) : null}
       >
         <div className="px-4 pb-4 space-y-4">
           {workoutRecords.length === 0 ? (
-            <p className="py-2 text-sm text-[#7D746D]">暂无运动记录</p>
+            <p className="py-2 text-sm text-[#7D746D]">{t("memberProfileNoWorkoutData")}</p>
           ) : (
             <div className="space-y-4 mt-2">
               {[...workoutRecords].sort((l, r) => r.start_at.localeCompare(l.start_at)).slice(0, 6).map((item) => (
                 <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[#F2EDE7] bg-[#F9F6F3] px-5 py-4 sm:flex-row md:items-center group hover:bg-[#F5F0EA] transition" key={item.id}>
                   <div>
                     <p className="text-base font-bold text-[#2D2926]">{item.type}</p>
-                    <p className="mt-1 text-sm text-[#7D746D]">{item.duration_minutes} 分钟 {item.distance_meters ? `· ${(item.distance_meters / 1000).toFixed(1)} km` : ""}</p>
+                    <p className="mt-1 text-sm text-[#7D746D]">{t("memberProfileWorkoutDuration", {
+                      minutes: item.duration_minutes,
+                      extra: item.distance_meters ? `· ${(item.distance_meters / 1000).toFixed(1)} km` : "",
+                    })}</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-[11px] font-mono text-[#7D746D]">{formatHealthTimestamp(item.start_at)}</span>
+                    <span className="text-[11px] font-mono text-[#7D746D]">{formatHealthTimestamp(item.start_at, locale, t)}</span>
                     {isEditing && (
                       <EditDeleteActions
                         onEdit={() => setWorkoutForm({
@@ -812,22 +880,22 @@ function HealthDataTabContent({
       <ResourceFormModal
         isOpen={Boolean(sleepForm)}
         onClose={() => setSleepForm(null)}
-        title={sleepForm?.id ? "编辑睡眠记录" : "新增睡眠记录"}
+        title={sleepForm?.id ? t("memberProfileModalEditSleep") : t("memberProfileModalAddSleep")}
         isSubmitting={isSubmitting}
         onSubmit={handleSleepSubmit}
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">入睡时间</label>
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileSleepStart")}</label>
             <input type="datetime-local" value={sleepForm?.start || ""} onChange={(e) => setSleepForm(s => s ? { ...s, start: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">醒来时间</label>
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileSleepEnd")}</label>
             <input type="datetime-local" value={sleepForm?.end || ""} onChange={(e) => setSleepForm(s => s ? { ...s, end: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="napCheck" checked={sleepForm?.nap || false} onChange={(e) => setSleepForm(s => s ? { ...s, nap: e.target.checked } : null)} className="h-4 w-4 rounded border-gray-300 text-[#4A6076]" />
-            <label htmlFor="napCheck" className="text-sm font-medium text-[#2D2926]">是否为午休</label>
+            <label htmlFor="napCheck" className="text-sm font-medium text-[#2D2926]">{t("memberProfileSleepIsNap")}</label>
           </div>
         </div>
       </ResourceFormModal>
@@ -835,21 +903,21 @@ function HealthDataTabContent({
       <ResourceFormModal
         isOpen={Boolean(workoutForm)}
         onClose={() => setWorkoutForm(null)}
-        title={workoutForm?.id ? "编辑运动记录" : "新增运动记录"}
+        title={workoutForm?.id ? t("memberProfileModalEditWorkout") : t("memberProfileModalAddWorkout")}
         isSubmitting={isSubmitting}
         onSubmit={handleWorkoutSubmit}
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">运动类型</label>
-            <input type="text" value={workoutForm?.type || ""} onChange={(e) => setWorkoutForm(w => w ? { ...w, type: e.target.value } : null)} placeholder="例如：跑步、游泳" className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileWorkoutType")}</label>
+            <input type="text" value={workoutForm?.type || ""} onChange={(e) => setWorkoutForm(w => w ? { ...w, type: e.target.value } : null)} placeholder={t("memberProfileWorkoutTypePlaceholder")} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">开始时间</label>
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileWorkoutStart")}</label>
             <input type="datetime-local" value={workoutForm?.start || ""} onChange={(e) => setWorkoutForm(w => w ? { ...w, start: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">结束时间</label>
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileWorkoutEnd")}</label>
             <input type="datetime-local" value={workoutForm?.end || ""} onChange={(e) => setWorkoutForm(w => w ? { ...w, end: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
           </div>
         </div>
@@ -858,8 +926,8 @@ function HealthDataTabContent({
       <ConfirmDeleteDialog
         isOpen={Boolean(deletingId)}
         onClose={() => setDeletingId(null)}
-        title="删除确认"
-        message="删除后将无法恢复，确定要删除此记录吗？"
+        title={t("confirmDeleteTitle")}
+        message={t("confirmDeleteRecordMessage")}
         isDeleting={isSubmitting}
         onConfirm={handleDeleteConfirm}
       />
@@ -874,11 +942,15 @@ function HealthRecordsTabContent({
   isEditing,
   onSaveCondition,
   onDeleteCondition,
+  t,
+  locale,
 }: {
   conditions: ConditionRecord[];
   isEditing: boolean;
   onSaveCondition: (id: string | null, payload: any) => Promise<void>;
   onDeleteCondition: (id: string) => Promise<void>;
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string;
+  locale: string;
 }) {
   const [formState, setFormState] = useState<{ id: string | null; category: string; name: string; status: string; date: string; notes: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -931,15 +1003,15 @@ function HealthRecordsTabContent({
       onClick={() => setFormState({ id: null, category, name: "", status: defaultStatus, date: "", notes: "" })}
       className="flex items-center gap-1 rounded-full bg-[#F5F0EA] px-3 py-1 text-xs font-bold text-[#2D2926] transition hover:bg-[#F2EDE7]"
     >
-      <span className="material-symbols-outlined text-[16px]">add</span>新增
+      <span className="material-symbols-outlined text-[16px]">add</span>{t("memberProfileAdd")}
     </button>
   ) : null;
 
   return (
     <div className="space-y-6">
-      <CollapsibleSection accentClass="bg-[#2D4F3E]" title="现病" actionButton={<AddButton category="chronic" defaultStatus="active" />}>
+      <CollapsibleSection accentClass="bg-[#2D4F3E]" title={t("memberProfileHealthCurrentIllness")} actionButton={<AddButton category="chronic" defaultStatus="active" />}>
         {activeConditions.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-[#7D746D]">暂无记录</p>
+          <p className="px-4 py-3 text-sm text-[#7D746D]">{t("memberProfileNoRecords")}</p>
         ) : (
           <div className="space-y-2 px-2">
             {activeConditions.map((item) => (
@@ -947,7 +1019,7 @@ function HealthRecordsTabContent({
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-[#2D4F3E]">{item.display_name}</p>
                   {item.notes && <p className="mt-0.5 text-sm text-[#7D746D] clamp-2">{item.notes}</p>}
-                  <p className="mt-1 text-xs text-[#7D746D]">发病日期：{formatDate(item.onset_date)}</p>
+                  <p className="mt-1 text-xs text-[#7D746D]">{t("memberProfileOnsetDate", { date: formatDate(item.onset_date, locale) })}</p>
                 </div>
                 {isEditing && (
                   <EditDeleteActions
@@ -961,9 +1033,9 @@ function HealthRecordsTabContent({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection accentClass="bg-[#4A6076]" title="既往病史" actionButton={<AddButton category="chronic" defaultStatus="resolved" />}>
+      <CollapsibleSection accentClass="bg-[#4A6076]" title={t("memberProfileHealthPastIllness")} actionButton={<AddButton category="chronic" defaultStatus="resolved" />}>
         {resolvedConditions.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-[#7D746D]">暂无记录</p>
+          <p className="px-4 py-3 text-sm text-[#7D746D]">{t("memberProfileNoRecords")}</p>
         ) : (
           <div className="space-y-2 px-2">
             {resolvedConditions.map((item) => (
@@ -972,11 +1044,11 @@ function HealthRecordsTabContent({
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-[#2D2926]">{item.display_name}</p>
                     <span className="rounded-full bg-[#E5F1EB] px-2 py-0.5 text-xs text-[#2D4F3E]">
-                      {item.clinical_status === "resolved" ? "已治愈" : "已停用"}
+                      {item.clinical_status === "resolved" ? t("memberProfileStatusResolved") : t("memberProfileStatusInactiveLabel")}
                     </span>
                   </div>
                   {item.notes && <p className="mt-0.5 text-sm text-[#7D746D]">{item.notes}</p>}
-                  <p className="mt-1 text-xs text-[#7D746D]">记录日期：{formatDate(item.onset_date)}</p>
+                  <p className="mt-1 text-xs text-[#7D746D]">{t("memberProfileRecordDate", { date: formatDate(item.onset_date, locale) })}</p>
                 </div>
                 {isEditing && (
                   <EditDeleteActions
@@ -990,9 +1062,9 @@ function HealthRecordsTabContent({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection accentClass="bg-[#B8860B]" title="家族病史" actionButton={<AddButton category="family-history" defaultStatus="active" />}>
+      <CollapsibleSection accentClass="bg-[#B8860B]" title={t("memberProfileHealthFamilyHistory")} actionButton={<AddButton category="family-history" defaultStatus="active" />}>
         {familyConditions.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-[#7D746D]">暂无记录</p>
+          <p className="px-4 py-3 text-sm text-[#7D746D]">{t("memberProfileNoRecords")}</p>
         ) : (
           <div className="space-y-2 px-2">
             {familyConditions.map((item) => (
@@ -1013,9 +1085,9 @@ function HealthRecordsTabContent({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection accentClass="bg-red-500" title="过敏与禁忌" actionButton={<AddButton category="allergy" defaultStatus="active" />}>
+      <CollapsibleSection accentClass="bg-red-500" title={t("memberProfileHealthAllergies")} actionButton={<AddButton category="allergy" defaultStatus="active" />}>
         {allergyConditions.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-[#7D746D]">暂无记录</p>
+          <p className="px-4 py-3 text-sm text-[#7D746D]">{t("memberProfileNoRecords")}</p>
         ) : (
           <div className="space-y-3 px-2">
             {allergyConditions.map((item) => (
@@ -1044,41 +1116,41 @@ function HealthRecordsTabContent({
       <ResourceFormModal
         isOpen={Boolean(formState)}
         onClose={() => setFormState(null)}
-        title={formState?.id ? "编辑记录" : "新增记录"}
+        title={formState?.id ? t("memberProfileModalEditCondition") : t("memberProfileModalAddCondition")}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">疾病/过敏名称 *</label>
-            <input type="text" value={formState?.name || ""} onChange={(e) => setFormState(s => s ? { ...s, name: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder="例如：高血压" />
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileConditionName")}</label>
+            <input type="text" value={formState?.name || ""} onChange={(e) => setFormState(s => s ? { ...s, name: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder={t("memberProfileConditionNamePlaceholder")} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">分类</label>
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileCategory")}</label>
               <select value={formState?.category || ""} onChange={(e) => setFormState(s => s ? { ...s, category: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]">
-                <option value="chronic">慢病/既往病史</option>
-                <option value="diagnosis">诊断</option>
-                <option value="allergy">过敏禁忌</option>
-                <option value="family-history">家族病史</option>
+                <option value="chronic">{t("memberProfileCategoryChronic")}</option>
+                <option value="diagnosis">{t("memberProfileCategoryDiagnosis")}</option>
+                <option value="allergy">{t("memberProfileCategoryAllergy")}</option>
+                <option value="family-history">{t("memberProfileCategoryFamilyHistory")}</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">状态</label>
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileClinicalStatus")}</label>
               <select value={formState?.status || ""} onChange={(e) => setFormState(s => s ? { ...s, status: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]">
-                <option value="active">现病/生效中</option>
-                <option value="resolved">已治愈</option>
-                <option value="inactive">已停用</option>
+                <option value="active">{t("memberProfileStatusActiveChronic")}</option>
+                <option value="resolved">{t("memberProfileStatusResolvedOption")}</option>
+                <option value="inactive">{t("memberProfileStatusInactiveOption")}</option>
               </select>
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">发病/记录日期</label>
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileOnsetOrRecordDate")}</label>
             <input type="date" value={formState?.date || ""} onChange={(e) => setFormState(s => s ? { ...s, date: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">备注</label>
-            <textarea value={formState?.notes || ""} onChange={(e) => setFormState(s => s ? { ...s, notes: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076] min-h-24 resize-none" placeholder="填写更多细节..." />
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileNotes")}</label>
+            <textarea value={formState?.notes || ""} onChange={(e) => setFormState(s => s ? { ...s, notes: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076] min-h-24 resize-none" placeholder={t("memberProfileNotesPlaceholder")} />
           </div>
         </div>
       </ResourceFormModal>
@@ -1086,7 +1158,7 @@ function HealthRecordsTabContent({
       <ConfirmDeleteDialog
         isOpen={Boolean(deletingId)}
         onClose={() => setDeletingId(null)}
-        title="删除确认"
+        title={t("confirmDeleteTitle")}
         isDeleting={isSubmitting}
         onConfirm={handleDeleteConfirm}
       />
@@ -1096,22 +1168,31 @@ function HealthRecordsTabContent({
 
 // ─── Encounters Tab ────────────────────────────────────────────────────────────
 
-function encounterTypeToLabel(type: string): string {
+function encounterTypeToLabel(
+  type: string,
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string,
+): string {
   const normalized = type?.toLowerCase() ?? "";
-  if (normalized === "follow-up" || normalized === "复查" || normalized === "checkup") return "复查";
-  if (normalized === "initial" || normalized === "初诊" || normalized === "outpatient") return "门诊";
-  if (normalized === "examination" || normalized === "检查") return "检查";
-  if (normalized === "inpatient") return "住院";
-  if (normalized === "emergency") return "急诊";
-  return type || "就诊";
+  if (normalized === "follow-up" || normalized === "复查" || normalized === "checkup")
+    return t("encounterTypeFollowUp");
+  if (normalized === "initial" || normalized === "初诊" || normalized === "outpatient")
+    return t("encounterTypeOutpatient");
+  if (normalized === "examination" || normalized === "检查")
+    return t("encounterTypeExam");
+  if (normalized === "inpatient") return t("encounterTypeInpatient");
+  if (normalized === "emergency") return t("encounterTypeEmergency");
+  return type || t("encounterTypeDefault");
 }
 
 function encounterTypeBadgeClass(type: string): string {
-  const label = encounterTypeToLabel(type);
-  if (label === "复查") return "bg-blue-50 text-blue-600";
-  if (label === "门诊") return "bg-orange-50 text-orange-600";
-  if (label === "检查") return "bg-green-50 text-green-600";
-  if (label === "急诊") return "bg-red-50 text-red-600";
+  const normalized = type?.toLowerCase() ?? "";
+  if (normalized === "follow-up" || normalized === "复查" || normalized === "checkup")
+    return "bg-blue-50 text-blue-600";
+  if (normalized === "initial" || normalized === "初诊" || normalized === "outpatient")
+    return "bg-orange-50 text-orange-600";
+  if (normalized === "examination" || normalized === "检查")
+    return "bg-green-50 text-green-600";
+  if (normalized === "emergency") return "bg-red-50 text-red-600";
   return "bg-gray-50 text-gray-600";
 }
 
@@ -1127,11 +1208,13 @@ function EncountersTabContent({
   isEditing,
   onSaveEncounter,
   onDeleteEncounter,
+  t,
 }: {
   encounters: EncounterRecord[];
   isEditing: boolean;
   onSaveEncounter: (id: string | null, payload: any) => Promise<void>;
   onDeleteEncounter: (id: string) => Promise<void>;
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string;
 }) {
   const [formState, setFormState] = useState<{ id: string | null; date: string; type: string; facility: string; department: string; doctor: string; summary: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1173,7 +1256,7 @@ function EncountersTabContent({
   return (
     <div>
       <div className="mb-8 flex items-center justify-between">
-        <h3 className="text-xl font-bold text-[#2D2926]">历史就诊记录</h3>
+        <h3 className="text-xl font-bold text-[#2D2926]">{t("memberProfileEncountersTitle")}</h3>
         <div className="flex gap-2">
           {isEditing && (
             <Button
@@ -1181,14 +1264,14 @@ function EncountersTabContent({
               size="sm"
               icon={<span className="material-symbols-outlined text-[18px]">add</span>}
             >
-              新增记录
+              {t("memberProfileEncounterAdd")}
             </Button>
           )}
         </div>
       </div>
 
       {sorted.length === 0 ? (
-        <p className="py-8 text-[#7D746D]">暂无就诊记录</p>
+        <p className="py-8 text-[#7D746D]">{t("memberProfileNoEncounters")}</p>
       ) : (
         <div className="space-y-4">
           {sorted.map((item) => (
@@ -1199,14 +1282,14 @@ function EncountersTabContent({
                     <span className="text-[13px] font-mono text-[#7D746D]">{formatEncounterDate(item.date)}</span>
                   </div>
                   <div className="col-span-3">
-                    <span className="text-[15px] font-bold text-[#2D2926]">{item.facility || "未记录机构"}</span>
+                    <span className="text-[15px] font-bold text-[#2D2926]">{item.facility || t("memberProfileFacilityUnset")}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-[13px] text-[#4A6076]">{item.department || encounterTypeToLabel(item.type)}</span>
+                    <span className="text-[13px] text-[#4A6076]">{item.department || encounterTypeToLabel(item.type, t)}</span>
                   </div>
                   <div className="col-span-4 flex items-center gap-2">
                     <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${encounterTypeBadgeClass(item.type)}`}>
-                      {encounterTypeToLabel(item.type)}
+                      {encounterTypeToLabel(item.type, t)}
                     </span>
                     <span className="truncate text-[14px] text-[#7D746D]">{item.summary || ""}</span>
                   </div>
@@ -1226,11 +1309,11 @@ function EncountersTabContent({
               <div className="mt-1 border-t border-[#F2EDE7] px-6 pb-6 pt-2">
                 <div className="grid grid-cols-3 gap-8 py-4">
                   <div>
-                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#7D746D]">接诊医生</p>
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#7D746D]">{t("memberProfileEncounterDoctor")}</p>
                     <p className="text-[15px] font-medium text-[#2D2926]">{item.attending_physician || "—"}</p>
                   </div>
                   <div className="col-span-2">
-                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#7D746D]">详细记录/诊断</p>
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#7D746D]">{t("memberProfileEncounterDetail")}</p>
                     <p className="text-[14px] leading-relaxed text-[#4A443F]">{item.summary || "—"}</p>
                   </div>
                 </div>
@@ -1243,43 +1326,43 @@ function EncountersTabContent({
       <ResourceFormModal
         isOpen={Boolean(formState)}
         onClose={() => setFormState(null)}
-        title={formState?.id ? "编辑就诊记录" : "新增就诊记录"}
+        title={formState?.id ? t("memberProfileModalEditEncounter") : t("memberProfileModalAddEncounter")}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">就诊日期 *</label>
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileEncounterDate")}</label>
               <input type="date" value={formState?.date || ""} onChange={(e) => setFormState(s => s ? { ...s, date: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">类型</label>
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileEncounterType")}</label>
               <select value={formState?.type || ""} onChange={(e) => setFormState(s => s ? { ...s, type: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]">
-                <option value="outpatient">门诊</option>
-                <option value="inpatient">住院</option>
-                <option value="checkup">复查/体检</option>
-                <option value="emergency">急诊</option>
+                <option value="outpatient">{t("memberProfileEncounterTypeOutpatient")}</option>
+                <option value="inpatient">{t("memberProfileEncounterTypeInpatient")}</option>
+                <option value="checkup">{t("memberProfileEncounterTypeCheckup")}</option>
+                <option value="emergency">{t("memberProfileEncounterTypeEmergency")}</option>
               </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">医疗机构</label>
-              <input type="text" value={formState?.facility || ""} onChange={(e) => setFormState(s => s ? { ...s, facility: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder="例如：市第一医院" />
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileFacility")}</label>
+              <input type="text" value={formState?.facility || ""} onChange={(e) => setFormState(s => s ? { ...s, facility: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder={t("memberProfileFacilityPlaceholder")} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">科室</label>
-              <input type="text" value={formState?.department || ""} onChange={(e) => setFormState(s => s ? { ...s, department: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder="例如：心内科" />
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileDepartment")}</label>
+              <input type="text" value={formState?.department || ""} onChange={(e) => setFormState(s => s ? { ...s, department: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder={t("memberProfileDepartmentPlaceholder")} />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">接诊医生</label>
-            <input type="text" value={formState?.doctor || ""} onChange={(e) => setFormState(s => s ? { ...s, doctor: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder="例如：张医生" />
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileEncounterDoctor")}</label>
+            <input type="text" value={formState?.doctor || ""} onChange={(e) => setFormState(s => s ? { ...s, doctor: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder={t("memberProfileDoctorPlaceholder")} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">详细记录/诊断</label>
-            <textarea value={formState?.summary || ""} onChange={(e) => setFormState(s => s ? { ...s, summary: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076] min-h-24 resize-none" placeholder="诊断结果、医嘱..." />
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileEncounterDetail")}</label>
+            <textarea value={formState?.summary || ""} onChange={(e) => setFormState(s => s ? { ...s, summary: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076] min-h-24 resize-none" placeholder={t("memberProfileEncounterSummaryPlaceholder")} />
           </div>
         </div>
       </ResourceFormModal>
@@ -1287,7 +1370,7 @@ function EncountersTabContent({
       <ConfirmDeleteDialog
         isOpen={Boolean(deletingId)}
         onClose={() => setDeletingId(null)}
-        title="删除确认"
+        title={t("confirmDeleteTitle")}
         isDeleting={isSubmitting}
         onConfirm={handleDeleteConfirm}
       />
@@ -1309,11 +1392,13 @@ function MedicationsTabContent({
   isEditing,
   onSaveMedication,
   onDeleteMedication,
+  t,
 }: {
   medications: MedicationRecord[];
   isEditing: boolean;
   onSaveMedication: (id: string | null, payload: any) => Promise<void>;
   onDeleteMedication: (id: string) => Promise<void>;
+  t: (key: TranslationKey, variables?: Record<string, string | number>) => string;
 }) {
   const [formState, setFormState] = useState<{ id: string | null; name: string; status: string; startDate: string; endDate: string; dosage: string; indication: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1362,7 +1447,7 @@ function MedicationsTabContent({
             size="sm"
             icon={<span className="material-symbols-outlined text-[18px]">add</span>}
           >
-            新增药品
+            {t("memberProfileMedicationAdd")}
           </Button>
         )}
       </div>
@@ -1370,10 +1455,10 @@ function MedicationsTabContent({
       <section className="space-y-4">
         <div className="flex items-center gap-3 px-2">
           <span className="h-6 w-1.5 rounded-full bg-[#2D4F3E]" />
-          <h3 className="text-lg font-bold text-[#2D2926]">正在服用</h3>
+          <h3 className="text-lg font-bold text-[#2D2926]">{t("memberProfileMedicationTaking")}</h3>
         </div>
         {active.length === 0 ? (
-          <p className="py-6 text-sm text-[#7D746D] px-4">暂无正在服用的药品</p>
+          <p className="py-6 text-sm text-[#7D746D] px-4">{t("memberProfileNoActiveMeds")}</p>
         ) : (
           <div className="space-y-4">
             {active.map((item) => (
@@ -1384,7 +1469,7 @@ function MedicationsTabContent({
                       {item.name} <span className="ml-1 font-normal text-[#7D746D]">{item.dosage_description ?? "—"}</span>
                     </h4>
                     <span className="rounded-full bg-[#E5F1EB] px-3 py-0.5 text-[11px] font-semibold tracking-wide text-[#2D4F3E]">
-                      服用中
+                      {t("memberProfileMedicationActiveBadge")}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-x-6 gap-y-1 text-[14px] text-[#4A443F]">
@@ -1400,7 +1485,7 @@ function MedicationsTabContent({
                 </div>
                 <div className="flex flex-col items-start shrink-0 md:items-end gap-2">
                   <div className="flex flex-col items-end">
-                    <span className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#7D746D]">开始服用时间</span>
+                    <span className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#7D746D]">{t("memberProfileMedicationStartedLabel")}</span>
                     <span className="rounded-lg bg-white px-3 py-1 font-mono text-[13px] font-medium text-[#2D2926] shadow-apple-xs">
                       {formatMedicationDate(item.start_date)}
                     </span>
@@ -1422,7 +1507,7 @@ function MedicationsTabContent({
         <section className="space-y-4">
           <div className="flex items-center gap-3 px-2">
             <span className="h-6 w-1.5 rounded-full bg-[#E5E0DA]" />
-            <h3 className="text-lg font-bold text-[#7D746D]">已停用</h3>
+            <h3 className="text-lg font-bold text-[#7D746D]">{t("memberProfileMedicationStopped")}</h3>
           </div>
           <div className="overflow-hidden rounded-3xl border border-[#F2EDE7] bg-white">
             <div className="divide-y divide-[#F2EDE7]">
@@ -1430,11 +1515,11 @@ function MedicationsTabContent({
                 <div className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-[#F9F6F3] group" key={item.id}>
                   <div className="flex items-baseline gap-4">
                     <span className="text-[14px] font-medium text-[#7D746D] line-through">{item.name}</span>
-                    <span className="text-[12px] text-[#A69C94]">功能：{item.indication ?? "—"}</span>
+                    <span className="text-[12px] text-[#A69C94]">{t("memberProfileMedicationPurpose", { value: item.indication ?? "—" })}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-medium text-[#A69C94]">停止日期</span>
+                      <span className="text-[11px] font-medium text-[#A69C94]">{t("memberProfileMedicationStoppedDateLabel")}</span>
                       <span className="font-mono text-[12px] text-[#A69C94]">{formatMedicationDate(item.end_date)}</span>
                     </div>
                     {isEditing && (
@@ -1454,40 +1539,40 @@ function MedicationsTabContent({
       <ResourceFormModal
         isOpen={Boolean(formState)}
         onClose={() => setFormState(null)}
-        title={formState?.id ? "编辑药品" : "新增药品"}
+        title={formState?.id ? t("memberProfileModalEditMedication") : t("memberProfileModalAddMedication")}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit}
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">药品名称 *</label>
-            <input type="text" value={formState?.name || ""} onChange={(e) => setFormState(s => s ? { ...s, name: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder="例如：阿司匹林" />
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileMedicationName")}</label>
+            <input type="text" value={formState?.name || ""} onChange={(e) => setFormState(s => s ? { ...s, name: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder={t("memberProfileMedicationNamePlaceholder")} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">服用状态</label>
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileMedicationStatus")}</label>
               <select value={formState?.status || ""} onChange={(e) => setFormState(s => s ? { ...s, status: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]">
-                <option value="active">服用中</option>
-                <option value="stopped">已停用</option>
+                <option value="active">{t("memberProfileMedicationStatusActive")}</option>
+                <option value="stopped">{t("memberProfileMedicationStatusStopped")}</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">用法用量</label>
-              <input type="text" value={formState?.dosage || ""} onChange={(e) => setFormState(s => s ? { ...s, dosage: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder="例如：每日1次，每次1片" />
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileDosage")}</label>
+              <input type="text" value={formState?.dosage || ""} onChange={(e) => setFormState(s => s ? { ...s, dosage: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder={t("memberProfileDosagePlaceholder")} />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#7D746D]">治疗功能/主治</label>
-            <input type="text" value={formState?.indication || ""} onChange={(e) => setFormState(s => s ? { ...s, indication: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder="例如：降血压" />
+            <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileIndication")}</label>
+            <input type="text" value={formState?.indication || ""} onChange={(e) => setFormState(s => s ? { ...s, indication: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" placeholder={t("memberProfileIndicationPlaceholder")} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#7D746D]">开始服用日期</label>
+              <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileMedicationStartDate")}</label>
               <input type="date" value={formState?.startDate || ""} onChange={(e) => setFormState(s => s ? { ...s, startDate: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
             </div>
             {formState?.status === "stopped" && (
               <div>
-                <label className="mb-1 block text-sm font-bold text-[#7D746D]">停止服用日期</label>
+                <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileMedicationEndDate")}</label>
                 <input type="date" value={formState?.endDate || ""} onChange={(e) => setFormState(s => s ? { ...s, endDate: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
               </div>
             )}
@@ -1498,7 +1583,7 @@ function MedicationsTabContent({
       <ConfirmDeleteDialog
         isOpen={Boolean(deletingId)}
         onClose={() => setDeletingId(null)}
-        title="删除确认"
+        title={t("confirmDeleteTitle")}
         isDeleting={isSubmitting}
         onConfirm={handleDeleteConfirm}
       />
@@ -1516,6 +1601,10 @@ export function MemberProfileModal({
   session,
   members,
 }: MemberProfileModalProps) {
+  const { t, language } = usePreferences();
+  const locale = language === "en" ? "en-US" : "zh-CN";
+  const navItemsList = useMemo(() => memberProfileNavItems(t), [t]);
+
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1572,7 +1661,9 @@ export function MemberProfileModal({
         carePlans,
       });
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "加载失败");
+      setError(
+        nextError instanceof Error ? nextError.message : t("memberProfileLoadError"),
+      );
     } finally {
       setLoading(false);
     }
@@ -1601,7 +1692,17 @@ export function MemberProfileModal({
 
   const member = state.member;
   const age = member ? calculateAge(member.birth_date) : null;
-  const ageGenderText = [age != null ? `${age}岁` : null, member?.gender === 'male' ? '男' : member?.gender === 'female' ? '女' : member?.gender || null].filter(Boolean).join(" · ") || "—";
+  const ageGenderText =
+    [
+      age != null ? t("memberProfileAgeYears", { count: age }) : null,
+      member?.gender === "male"
+        ? t("memberProfileGenderMale")
+        : member?.gender === "female"
+          ? t("memberProfileGenderFemale")
+          : member?.gender || null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "—";
 
   // Handlers for Overview Edit
   const handleSaveBasicInfo = async (data: Partial<AuthMember>) => {
@@ -1664,7 +1765,7 @@ export function MemberProfileModal({
   };
 
   return (
-    <div aria-label="成员档案" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-12" role="dialog">
+    <div aria-label={t("memberProfileAria")} aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-12" role="dialog">
       <div
         aria-hidden="true"
         className="absolute inset-0 bg-[#2D2926]/40 backdrop-blur-sm"
@@ -1686,16 +1787,16 @@ export function MemberProfileModal({
             )}
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-[#2D2926]">{loading ? "加载中..." : member?.name ?? "—"}</h2>
+                <h2 className="text-2xl font-bold text-[#2D2926]">{loading ? t("commonLoading") : member?.name ?? "—"}</h2>
                 <span className="rounded-full bg-[#F5F0EA] px-3 py-1 text-xs font-semibold text-[#4A443F]">{ageGenderText}</span>
               </div>
-              <span className="text-sm text-[#7D746D]">最近更新：{formatDate(member?.updated_at ?? null)}</span>
+              <span className="text-sm text-[#7D746D]">{t("memberProfileLastUpdated", { date: formatDate(member?.updated_at ?? null, locale) })}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
              {canEdit && (
                <label className="flex items-center gap-2 cursor-pointer bg-[#F5F0EA] px-4 py-2 rounded-full transition hover:bg-[#EAE4DD]">
-                 <span className="text-sm font-bold text-[#2D2926]">编辑模式</span>
+                 <span className="text-sm font-bold text-[#2D2926]">{t("memberProfileEditMode")}</span>
                  <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isEditing ? 'bg-[#2D2926]' : 'bg-[#D1C8C0]'}`}>
                    <span aria-hidden="true" className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isEditing ? 'translate-x-4' : 'translate-x-0'}`} />
                    <input type="checkbox" className="sr-only" checked={isEditing} onChange={(e) => setIsEditing(e.target.checked)} />
@@ -1703,7 +1804,7 @@ export function MemberProfileModal({
                </label>
              )}
             <button
-              aria-label="关闭"
+              aria-label={t("commonClose")}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#4A443F] shadow-apple-xs transition hover:bg-[#F5F0EA] hover:scale-105 active:scale-95 border border-[#F2EDE7]"
               onClick={onClose}
               type="button"
@@ -1715,7 +1816,7 @@ export function MemberProfileModal({
 
         <div className="flex min-h-0 flex-1">
           <nav className="no-scrollbar w-64 shrink-0 overflow-y-auto border-r border-[#F2EDE7] bg-[#FBFBFB] px-4 py-8">
-            {navItems.map((item) => {
+            {navItemsList.map((item) => {
               const isActive = activeTab === item.key;
               return (
                 <button
@@ -1741,12 +1842,12 @@ export function MemberProfileModal({
               <div className="flex flex-col items-center justify-center h-full gap-4 text-red-600">
                 <span className="material-symbols-outlined text-4xl">error</span>
                 <p>{error}</p>
-                <Button onClick={loadProfile} variant="secondary">重试</Button>
+                <Button onClick={loadProfile} variant="secondary">{t("commonRetry")}</Button>
               </div>
             ) : loading ? (
               <div className="flex flex-col items-center justify-center h-full text-[#7D746D] gap-3">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#F2EDE7] border-t-[#2D2926]"></div>
-                <p>正在加载数据...</p>
+                <p>{t("memberProfileLoadingData")}</p>
               </div>
             ) : (
               <div className="fade-in max-w-4xl mx-auto">
@@ -1758,43 +1859,52 @@ export function MemberProfileModal({
                     member={member}
                     observations={state.observations}
                     isEditing={isEditing}
+                    language={language}
+                    locale={locale}
                     onSaveBasicInfo={handleSaveBasicInfo}
+                    t={t}
                   />
                 )}
                 {activeTab === "health-data" && (
                   <HealthDataTabContent
-                    observations={state.observations}
-                    sleepRecords={state.sleepRecords}
-                    workoutRecords={state.workoutRecords}
                     isEditing={isEditing}
-                    onSaveSleepRecord={handleSaveSleepRecord}
+                    locale={locale}
+                    observations={state.observations}
                     onDeleteSleepRecord={handleDeleteSleepRecord}
-                    onSaveWorkoutRecord={handleSaveWorkoutRecord}
                     onDeleteWorkoutRecord={handleDeleteWorkoutRecord}
+                    onSaveSleepRecord={handleSaveSleepRecord}
+                    onSaveWorkoutRecord={handleSaveWorkoutRecord}
+                    sleepRecords={state.sleepRecords}
+                    t={t}
+                    workoutRecords={state.workoutRecords}
                   />
                 )}
                 {activeTab === "health-records" && (
                   <HealthRecordsTabContent
                     conditions={state.conditions}
                     isEditing={isEditing}
-                    onSaveCondition={handleSaveCondition}
+                    locale={locale}
                     onDeleteCondition={handleDeleteCondition}
+                    onSaveCondition={handleSaveCondition}
+                    t={t}
                   />
                 )}
                 {activeTab === "encounters" && (
                   <EncountersTabContent
                     encounters={state.encounters}
                     isEditing={isEditing}
-                    onSaveEncounter={handleSaveEncounter}
                     onDeleteEncounter={handleDeleteEncounter}
+                    onSaveEncounter={handleSaveEncounter}
+                    t={t}
                   />
                 )}
                 {activeTab === "medications" && (
                   <MedicationsTabContent
-                    medications={state.medications}
                     isEditing={isEditing}
-                    onSaveMedication={handleSaveMedication}
+                    medications={state.medications}
                     onDeleteMedication={handleDeleteMedication}
+                    onSaveMedication={handleSaveMedication}
+                    t={t}
                   />
                 )}
               </div>
