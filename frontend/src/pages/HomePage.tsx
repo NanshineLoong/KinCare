@@ -813,6 +813,7 @@ export function HomePage({
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-warm-cream via-warm-cream/80 to-transparent px-5 py-5 sm:px-6 sm:py-7">
         <div className="pointer-events-auto w-full">
           <ChatInput
+            allowEmptySubmit
             attachments={composerAttachments}
             draft={composerValue}
             isBusy={isLoadingDashboard}

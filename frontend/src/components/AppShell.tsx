@@ -8,9 +8,7 @@ import { usePreferences, type TranslationKey } from "../preferences";
 type AppShellProps = {
   onSignOut: () => void;
   session: AuthSession;
-  onNewChatSession?: () => void;
   onOpenSettings?: () => void;
-  onOpenChat?: () => void;
   onRestoreChatSession?: (sessionId: string) => void;
 };
 
@@ -69,11 +67,9 @@ function formatRelativeTime(
 }
 
 export function AppShell({
-  onNewChatSession,
   onSignOut,
   session,
   onOpenSettings,
-  onOpenChat,
   onRestoreChatSession,
 }: AppShellProps) {
   const { language, t } = usePreferences();
@@ -164,46 +160,33 @@ export function AppShell({
             </div>
           </div>
 
-          {/* Right: new chat + history + user menu */}
+          {/* Right: history + user menu */}
           <div className="flex shrink-0 items-center gap-3">
-            <div className="flex items-center gap-1">
+            {/* Session history dropdown */}
+            <div className="relative" ref={historyRef}>
               <button
-                aria-label={t("appShellNewSession")}
-                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#2D2926]"
-                onClick={() => {
-                  setHistoryOpen(false);
-                  onNewChatSession?.();
-                }}
+                aria-expanded={historyOpen}
+                aria-haspopup="listbox"
+                aria-label={t("appShellHistory")}
+                className="relative flex h-10 w-10 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#2D2926]"
+                onClick={handleToggleHistory}
                 type="button"
               >
-                <span className="material-symbols-outlined text-[22px]">add</span>
+                <span className="material-symbols-outlined text-[22px]">
+                  history
+                </span>
               </button>
 
-              {/* Session history dropdown */}
-              <div className="relative" ref={historyRef}>
-                <button
-                  aria-expanded={historyOpen}
-                  aria-haspopup="listbox"
-                  aria-label={t("appShellHistory")}
-                  className="relative flex h-10 w-10 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F5F0EA] hover:text-[#2D2926]"
-                  onClick={handleToggleHistory}
-                  type="button"
+              {historyOpen && (
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 w-72 rounded-2xl border border-[#F2EDE7] bg-white py-2 shadow-soft"
+                  role="listbox"
                 >
-                  <span className="material-symbols-outlined text-[22px]">
-                    history
-                  </span>
-                </button>
-
-                {historyOpen && (
-                  <div
-                    className="absolute right-0 top-full z-50 mt-2 w-72 rounded-2xl border border-[#F2EDE7] bg-white py-2 shadow-soft"
-                    role="listbox"
-                  >
-                    <div className="px-4 pb-2 pt-1">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-warm-gray">
-                        {t("appShellHistory")}
-                      </p>
-                    </div>
+                  <div className="px-4 pb-2 pt-1">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-warm-gray">
+                      {t("appShellHistory")}
+                    </p>
+                  </div>
 
                   <div className="my-1 border-t border-[#F2EDE7]" />
 
@@ -241,8 +224,7 @@ export function AppShell({
                     </ul>
                   )}
                 </div>
-                )}
-              </div>
+              )}
             </div>
 
             <div aria-hidden className="h-8 border-l border-[#F2EDE7]" />

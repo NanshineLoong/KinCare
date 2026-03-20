@@ -15,7 +15,6 @@ function renderOverlay(messages: ChatMessage[]) {
         attachments={[]}
         draft=""
         error={null}
-        focusLabel="当前咨询人：自动识别"
         isBusy={false}
         isUploading={false}
         memberOptions={[]}
@@ -85,6 +84,35 @@ function installScrollMetrics(panel: HTMLDivElement) {
 }
 
 describe("ChatOverlay", () => {
+  it("invokes onClose when Escape is pressed", () => {
+    const onClose = vi.fn();
+    render(
+      <PreferencesProvider>
+        <ChatOverlay
+          attachments={[]}
+          draft=""
+          error={null}
+          isBusy={false}
+          isUploading={false}
+          memberOptions={[]}
+          messages={[]}
+          onAttachmentRemove={() => {}}
+          onAttachmentUpload={() => {}}
+          onClose={onClose}
+          onConfirmToolDraft={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+          toolCards={[]}
+        />
+      </PreferencesProvider>,
+    );
+
+    fireEvent.keyDown(document, { key: "Escape", bubbles: true });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves the message timeline order instead of sorting by id prefix", () => {
     renderOverlay([
       {
@@ -152,7 +180,6 @@ describe("ChatOverlay", () => {
           attachments={[]}
           draft=""
           error={null}
-          focusLabel="当前咨询人：自动识别"
           isBusy={false}
           isUploading={false}
           memberOptions={[]}
@@ -205,7 +232,6 @@ describe("ChatOverlay", () => {
           attachments={[]}
           draft=""
           error={null}
-          focusLabel="当前咨询人：自动识别"
           isBusy={false}
           isUploading={false}
           memberOptions={[]}
@@ -244,7 +270,6 @@ describe("ChatOverlay", () => {
           attachments={[]}
           draft=""
           error={null}
-          focusLabel="当前咨询人：自动识别"
           isBusy={false}
           isUploading={false}
           memberOptions={[]}
@@ -282,7 +307,6 @@ describe("ChatOverlay", () => {
           attachments={[]}
           draft=""
           error={null}
-          focusLabel="当前咨询人：自动识别"
           isBusy={false}
           isUploading={false}
           memberOptions={[]}

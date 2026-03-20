@@ -147,17 +147,18 @@ export function useComposerAttachments({
       }
 
       if (result.attachment) {
+        const parsedAttachment = result.attachment;
         if (showChip) {
           setAttachments((current) =>
             current.map((attachment) =>
               attachment.id === attachmentId
                 ? {
                     ...attachment,
-                    filename: result.attachment.filename,
-                    mediaType: result.attachment.media_type,
+                    filename: parsedAttachment.filename,
+                    mediaType: parsedAttachment.media_type,
                     status: "ready",
                     progress: 100,
-                    context: result.attachment,
+                    context: parsedAttachment,
                   }
                 : attachment,
             ),

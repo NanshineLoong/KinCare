@@ -18,6 +18,8 @@ type MemberOption = {
 };
 
 type ChatInputProps = {
+  /** When true, the send control stays enabled with an empty draft so the parent can open a chat or branch on submit. */
+  allowEmptySubmit?: boolean;
   attachments?: ComposerAttachment[];
   draft: string;
   isBusy: boolean;
@@ -33,6 +35,7 @@ type ChatInputProps = {
 };
 
 export function ChatInput({
+  allowEmptySubmit = false,
   attachments = [],
   draft,
   isBusy,
@@ -59,7 +62,10 @@ export function ChatInput({
   const hasReadyAttachments = attachments.some(
     (attachment) => attachment.status === "ready" && attachment.context,
   );
-  const canSend = !isBusy && !hasPendingAttachments && (Boolean(draft.trim()) || hasReadyAttachments);
+  const canSend =
+    !isBusy &&
+    !hasPendingAttachments &&
+    (Boolean(draft.trim()) || hasReadyAttachments || allowEmptySubmit);
 
   const voiceVisualizer = useVoiceVisualizer();
   const {
@@ -191,7 +197,7 @@ export function ChatInput({
         stopRecording();
       }
     } else {
-      if (draft.trim() || hasReadyAttachments) {
+      if (draft.trim() || hasReadyAttachments || allowEmptySubmit) {
         onSend();
       }
     }

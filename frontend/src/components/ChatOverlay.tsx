@@ -34,7 +34,6 @@ type ChatOverlayProps = {
   attachments: ComposerAttachment[];
   draft: string;
   error: string | null;
-  focusLabel: string;
   isBusy: boolean;
   isUploading: boolean;
   memberOptions: MemberOption[];
@@ -93,7 +92,6 @@ export function ChatOverlay({
   attachments,
   draft,
   error,
-  focusLabel,
   isBusy,
   isUploading,
   memberOptions,
@@ -117,6 +115,17 @@ export function ChatOverlay({
   useEffect(() => {
     panelRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   useLayoutEffect(() => {
     if (!shouldAutoScrollRef.current) {
@@ -191,11 +200,12 @@ export function ChatOverlay({
         ) : null}
 
         <div
-          className="mx-auto mt-6 flex w-full max-w-3xl flex-1 flex-col gap-5 overflow-y-auto pb-36 outline-none"
+          className="mt-6 min-h-0 w-full flex-1 overflow-y-auto pb-36 outline-none"
           onScroll={handlePanelScroll}
           ref={panelRef}
           tabIndex={-1}
         >
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           {chronologicalItems.map((item) => {
             if (item.type === "tool") {
               const toolCard = item.payload as ChatToolCard;
@@ -304,6 +314,7 @@ export function ChatOverlay({
               </div>
             </div>
           ) : null}
+          </div>
         </div>
       </div>
 
@@ -312,7 +323,6 @@ export function ChatOverlay({
           <ChatInput
             attachments={attachments}
             draft={draft}
-            focusLabel={focusLabel}
             isBusy={isBusy}
             isUploading={isUploading}
             memberOptions={memberOptions}
