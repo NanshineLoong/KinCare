@@ -1922,3 +1922,4 @@ def test_manual_dashboard_care_plan_refresh_endpoint_generates_latest_reminders(
         "午后散步 20 分钟",
         "晚间按时服药",
     }
+    assert dashboard_payload["today_reminders_refreshed_at"] is not None

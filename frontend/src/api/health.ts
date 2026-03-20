@@ -148,6 +148,7 @@ export type DashboardResponse = {
   members: DashboardMemberSummary[];
   today_reminders: DashboardReminder[];
   reminder_groups?: DashboardReminderGroup[];
+  today_reminders_refreshed_at?: string | null;
 };
 
 export type DailyGenerationRefreshResponse = {

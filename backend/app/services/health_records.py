@@ -376,6 +376,7 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
     today = datetime.now(UTC).date()
     summaries: list[dict[str, Any]] = []
     reminders: list[dict[str, Any]] = []
+    reminders_refreshed_at: str | None = None
 
     with database.connection() as connection:
         for member in members:
@@ -398,6 +399,10 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
                     and scheduled_at.date() == today
                 ):
                     reminders.append(_dashboard_reminder(care_plan, member_name=member["name"]))
+                    if care_plan["generated_by"] == "ai" and care_plan.get("updated_at"):
+                        updated_at = str(care_plan["updated_at"])
+                        if reminders_refreshed_at is None or updated_at > reminders_refreshed_at:
+                            reminders_refreshed_at = updated_at
 
             summaries.append(
                 {
@@ -417,6 +422,7 @@ def get_dashboard(database: Database, current_user: CurrentUser) -> dict[str, An
         "members": summaries,
         "today_reminders": reminders,
         "reminder_groups": _build_reminder_groups(reminders),
+        "today_reminders_refreshed_at": reminders_refreshed_at,
     }
 
 

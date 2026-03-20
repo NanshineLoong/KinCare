@@ -558,6 +558,7 @@ def test_dashboard_returns_visible_member_summaries_and_today_reminders(client: 
     assert payload["today_reminders"][0]["member_name"] == "奶奶"
     assert payload["today_reminders"][0]["icon_key"] == "medication"
     assert payload["today_reminders"][1]["notes"] == "控制在半杯以内"
+    assert payload["today_reminders_refreshed_at"] is None
     assert [group["time_slot"] for group in payload["reminder_groups"]] == ["清晨", "晚间"]
     assert [item["title"] for item in payload["reminder_groups"][0]["reminders"]] == ["早餐后服药"]
     assert payload["reminder_groups"][0]["reminders"][0]["assignee_member_id"] == managed_member["id"]

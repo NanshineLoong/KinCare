@@ -495,6 +495,7 @@ class DashboardRead(BaseModel):
     members: list[DashboardMemberSummary]
     today_reminders: list[DashboardReminder]
     reminder_groups: list[DashboardReminderGroup] = Field(default_factory=list)
+    today_reminders_refreshed_at: str | None = None
 
 
 class DailyGenerationRefreshResult(BaseModel):

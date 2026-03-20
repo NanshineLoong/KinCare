@@ -144,6 +144,13 @@ function formatRefreshTime(value: string | null): string {
   );
 }
 
+function formatPanelRefreshTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 已刷新`;
+}
+
 function buildSummaryChips(
   summary: DashboardMemberSummary | undefined,
 ): SummaryChip[] {
@@ -317,7 +324,6 @@ export function HomePage({
   );
   const [isTranscribingComposer, setIsTranscribingComposer] = useState(false);
   const [composerValue, setComposerValue] = useState("");
-  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState("");
 
   const visibleMembers = members.length > 0 ? members : [session.member];
@@ -326,6 +332,9 @@ export function HomePage({
   );
   const reminderGroups = groupReminders(dashboard?.today_reminders ?? []);
   const totalReminders = dashboard?.today_reminders?.length ?? 0;
+  const reminderRefreshText = formatPanelRefreshTime(
+    dashboard?.today_reminders_refreshed_at,
+  );
   const canRefreshAnyCarePlan = visibleMembers.some((member) =>
     canRefreshMemberSummary(member, session),
   );
@@ -336,7 +345,6 @@ export function HomePage({
     try {
       const nextDashboard = await getDashboard(session);
       setDashboard(nextDashboard);
-      setLastRefreshTime(new Date());
     } catch (error) {
       setDashboard(null);
       setDashboardError(
@@ -587,8 +595,8 @@ export function HomePage({
                 {totalReminders > 0
                   ? `共 ${totalReminders} 项健康任务，覆盖 ${reminderGroups.length} 个时段`
                   : "暂无今日提醒"}
-                {lastRefreshTime
-                  ? `　·　${lastRefreshTime.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 已刷新`
+                {reminderRefreshText
+                  ? `　·　${reminderRefreshText}`
                   : ""}
               </p>
             </div>

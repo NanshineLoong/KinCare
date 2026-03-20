@@ -276,6 +276,7 @@ function createDashboard() {
         ],
       },
     ],
+    today_reminders_refreshed_at: "2026-03-15T10:05:00+08:00",
   };
 }
 
@@ -439,6 +440,7 @@ describe("App", () => {
     expect(await screen.findByText("家人状态")).toBeInTheDocument();
     expect(screen.getByText("最新收缩压 126mmHg。")).toBeInTheDocument();
     expect(screen.getByText("早餐后服药")).toBeInTheDocument();
+    expect(screen.getByText(/10:05 已刷新/)).toBeInTheDocument();
     expect(screen.queryByText("等待活动记录")).not.toBeInTheDocument();
   });
 
