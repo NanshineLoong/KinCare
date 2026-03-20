@@ -12,12 +12,15 @@ function renderOverlay(messages: ChatMessage[]) {
   return render(
     <PreferencesProvider>
       <ChatOverlay
+        attachments={[]}
         draft=""
         error={null}
         isBusy={false}
+        isUploading={false}
         memberOptions={[]}
         messages={messages}
-        onAudioUpload={() => {}}
+        onAttachmentRemove={() => {}}
+        onAttachmentUpload={() => {}}
         onClose={() => {}}
         onConfirmToolDraft={() => {}}
         onDraftChange={() => {}}

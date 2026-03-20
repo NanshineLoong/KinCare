@@ -23,6 +23,7 @@ HomeVital is a locally deployed family health management system. This repository
 - Simplified health archive around `Observation`, `SleepRecord`, `WorkoutRecord`, `Condition`, `Medication`, `Encounter`, `HealthSummary`, and `CarePlan`
 - Member-level permissions with `read / write / manage` and `specific / all` scope
 - AI conversation with controlled tools, structured suggestions/drafts, session history, and voice transcription
+- Unified attachment intake for audio, images, PDF, DOCX, and local `.doc` fallback parsing in the chat composer
 - Settings sheet with three tabs: **Preferences** (language zh/en, daily refresh times for admin, dark/light/system theme) and **AI Config** (admin-only voice transcription and chat model parameters, persisted to `system_config` table)
 - Future MCP exposure after the in-app architecture stabilizes
 
@@ -65,12 +66,20 @@ Optional AI runtime configuration:
 - `HOMEVITAL_LOCAL_WHISPER_DEVICE`
 - `HOMEVITAL_LOCAL_WHISPER_COMPUTE_TYPE`
 - `HOMEVITAL_LOCAL_WHISPER_DOWNLOAD_ROOT`
+- `HOMEVITAL_DOCLING_ARTIFACTS_PATH` (optional; points Docling to a pre-downloaded local model directory for offline parsing)
 - `HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR`
 - `HOMEVITAL_HEALTH_SUMMARY_REFRESH_MINUTE`
 - `HOMEVITAL_CARE_PLAN_REFRESH_HOUR`
 - `HOMEVITAL_CARE_PLAN_REFRESH_MINUTE`
 
 The backend automatically loads the project root `.env`, so local AI credentials can be stored there instead of being prefixed on the startup command.
+
+Attachment parsing notes:
+
+- Install `docling[rapidocr]` with backend dependencies to enable PDF / image / DOCX parsing.
+- The new chat attachment endpoint keeps audio uploads on the existing STT flow and parses documents separately.
+- Legacy `.doc` files use the local macOS `textutil` fallback when available; converting them to `.docx` or PDF remains the safer path for cross-platform deployments.
+- For offline or weak-network deployments, prefetch Docling models with `docling-tools models download` and point `HOMEVITAL_DOCLING_ARTIFACTS_PATH` to that local directory.
 
 ## Testing
 

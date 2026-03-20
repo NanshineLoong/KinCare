@@ -55,14 +55,14 @@ describe("ChatInput", () => {
   });
 
   it("uploads the recorded audio after completing voice input and returns to text mode", async () => {
-    const handleAudioUpload = vi.fn();
+    const handleAttachmentUpload = vi.fn();
     const { rerender } = render(
       <PreferencesProvider>
         <ChatInput
           draft=""
           isBusy={false}
           memberOptions={[]}
-          onAudioUpload={handleAudioUpload}
+          onAttachmentUpload={handleAttachmentUpload}
           onDraftChange={() => {}}
           onMemberChange={() => {}}
           onSend={() => {}}
@@ -80,7 +80,7 @@ describe("ChatInput", () => {
       );
     });
 
-    await waitFor(() => expect(handleAudioUpload).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(handleAttachmentUpload).toHaveBeenCalledTimes(1));
 
     rerender(
       <PreferencesProvider>
@@ -88,7 +88,7 @@ describe("ChatInput", () => {
           draft=""
           isBusy
           memberOptions={[]}
-          onAudioUpload={handleAudioUpload}
+          onAttachmentUpload={handleAttachmentUpload}
           onDraftChange={() => {}}
           onMemberChange={() => {}}
           onSend={() => {}}
@@ -102,7 +102,7 @@ describe("ChatInput", () => {
           draft="识别后的文字"
           isBusy={false}
           memberOptions={[]}
-          onAudioUpload={handleAudioUpload}
+          onAttachmentUpload={handleAttachmentUpload}
           onDraftChange={() => {}}
           onMemberChange={() => {}}
           onSend={() => {}}
@@ -122,7 +122,7 @@ describe("ChatInput", () => {
           draft=""
           isBusy={false}
           memberOptions={[]}
-          onAudioUpload={() => {}}
+          onAttachmentUpload={() => {}}
           onDraftChange={() => {}}
           onMemberChange={() => {}}
           onSend={() => {}}
@@ -145,7 +145,7 @@ describe("ChatInput", () => {
           draft=""
           isBusy={false}
           memberOptions={[]}
-          onAudioUpload={() => {}}
+          onAttachmentUpload={() => {}}
           onDraftChange={() => {}}
           onMemberChange={() => {}}
           onSend={() => {}}
@@ -181,7 +181,7 @@ describe("ChatInput", () => {
           draft="记录奶奶今天的午睡情况"
           isBusy={false}
           memberOptions={[]}
-          onAudioUpload={() => {}}
+          onAttachmentUpload={() => {}}
           onDraftChange={() => {}}
           onMemberChange={() => {}}
           onSend={handleSend}
@@ -197,5 +197,140 @@ describe("ChatInput", () => {
 
     fireEvent.keyDown(textbox, { key: "Enter", shiftKey: true });
     expect(handleSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("uploads selected files through the shared attachment handler", async () => {
+    const handleAttachmentUpload = vi.fn();
+    const { container } = render(
+      <PreferencesProvider>
+        <ChatInput
+          draft=""
+          isBusy={false}
+          memberOptions={[]}
+          onAttachmentUpload={handleAttachmentUpload}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
+    );
+
+    const input = container.querySelector(
+      'input[type="file"][data-chat-attachment-input="true"]',
+    ) as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+
+    fireEvent.change(input!, {
+      target: {
+        files: [new File(["pdf"], "report.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    await waitFor(() => expect(handleAttachmentUpload).toHaveBeenCalledTimes(1));
+    expect(handleAttachmentUpload.mock.calls[0][0]).toBeInstanceOf(File);
+  });
+
+  it("supports drag and drop upload", async () => {
+    const handleAttachmentUpload = vi.fn();
+    render(
+      <PreferencesProvider>
+        <ChatInput
+          draft=""
+          isBusy={false}
+          memberOptions={[]}
+          onAttachmentUpload={handleAttachmentUpload}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
+    );
+
+    const dropzone = screen.getByTestId("chat-input-dropzone");
+    const file = new File(["image"], "clipboard.png", { type: "image/png" });
+
+    fireEvent.dragOver(dropzone, {
+      dataTransfer: { files: [file], items: [], types: ["Files"] },
+    });
+    fireEvent.drop(dropzone, {
+      dataTransfer: { files: [file], items: [], types: ["Files"] },
+    });
+
+    await waitFor(() => expect(handleAttachmentUpload).toHaveBeenCalledWith(file));
+  });
+
+  it("renders pending attachment chips with progress and disables send while parsing", () => {
+    const handleSend = vi.fn();
+
+    render(
+      <PreferencesProvider>
+        <ChatInput
+          attachments={[
+            {
+              id: "attachment-1",
+              filename: "report.pdf",
+              mediaType: "application/pdf",
+              status: "uploading",
+              progress: 36,
+            } as never,
+          ]}
+          draft="请继续分析"
+          isBusy={false}
+          memberOptions={[]}
+          onAttachmentRemove={() => {}}
+          onAttachmentUpload={() => {}}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={handleSend}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
+    );
+
+    expect(screen.getByText("report.pdf")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "取消上传附件 report.pdf" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: "附件 report.pdf 上传进度" }),
+    ).toHaveAttribute("aria-valuenow", "36");
+    expect(screen.getByRole("button", { name: "发送文本" })).toBeDisabled();
+  });
+
+  it("supports pasted image upload", async () => {
+    const handleAttachmentUpload = vi.fn();
+    render(
+      <PreferencesProvider>
+        <ChatInput
+          draft=""
+          isBusy={false}
+          memberOptions={[]}
+          onAttachmentUpload={handleAttachmentUpload}
+          onDraftChange={() => {}}
+          onMemberChange={() => {}}
+          onSend={() => {}}
+          selectedMemberId=""
+        />
+      </PreferencesProvider>,
+    );
+
+    const file = new File(["image"], "clipboard.png", { type: "image/png" });
+    const textbox = screen.getByRole("textbox");
+
+    fireEvent.paste(textbox, {
+      clipboardData: {
+        items: [
+          {
+            kind: "file",
+            type: "image/png",
+            getAsFile: () => file,
+          },
+        ],
+      },
+    });
+
+    await waitFor(() => expect(handleAttachmentUpload).toHaveBeenCalledWith(file));
   });
 });

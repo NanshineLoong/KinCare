@@ -1,6 +1,15 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+} from "react";
 import { useVoiceVisualizer, VoiceVisualizer } from "react-voice-visualizer";
 
+import type { ComposerAttachment } from "../attachments";
 import { usePreferences } from "../preferences";
 
 type MemberOption = {
@@ -9,25 +18,31 @@ type MemberOption = {
 };
 
 type ChatInputProps = {
+  attachments?: ComposerAttachment[];
   draft: string;
   isBusy: boolean;
+  isUploading?: boolean;
   memberOptions: MemberOption[];
+  onAttachmentRemove?: (attachmentId: string) => void;
+  onAttachmentUpload?: (file: File) => void;
   onDraftChange: (value: string) => void;
   onMemberChange: (memberId: string) => void;
   onSend: () => void;
-  onAudioUpload?: (file: File) => void;
   selectedMemberId: string;
   placeholder?: string;
 };
 
 export function ChatInput({
+  attachments = [],
   draft,
   isBusy,
+  isUploading = false,
   memberOptions,
+  onAttachmentRemove,
+  onAttachmentUpload,
   onDraftChange,
   onMemberChange,
   onSend,
-  onAudioUpload,
   selectedMemberId,
   placeholder,
 }: ChatInputProps) {
@@ -36,7 +51,15 @@ export function ChatInput({
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [hasStartedVoiceUpload, setHasStartedVoiceUpload] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const attachmentInputId = useId().replace(/:/g, "-");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hasPendingAttachments =
+    isUploading || attachments.some((attachment) => attachment.status === "uploading");
+  const hasReadyAttachments = attachments.some(
+    (attachment) => attachment.status === "ready" && attachment.context,
+  );
+  const canSend = !isBusy && !hasPendingAttachments && (Boolean(draft.trim()) || hasReadyAttachments);
 
   const voiceVisualizer = useVoiceVisualizer();
   const {
@@ -84,16 +107,16 @@ export function ChatInput({
   }, [handleToggleVoiceMode]);
 
   useEffect(() => {
-    if (!isProcessingVoice || !hasStartedVoiceUpload || isBusy) {
+    if (!isProcessingVoice || !hasStartedVoiceUpload || isUploading) {
       return;
     }
     setIsProcessingVoice(false);
     setHasStartedVoiceUpload(false);
     setIsVoiceMode(false);
-  }, [hasStartedVoiceUpload, isBusy, isProcessingVoice]);
+  }, [hasStartedVoiceUpload, isProcessingVoice, isUploading]);
 
   useEffect(() => {
-    if (!mediaRecorder || !onAudioUpload) {
+    if (!mediaRecorder || !onAttachmentUpload) {
       return;
     }
 
@@ -111,7 +134,7 @@ export function ChatInput({
         type: audioBlob.type || "audio/webm",
       });
       setHasStartedVoiceUpload(true);
-      onAudioUpload(file);
+      onAttachmentUpload(file);
       clearCanvas();
     };
 
@@ -119,7 +142,48 @@ export function ChatInput({
     return () => {
       mediaRecorder.removeEventListener("dataavailable", handleDataAvailable);
     };
-  }, [clearCanvas, mediaRecorder, onAudioUpload]);
+  }, [clearCanvas, mediaRecorder, onAttachmentUpload]);
+
+  const dispatchAttachment = useCallback((file: File | null | undefined) => {
+    if (!file || !onAttachmentUpload) {
+      return;
+    }
+    onAttachmentUpload(file);
+  }, [onAttachmentUpload]);
+
+  const handlePastedFile = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(event.clipboardData?.items ?? []);
+    const fileItem = items.find((item) => item.kind === "file");
+    const file = fileItem?.getAsFile();
+    if (!file) {
+      return;
+    }
+    event.preventDefault();
+    dispatchAttachment(file);
+  }, [dispatchAttachment]);
+
+  const handleDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragActive(false);
+    const file = event.dataTransfer?.files?.[0];
+    dispatchAttachment(file);
+  }, [dispatchAttachment]);
+
+  const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!isDragActive) {
+      setIsDragActive(true);
+    }
+  }, [isDragActive]);
+
+  const handleDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+    setIsDragActive(false);
+  }, []);
 
   const handleSendOrConfirm = () => {
     if (isVoiceMode) {
@@ -127,7 +191,7 @@ export function ChatInput({
         stopRecording();
       }
     } else {
-      if (draft.trim()) {
+      if (draft.trim() || hasReadyAttachments) {
         onSend();
       }
     }
@@ -152,7 +216,78 @@ export function ChatInput({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-[1.5rem] border border-[#F2EDE7] bg-white p-3 shadow-sm transition-all focus-within:border-[#4A443F]/50 focus-within:shadow-md">
+    <div
+      className={`mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-[1.5rem] border bg-white p-3 shadow-sm transition-all focus-within:border-[#4A443F]/50 focus-within:shadow-md ${
+        isDragActive
+          ? "border-[#4A6076] bg-[#F5F8FB] ring-2 ring-[#D8E5EF]"
+          : "border-[#F2EDE7]"
+      }`}
+      data-testid="chat-input-dropzone"
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {attachments.length > 0 ? (
+        <div className="flex flex-wrap gap-2 px-2 pt-1">
+          {attachments.map((attachment) => (
+            <div
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
+                attachment.status === "uploading"
+                  ? "border-[#D8E5EF] bg-[#F5F8FB] text-[#4A6076]"
+                  : "border-[#D3E4D7] bg-[#F3F8F4] text-[#305445]"
+              }`}
+              key={attachment.id}
+            >
+              {attachment.status === "uploading" ? (
+                <span
+                  aria-label={`附件 ${attachment.filename} 上传进度`}
+                  aria-valuemax={100}
+                  aria-valuemin={0}
+                  aria-valuenow={Math.round(attachment.progress)}
+                  className="relative h-4 w-4 shrink-0 rounded-full"
+                  role="progressbar"
+                  style={{
+                    background: `conic-gradient(#4A6076 ${attachment.progress}%, #D8E5EF ${attachment.progress}% 100%)`,
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    className="absolute inset-[2px] rounded-full bg-[#F5F8FB]"
+                  />
+                </span>
+              ) : (
+                <span
+                  aria-hidden
+                  className="material-symbols-outlined text-[16px] text-[#4A8C68]"
+                >
+                  check_circle
+                </span>
+              )}
+              <span className="max-w-[12rem] truncate">{attachment.filename}</span>
+              {attachment.status === "uploading" ? (
+                <span className="text-[11px] text-[#7A8E9F]">
+                  {Math.round(attachment.progress)}%
+                </span>
+              ) : null}
+              {onAttachmentRemove ? (
+                <button
+                  aria-label={
+                    attachment.status === "uploading"
+                      ? `取消上传附件 ${attachment.filename}`
+                      : `移除附件 ${attachment.filename}`
+                  }
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-[#4A6076] transition hover:bg-white"
+                  onClick={() => onAttachmentRemove(attachment.id)}
+                  type="button"
+                >
+                  <span aria-hidden className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {/* Row 1: Text Input or Voice Visualizer */}
       <div className="flex min-h-[48px] items-center px-2">
         {isVoiceMode ? (
@@ -191,6 +326,7 @@ export function ChatInput({
               e.target.style.height = "auto";
               e.target.style.height = `${e.target.scrollHeight}px`;
             }}
+            onPaste={handlePastedFile}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -210,7 +346,7 @@ export function ChatInput({
           <button
             aria-label={t("chatInputAddAttachment")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-warm-gray transition hover:bg-[#F8F6F3] hover:text-[#4A443F]"
-            onClick={() => document.getElementById('chat-attachment-input')?.click()}
+            onClick={() => document.getElementById(attachmentInputId)?.click()}
             type="button"
           >
             <span aria-hidden className="material-symbols-outlined text-[20px]">add</span>
@@ -218,12 +354,11 @@ export function ChatInput({
           <input
             accept="audio/*,image/*,.pdf,.doc,.docx"
             className="hidden"
-            id="chat-attachment-input"
+            data-chat-attachment-input="true"
+            id={attachmentInputId}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file && onAudioUpload) {
-                onAudioUpload(file);
-              }
+              dispatchAttachment(file);
               e.target.value = '';
             }}
             type="file"
@@ -264,7 +399,7 @@ export function ChatInput({
                 aria-label={t("chatInputFinishVoice")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-black"
                 onClick={handleCompleteVoiceRecording}
-                disabled={isBusy || isProcessingVoice}
+                disabled={isBusy || isProcessingVoice || isUploading}
                 type="button"
               >
                 {isProcessingVoice ? (
@@ -291,7 +426,7 @@ export function ChatInput({
                 aria-label={t("chatInputSend")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2D2926] text-white transition hover:bg-black disabled:opacity-50"
                 onClick={handleSendOrConfirm}
-                disabled={!draft.trim() || isBusy}
+                disabled={!canSend}
                 type="button"
               >
                 <span aria-hidden className="material-symbols-outlined text-[18px]">arrow_upward</span>

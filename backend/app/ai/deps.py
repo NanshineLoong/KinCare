@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from app.ai.scheduler import HomeVitalScheduler
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
+from app.schemas.chat import ChatAttachmentContext
 
 
 @dataclass
@@ -16,3 +17,4 @@ class AIDeps:
     scheduler: HomeVitalScheduler
     session_id: str
     page_context: str | None
+    attachments: tuple[ChatAttachmentContext, ...] = ()

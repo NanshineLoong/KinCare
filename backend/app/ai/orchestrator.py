@@ -107,6 +107,7 @@ class ChatOrchestrator:
         content: str,
         member_id: str | None,
         page_context: str | None,
+        attachments: tuple[Any, ...] = (),
     ) -> AsyncIterator[StreamEvent]:
         session, focus_member_id = self.resolve_session(
             current_user=current_user,
@@ -125,6 +126,7 @@ class ChatOrchestrator:
                 metadata={
                     "member_id": focus_member_id,
                     "page_context": effective_page_context,
+                    "attachments": [attachment.model_dump() for attachment in attachments],
                 },
             )
 
@@ -136,6 +138,7 @@ class ChatOrchestrator:
             scheduler=self._scheduler,
             session_id=session_id,
             page_context=effective_page_context,
+            attachments=attachments,
         )
         usage_limits = UsageLimits(request_limit=self._request_limit)
         yielded_delta = False
@@ -262,6 +265,7 @@ class ChatOrchestrator:
             scheduler=self._scheduler,
             session_id=session_id,
             page_context=session["page_context"],
+            attachments=(),
         )
         created_counts = {
             "observations": 0,

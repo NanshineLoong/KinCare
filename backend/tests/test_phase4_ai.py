@@ -258,6 +258,7 @@ def stream_chat_message(
     member_id: str,
     page_context: str,
     content: str,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     with client.stream(
         "POST",
@@ -267,6 +268,7 @@ def stream_chat_message(
             "content": content,
             "member_id": member_id,
             "page_context": page_context,
+            "attachments": attachments or [],
         },
     ) as response:
         assert response.status_code == 200, response.text
@@ -1177,6 +1179,143 @@ def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: Tes
     )
     assert empty_response.status_code == 400
     monkeypatch.undo()
+
+
+def test_attachment_endpoint_routes_audio_to_transcription(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    chat_module = importlib.import_module("app.api.routes.chat")
+
+    async def stub_transcribe_audio(
+        settings: Any,
+        *,
+        content: bytes,
+        filename: str | None = None,
+        content_type: str | None = None,
+    ) -> str:
+        del settings
+        assert content == b"voice-bytes"
+        assert filename == "voice.wav"
+        assert content_type == "audio/wav"
+        return "奶奶今天胃口不错"
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(chat_module, "transcribe_audio", stub_transcribe_audio)
+
+    response = client.post(
+        "/api/chat/attachments",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+        files={"file": ("voice.wav", b"voice-bytes", "audio/wav")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "attachment": None,
+        "suggested_text": "奶奶今天胃口不错",
+    }
+    monkeypatch.undo()
+
+
+def test_attachment_endpoint_routes_pdf_to_attachment_parser(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    chat_module = importlib.import_module("app.api.routes.chat")
+
+    async def stub_handle_chat_attachment_upload(
+        settings: Any,
+        *,
+        content: bytes,
+        filename: str | None = None,
+        content_type: str | None = None,
+    ) -> dict[str, Any]:
+        del settings
+        assert content == b"%PDF-1.7"
+        assert filename == "report.pdf"
+        assert content_type == "application/pdf"
+        return {
+            "attachment": {
+                "filename": "report.pdf",
+                "media_type": "application/pdf",
+                "source_type": "docling",
+                "ocr_used": False,
+                "excerpt": "收缩压 126mmHg，早餐后服药。",
+                "markdown_excerpt": "## 关键结论\n收缩压 126mmHg，早餐后服药。",
+            },
+            "suggested_text": "我上传了附件《report.pdf》，请结合其中内容继续分析。",
+        }
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        chat_module,
+        "handle_chat_attachment_upload",
+        stub_handle_chat_attachment_upload,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/chat/attachments",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+        files={"file": ("report.pdf", b"%PDF-1.7", "application/pdf")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["attachment"]["source_type"] == "docling"
+    assert "report.pdf" in response.json()["suggested_text"]
+    monkeypatch.undo()
+
+
+def test_attachment_endpoint_rejects_unsupported_files(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+
+    response = client.post(
+        "/api/chat/attachments",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+        files={"file": ("notes.txt", b"plain text", "text/plain")},
+    )
+
+    assert response.status_code == 415
+
+
+def test_chat_message_can_include_attachment_context(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        if any("收缩压 126mmHg，早餐后服药。" in str(message) for message in messages):
+            return ModelResponse(parts=[TextPart("已收到附件上下文")])
+        return ModelResponse(parts=[TextPart("缺少附件上下文")])
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="请结合附件总结一下",
+            attachments=[
+                {
+                    "filename": "report.pdf",
+                    "media_type": "application/pdf",
+                    "source_type": "docling",
+                    "ocr_used": False,
+                    "excerpt": "收缩压 126mmHg，早餐后服药。",
+                    "markdown_excerpt": "## 关键结论\n收缩压 126mmHg，早餐后服药。",
+                }
+            ],
+        )
+
+    assert events[-1]["event"] == "message.completed"
+    assert events[-1]["data"]["content"] == "已收到附件上下文"
 
 
 def test_admin_ai_settings_apply_to_following_transcription_requests(

@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
-import type { ChatToolResult, HealthRecordAction, HealthRecordDraft } from "../api/chat";
+import type {
+  ChatToolResult,
+  HealthRecordAction,
+  HealthRecordDraft,
+} from "../api/chat";
+import type { ComposerAttachment } from "../attachments";
 import { usePreferences } from "../preferences";
 import { ChatInput } from "./ChatInput";
 import { MarkdownContent } from "./MarkdownContent";
@@ -24,12 +29,15 @@ type MemberOption = {
 };
 
 type ChatOverlayProps = {
+  attachments: ComposerAttachment[];
   draft: string;
   error: string | null;
   isBusy: boolean;
+  isUploading: boolean;
   memberOptions: MemberOption[];
   messages: ChatMessage[];
-  onAudioUpload: (file: File) => void;
+  onAttachmentRemove: (attachmentId: string) => void;
+  onAttachmentUpload: (file: File) => void;
   onClose: () => void;
   onConfirmToolDraft: (toolCard: ChatToolCard) => void;
   onDraftChange: (value: string) => void;
@@ -79,12 +87,15 @@ function actionSummary(action: HealthRecordAction): string {
 }
 
 export function ChatOverlay({
+  attachments,
   draft,
   error,
   isBusy,
+  isUploading,
   memberOptions,
   messages,
-  onAudioUpload,
+  onAttachmentRemove,
+  onAttachmentUpload,
   onClose,
   onConfirmToolDraft,
   onDraftChange,
@@ -107,7 +118,7 @@ export function ChatOverlay({
     if (!file) {
       return;
     }
-    onAudioUpload(file);
+    onAttachmentUpload(file);
     event.target.value = "";
   }
 
@@ -270,13 +281,16 @@ export function ChatOverlay({
       <div className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-[#f6f1ea] via-[#f6f1ea]/90 to-transparent px-5 py-5 sm:px-6 sm:py-6">
         <div className="mx-auto w-full max-w-3xl">
           <ChatInput
+            attachments={attachments}
             draft={draft}
             isBusy={isBusy}
+            isUploading={isUploading}
             memberOptions={memberOptions}
+            onAttachmentRemove={onAttachmentRemove}
+            onAttachmentUpload={onAttachmentUpload}
             onDraftChange={onDraftChange}
             onMemberChange={onMemberChange}
             onSend={onSend}
-            onAudioUpload={onAudioUpload}
             selectedMemberId={selectedMemberId}
           />
         </div>

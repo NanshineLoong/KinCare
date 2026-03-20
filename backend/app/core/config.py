@@ -31,6 +31,7 @@ class Settings:
     local_whisper_device: str
     local_whisper_compute_type: str
     local_whisper_download_root: str | None
+    docling_artifacts_path: str | None
     scheduler_enabled: bool
     scheduler_timezone: str
     health_summary_refresh_hour: int
@@ -80,6 +81,7 @@ def get_settings() -> Settings:
         local_whisper_device=os.getenv("HOMEVITAL_LOCAL_WHISPER_DEVICE", "auto"),
         local_whisper_compute_type=os.getenv("HOMEVITAL_LOCAL_WHISPER_COMPUTE_TYPE", "default"),
         local_whisper_download_root=os.getenv("HOMEVITAL_LOCAL_WHISPER_DOWNLOAD_ROOT"),
+        docling_artifacts_path=os.getenv("HOMEVITAL_DOCLING_ARTIFACTS_PATH"),
         scheduler_enabled=os.getenv("HOMEVITAL_SCHEDULER_ENABLED", "1") == "1",
         scheduler_timezone=os.getenv("HOMEVITAL_SCHEDULER_TIMEZONE", "Asia/Shanghai"),
         health_summary_refresh_hour=int(os.getenv("HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR", "5")),

@@ -55,6 +55,15 @@ async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
             parts.append(f"当前关注成员 ID：{ctx.deps.focus_member_id}")
     if ctx.deps.page_context:
         parts.append(f"当前页面上下文：{ctx.deps.page_context}")
+    if ctx.deps.attachments:
+        attachment_lines = ["当前附件上下文："]
+        for index, attachment in enumerate(ctx.deps.attachments, start=1):
+            attachment_lines.append(
+                f"{index}. 文件：{attachment.filename}（{attachment.media_type}，source={attachment.source_type}，OCR={'是' if attachment.ocr_used else '否'}）"
+            )
+            attachment_lines.append(f"   摘要：{attachment.excerpt}")
+        attachment_lines.append("仅在需要时引用这些附件摘要，不要假设附件之外的内容。")
+        parts.append("\n".join(attachment_lines))
     return "\n".join(parts)
 
 

@@ -1,8 +1,9 @@
 apscheduler==3.11.0
+docling[rapidocr]
 faster-whisper==1.2.0
 fastapi==0.118.1
 httpx==0.28.1
-pydantic-ai>=1.68.0
+pydantic-ai-slim[openai]>=1.68.0
 python-dotenv==1.1.1
 python-multipart==0.0.20
 uvicorn[standard]==0.37.0

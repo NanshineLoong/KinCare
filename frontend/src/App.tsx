@@ -6,10 +6,13 @@ import {
   createChatSession,
   listChatMessages,
   streamChatMessage,
-  transcribeAudio,
   type ChatSession,
 } from "./api/chat";
 import { listMembers } from "./api/members";
+import {
+  readyAttachmentContexts,
+  type ComposerAttachment,
+} from "./attachments";
 import { AppShell } from "./components/AppShell";
 import {
   ChatOverlay,
@@ -30,6 +33,7 @@ import {
   refreshSession,
   shouldRefreshSession,
 } from "./auth/sessionManager";
+import { useComposerAttachments } from "./hooks/useComposerAttachments";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -75,7 +79,26 @@ export default function App() {
   const [isChatBusy, setIsChatBusy] = useState(false);
   const [selectedChatMemberId, setSelectedChatMemberId] = useState("");
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
-  const [queuedMessage, setQueuedMessage] = useState<string | null>(null);
+  const [queuedMessage, setQueuedMessage] = useState<{
+    content: string;
+    attachments: ComposerAttachment[];
+  } | null>(null);
+  const {
+    attachments: chatAttachments,
+    clearAttachments: clearChatAttachments,
+    hasActiveUploads: isChatUploadingAttachment,
+    removeAttachment: removeChatAttachment,
+    restoreAttachments: restoreChatAttachments,
+    uploadAttachment: uploadChatAttachment,
+  } = useComposerAttachments({
+    session,
+    onSuggestedText: (value) => {
+      setChatDraft((current) => (current ? `${current}\n${value}` : value));
+    },
+    onError: (message) => {
+      setChatError(message);
+    },
+  });
 
   function nextTimelineSortKey() {
     timelineSequenceRef.current += 1;
@@ -108,6 +131,7 @@ export default function App() {
   function resetChatState() {
     timelineSequenceRef.current = 0;
     setChatDraft("");
+    clearChatAttachments();
     setChatMessages([]);
     setChatToolCards([]);
     setChatError(null);
@@ -218,7 +242,8 @@ export default function App() {
     if (!isChatOpen || !queuedMessage) {
       return;
     }
-    setChatDraft(queuedMessage);
+    setChatDraft(queuedMessage.content);
+    restoreChatAttachments(queuedMessage.attachments);
     void handleSendChatMessage(queuedMessage);
     setQueuedMessage(null);
   }, [isChatOpen, queuedMessage]);
@@ -243,14 +268,32 @@ export default function App() {
     return nextSession;
   }
 
-  async function handleSendChatMessage(initialContent?: string) {
+  async function handleSendChatMessage(
+    initialInput?:
+      | string
+      | {
+          content: string;
+          attachments?: ComposerAttachment[];
+        },
+  ) {
     if (!session) {
       return;
     }
 
+    const pendingAttachmentState =
+      typeof initialInput === "string"
+        ? chatAttachments
+        : initialInput?.attachments ?? chatAttachments;
+    const pendingAttachments = readyAttachmentContexts(pendingAttachmentState);
     const contentSource =
-      typeof initialContent === "string" ? initialContent : chatDraft;
-    const content = contentSource.trim();
+      typeof initialInput === "string"
+        ? initialInput
+        : initialInput?.content ?? chatDraft;
+    const content = contentSource.trim() || (
+      pendingAttachments.length > 0
+        ? `请结合我刚上传的 ${pendingAttachments.length} 个附件继续分析。`
+        : ""
+    );
     if (!content) {
       return;
     }
@@ -265,6 +308,7 @@ export default function App() {
       },
     ]);
     setChatDraft("");
+    clearChatAttachments();
     setChatError(null);
     setIsChatBusy(true);
 
@@ -303,6 +347,7 @@ export default function App() {
 
       await streamChatMessage(session, currentChatSession.id, {
         content,
+        attachments: pendingAttachments,
         member_id: selectedChatMemberId || null,
         page_context: "home",
       }, (event) => {
@@ -339,6 +384,7 @@ export default function App() {
         }
       });
     } catch (error) {
+      restoreChatAttachments(pendingAttachmentState);
       setChatError(
         error instanceof Error ? error.message : "AI chat failed. Please try again later.",
       );
@@ -390,25 +436,13 @@ export default function App() {
     }
   }
 
-  async function handleAudioUpload(file: File) {
-    if (!session) {
-      return;
-    }
-
-    setIsChatBusy(true);
+  async function handleAttachmentUpload(file: File) {
     setChatError(null);
-    try {
-      const result = await transcribeAudio(session, file);
-      setChatDraft((current) =>
-        current ? `${current}\n${result.text}` : result.text,
-      );
-    } catch (error) {
-      setChatError(
-        error instanceof Error ? error.message : "Voice transcription failed. Please try again later.",
-      );
-    } finally {
-      setIsChatBusy(false);
-    }
+    await uploadChatAttachment(file);
+  }
+
+  function handleRemoveChatAttachment(attachmentId: string) {
+    removeChatAttachment(attachmentId);
   }
 
   function handleOpenChat() {
@@ -459,9 +493,12 @@ export default function App() {
     }
   }
 
-  function handleQueueHomeMessage(message: string) {
+  function handleQueueHomeMessage(
+    message: string,
+    attachments: ComposerAttachment[],
+  ) {
     resetChatState();
-    setQueuedMessage(message);
+    setQueuedMessage({ content: message, attachments });
     setIsChatOpen(true);
   }
 
@@ -563,15 +600,18 @@ export default function App() {
 
       {session && isChatOpen && (
         <ChatOverlay
+          attachments={chatAttachments}
           draft={chatDraft}
           error={chatError}
           isBusy={isChatBusy}
+          isUploading={isChatUploadingAttachment}
           memberOptions={memberOptions.map((member) => ({
             id: member.id,
             name: member.name,
           }))}
           messages={chatMessages}
-          onAudioUpload={handleAudioUpload}
+          onAttachmentRemove={handleRemoveChatAttachment}
+          onAttachmentUpload={handleAttachmentUpload}
           onClose={() => setIsChatOpen(false)}
           onConfirmToolDraft={handleConfirmToolDraft}
           onDraftChange={setChatDraft}

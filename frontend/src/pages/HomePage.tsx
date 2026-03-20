@@ -9,9 +9,11 @@ import {
   type DashboardReminder,
   type DashboardResponse,
 } from "../api/health";
-import { transcribeAudio } from "../api/chat";
+import type { ComposerAttachment } from "../attachments";
+import { readyAttachmentContexts } from "../attachments";
 import type { AuthMember, AuthSession } from "../auth/session";
 import { buildHealthSummaryCards } from "../healthSummaryCards";
+import { useComposerAttachments } from "../hooks/useComposerAttachments";
 import { usePreferences } from "../preferences";
 
 // ─── Tiny helpers ──────────────────────────────────────────────────────────────
@@ -56,9 +58,8 @@ type HomePageProps = {
   membersError: string | null;
   onOpenChat?: () => void;
   onOpenMemberProfile?: (memberId: string) => void;
-  onQueueChatMessage?: (message: string) => void;
+  onQueueChatMessage?: (message: string, attachments: ComposerAttachment[]) => void;
   onRefreshData?: () => void;
-  onAudioUpload?: (file: File) => void;
   refreshToken?: number;
   session: AuthSession;
 };
@@ -310,7 +311,6 @@ export function HomePage({
   onOpenMemberProfile,
   onQueueChatMessage,
   onRefreshData,
-  onAudioUpload,
   refreshToken = 0,
   session,
 }: HomePageProps) {
@@ -319,12 +319,24 @@ export function HomePage({
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isRefreshingCarePlans, setIsRefreshingCarePlans] = useState(false);
-  const [refreshingMemberId, setRefreshingMemberId] = useState<string | null>(
-    null,
-  );
-  const [isTranscribingComposer, setIsTranscribingComposer] = useState(false);
+  const [refreshingMemberId, setRefreshingMemberId] = useState<string | null>(null);
   const [composerValue, setComposerValue] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const {
+    attachments: composerAttachments,
+    clearAttachments: clearComposerAttachments,
+    hasActiveUploads: isUploadingComposerAttachment,
+    removeAttachment: removeComposerAttachment,
+    uploadAttachment: uploadComposerAttachment,
+  } = useComposerAttachments({
+    session,
+    onSuggestedText: (value) => {
+      setComposerValue((current) => (current ? `${current}\n${value}` : value));
+    },
+    onError: (message) => {
+      setDashboardError(message);
+    },
+  });
 
   const visibleMembers = members.length > 0 ? members : [session.member];
   const memberSummaries = new Map(
@@ -376,28 +388,28 @@ export function HomePage({
 
   function handleSendHomeMessage() {
     const trimmed = composerValue.trim();
-    if (!trimmed) {
+    const readyComposerAttachments = readyAttachmentContexts(composerAttachments);
+    const content = trimmed || (
+      readyComposerAttachments.length > 0
+        ? `请结合我刚上传的 ${readyComposerAttachments.length} 个附件继续分析。`
+        : ""
+    );
+    if (!content) {
       onOpenChat?.();
       return;
     }
-    onQueueChatMessage?.(trimmed);
+    onQueueChatMessage?.(content, composerAttachments);
     setComposerValue("");
+    clearComposerAttachments();
   }
 
-  async function handleComposerAudioUpload(file: File) {
-    setIsTranscribingComposer(true);
-    try {
-      const result = await transcribeAudio(session, file);
-      setComposerValue((current) =>
-        current ? `${current}\n${result.text}` : result.text,
-      );
-    } catch (error) {
-      setDashboardError(
-        error instanceof Error ? error.message : "语音识别失败，请稍后重试。",
-      );
-    } finally {
-      setIsTranscribingComposer(false);
-    }
+  async function handleComposerAttachmentUpload(file: File) {
+    setDashboardError(null);
+    await uploadComposerAttachment(file);
+  }
+
+  function handleRemoveComposerAttachment(attachmentId: string) {
+    removeComposerAttachment(attachmentId);
   }
 
   async function handleRefreshMemberSummary(member: AuthMember) {
@@ -744,13 +756,16 @@ export function HomePage({
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-warm-cream via-warm-cream/80 to-transparent px-5 py-5 sm:px-6 sm:py-7">
         <div className="pointer-events-auto w-full">
           <ChatInput
+            attachments={composerAttachments}
             draft={composerValue}
-            isBusy={isLoadingDashboard || isTranscribingComposer}
+            isBusy={isLoadingDashboard}
+            isUploading={isUploadingComposerAttachment}
             memberOptions={visibleMembers.map(m => ({ id: m.id, name: m.name }))}
+            onAttachmentRemove={handleRemoveComposerAttachment}
+            onAttachmentUpload={handleComposerAttachmentUpload}
             onDraftChange={setComposerValue}
             onMemberChange={setSelectedMemberId}
             onSend={handleSendHomeMessage}
-            onAudioUpload={handleComposerAudioUpload}
             selectedMemberId={selectedMemberId}
             placeholder={t("homeComposerPlaceholder")}
           />

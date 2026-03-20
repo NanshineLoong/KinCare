@@ -66,6 +66,20 @@ export type HealthRecordDraft = {
   actions: HealthRecordAction[];
 };
 
+export type ChatAttachmentContext = {
+  filename: string;
+  media_type: string;
+  source_type: string;
+  ocr_used: boolean;
+  excerpt: string;
+  markdown_excerpt?: string | null;
+};
+
+export type ChatAttachmentUploadResult = {
+  attachment: ChatAttachmentContext | null;
+  suggested_text: string;
+};
+
 export type ChatToolResult = {
   tool_name: string;
   content: string;
@@ -143,6 +157,25 @@ export async function transcribeAudio(session: AuthSession, file: File) {
   );
 }
 
+export async function parseAttachment(
+  session: AuthSession,
+  file: File,
+  options?: {
+    signal?: AbortSignal;
+  },
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return sendAuthorizedFormData<ChatAttachmentUploadResult>(
+    "/api/chat/attachments",
+    session,
+    formData,
+    {
+      signal: options?.signal,
+    },
+  );
+}
+
 export async function confirmChatDraft(
   session: AuthSession,
   chatSessionId: string,
@@ -167,6 +200,7 @@ export async function streamChatMessage(
     content: string;
     member_id?: string | null;
     page_context?: string | null;
+    attachments?: ChatAttachmentContext[];
   },
   onEvent: (event: ChatStreamEvent) => void | Promise<void>,
 ): Promise<void> {

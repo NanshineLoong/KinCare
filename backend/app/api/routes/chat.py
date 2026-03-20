@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 
+from app.attachments.service import handle_chat_attachment_upload
 from app.ai.orchestrator import ChatOrchestrator, format_sse_event
 from app.ai.transcription import transcribe_audio
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.dependencies import CurrentUser, get_current_user, get_database, get_settings
 from app.schemas.chat import (
+    ChatAttachmentUploadResult,
     ChatDraftConfirmRequest,
     ChatDraftConfirmResult,
     ChatMessageCreate,
@@ -119,6 +122,45 @@ async def create_transcription(
     return {"text": transcript}
 
 
+@router.post("/attachments", response_model=ChatAttachmentUploadResult)
+async def create_attachment(
+    file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    del current_user
+    content = await file.read()
+    suffix = Path(file.filename or "").suffix.lower()
+    if (file.content_type or "").startswith("audio/") or suffix in {
+        ".aac",
+        ".flac",
+        ".m4a",
+        ".mp3",
+        ".mp4",
+        ".mpeg",
+        ".oga",
+        ".ogg",
+        ".wav",
+        ".webm",
+    }:
+        transcript = await transcribe_audio(
+            settings,
+            content=content,
+            filename=file.filename,
+            content_type=file.content_type,
+        )
+        return {
+            "attachment": None,
+            "suggested_text": transcript,
+        }
+    return await handle_chat_attachment_upload(
+        settings,
+        content=content,
+        filename=file.filename,
+        content_type=file.content_type,
+    )
+
+
 @router.post("/sessions/{session_id}/messages")
 async def create_message(
     session_id: str,
@@ -143,6 +185,7 @@ async def create_message(
             content=request.content,
             member_id=request.member_id,
             page_context=request.page_context,
+            attachments=tuple(request.attachments),
         ):
             yield format_sse_event(event)
 

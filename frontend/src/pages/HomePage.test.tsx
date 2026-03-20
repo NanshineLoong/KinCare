@@ -5,13 +5,13 @@ import type { AuthSession } from "../auth/session";
 import { PreferencesProvider } from "../preferences";
 import { HomePage } from "./HomePage";
 
-const transcribeAudioMock = vi.fn();
+const parseAttachmentMock = vi.fn();
 const getDashboardMock = vi.fn();
 const refreshDashboardTodayRemindersMock = vi.fn();
 const refreshMemberHealthSummariesMock = vi.fn();
 
 vi.mock("../api/chat", () => ({
-  transcribeAudio: (...args: unknown[]) => transcribeAudioMock(...args),
+  parseAttachment: (...args: unknown[]) => parseAttachmentMock(...args),
 }));
 
 vi.mock("../api/health", () => ({
@@ -26,22 +26,22 @@ vi.mock("../components/ChatInput", () => ({
   ChatInput: ({
     draft,
     isBusy,
-    onAudioUpload,
+    onAttachmentUpload,
   }: {
     draft: string;
     isBusy: boolean;
-    onAudioUpload?: (file: File) => void;
+    onAttachmentUpload?: (file: File) => void;
   }) => (
     <div>
       <div data-testid="draft-value">{draft}</div>
       <div data-testid="busy-state">{String(isBusy)}</div>
       <button
         onClick={() =>
-          onAudioUpload?.(new File(["voice"], "voice.webm", { type: "audio/webm" }))
+          onAttachmentUpload?.(new File(["pdf"], "report.pdf", { type: "application/pdf" }))
         }
         type="button"
       >
-        trigger-audio-upload
+        trigger-attachment-upload
       </button>
     </div>
   ),
@@ -78,7 +78,7 @@ const session: AuthSession = {
 
 describe("HomePage", () => {
   beforeEach(() => {
-    transcribeAudioMock.mockReset();
+    parseAttachmentMock.mockReset();
     getDashboardMock.mockReset();
     refreshDashboardTodayRemindersMock.mockReset();
     refreshMemberHealthSummariesMock.mockReset();
@@ -89,8 +89,18 @@ describe("HomePage", () => {
     });
   });
 
-  it("transcribes uploaded audio into the home composer", async () => {
-    transcribeAudioMock.mockResolvedValue({ text: "帮妈妈记录今天血压正常" });
+  it("parses uploaded attachments into the home composer", async () => {
+    parseAttachmentMock.mockResolvedValue({
+      attachment: {
+        filename: "report.pdf",
+        media_type: "application/pdf",
+        source_type: "docling",
+        ocr_used: false,
+        excerpt: "收缩压 126mmHg，早餐后服药。",
+        markdown_excerpt: "## 关键结论\n收缩压 126mmHg，早餐后服药。",
+      },
+      suggested_text: "我上传了附件《report.pdf》，请结合其中内容继续分析。",
+    });
 
     render(
       <PreferencesProvider>
@@ -103,12 +113,12 @@ describe("HomePage", () => {
       </PreferencesProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "trigger-audio-upload" }));
+    fireEvent.click(screen.getByRole("button", { name: "trigger-attachment-upload" }));
 
     await waitFor(() => {
-      expect(transcribeAudioMock).toHaveBeenCalledTimes(1);
+      expect(parseAttachmentMock).toHaveBeenCalledTimes(1);
       expect(screen.getByTestId("draft-value")).toHaveTextContent(
-        "帮妈妈记录今天血压正常",
+        "我上传了附件《report.pdf》，请结合其中内容继续分析。",
       );
     });
   });

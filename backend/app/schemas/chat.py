@@ -36,6 +36,7 @@ class ChatMessageCreate(BaseModel):
     content: str
     member_id: str | None = None
     page_context: str | None = None
+    attachments: list["ChatAttachmentContext"] = Field(default_factory=list)
 
     @field_validator("content")
     @classmethod
@@ -48,6 +49,20 @@ class ChatMessageCreate(BaseModel):
 
 class ChatTranscriptionRead(BaseModel):
     text: str
+
+
+class ChatAttachmentContext(BaseModel):
+    filename: str
+    media_type: str
+    source_type: str
+    ocr_used: bool = False
+    excerpt: str
+    markdown_excerpt: str | None = None
+
+
+class ChatAttachmentUploadResult(BaseModel):
+    attachment: ChatAttachmentContext | None = None
+    suggested_text: str
 
 
 class ChatMessageRead(BaseModel):

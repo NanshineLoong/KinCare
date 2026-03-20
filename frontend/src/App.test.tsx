@@ -961,6 +961,184 @@ describe("App", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("parses uploaded attachments into the chat overlay and sends attachment context", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/attachments") {
+        return jsonResponse({
+          attachment: {
+            filename: "report.pdf",
+            media_type: "application/pdf",
+            source_type: "docling",
+            ocr_used: false,
+            excerpt: "收缩压 126mmHg，早餐后服药。",
+            markdown_excerpt: "## 关键结论\n收缩压 126mmHg，早餐后服药。",
+          },
+          suggested_text: "我上传了附件《report.pdf》，请结合其中内容继续分析。",
+        });
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: null,
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.attachments).toEqual([
+          {
+            filename: "report.pdf",
+            media_type: "application/pdf",
+            source_type: "docling",
+            ocr_used: false,
+            excerpt: "收缩压 126mmHg，早餐后服药。",
+            markdown_excerpt: "## 关键结论\n收缩压 126mmHg，早餐后服药。",
+          },
+        ]);
+        return sseResponse([
+          {
+            event: "session.started",
+            data: { session_id: "chat-1", member_id: null },
+          },
+          {
+            event: "message.completed",
+            data: { content: "已结合附件内容完成分析。" },
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const attachmentInput = dialog.querySelector(
+      'input[data-chat-attachment-input="true"]',
+    ) as HTMLInputElement | null;
+
+    expect(attachmentInput).not.toBeNull();
+    fireEvent.change(attachmentInput!, {
+      target: {
+        files: [new File(["pdf"], "report.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    await waitFor(() => {
+      expect(within(dialog).getByLabelText("对话输入框")).toHaveValue(
+        "我上传了附件《report.pdf》，请结合其中内容继续分析。",
+      );
+    });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(
+      await within(dialog).findByText("已结合附件内容完成分析。"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a pending attachment chip immediately and lets users cancel before parsing completes", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    let resolveAttachmentResponse: ((value: Response) => void) | null = null;
+    const attachmentResponse = new Promise<Response>((resolve) => {
+      resolveAttachmentResponse = resolve;
+    });
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/attachments") {
+        return attachmentResponse;
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新建会话" }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+    const attachmentInput = dialog.querySelector(
+      'input[data-chat-attachment-input="true"]',
+    ) as HTMLInputElement | null;
+
+    expect(attachmentInput).not.toBeNull();
+    fireEvent.change(attachmentInput!, {
+      target: {
+        files: [new File(["pdf"], "report.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    expect(await within(dialog).findByText("report.pdf")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: /发送/ }),
+    ).toBeDisabled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /取消上传附件 report\.pdf/ }),
+    );
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText("report.pdf")).not.toBeInTheDocument();
+    });
+
+    resolveAttachmentResponse?.(
+      jsonResponse({
+        attachment: {
+          filename: "report.pdf",
+          media_type: "application/pdf",
+          source_type: "docling",
+          ocr_used: false,
+          excerpt: "收缩压 126mmHg，早餐后服药。",
+          markdown_excerpt: "## 关键结论\n收缩压 126mmHg，早餐后服药。",
+        },
+        suggested_text: "我上传了附件《report.pdf》，请结合其中内容继续分析。",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText("report.pdf")).not.toBeInTheDocument();
+      expect(within(dialog).getByLabelText("对话输入框")).toHaveValue("");
+    });
+  });
+
   it("submits remember_me when the login checkbox is selected", async () => {
     fetchMock.mockImplementation(async (input, init) => {
       const pathname = requestPath(input);
