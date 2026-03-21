@@ -5,6 +5,7 @@ from functools import lru_cache
 import importlib
 import mimetypes
 import os
+import re
 from tempfile import NamedTemporaryFile
 from typing import Any, Protocol
 
@@ -188,6 +189,126 @@ _PROVIDER_BUILDERS: dict[str, Any] = {
     "openai": _build_openai_provider,
     "local_whisper": _build_local_whisper_provider,
 }
+
+
+def probe_local_whisper_model_cached(
+    *,
+    model_name: str,
+    download_root: str | None,
+) -> dict[str, object]:
+    """Check whether a local Whisper model is available without downloading.
+
+    Mirrors ``faster_whisper.WhisperModel`` resolution: local directory with
+    ``model.bin``, otherwise Hugging Face cache via ``download_model(..., local_files_only=True)``.
+    """
+    stripped = model_name.strip()
+    if not stripped:
+        return {
+            "present": False,
+            "resolved_path": None,
+            "huggingface_repo_id": None,
+            "message": "Model name is empty.",
+        }
+
+    try:
+        import faster_whisper.utils as fw_utils
+
+        download_model = fw_utils.download_model
+        models_map: dict[str, str] = getattr(fw_utils, "_MODELS", {})
+    except ModuleNotFoundError:
+        return {
+            "present": False,
+            "resolved_path": None,
+            "huggingface_repo_id": None,
+            "message": "faster-whisper is not installed on the server.",
+        }
+
+    hub_id: str | None
+    if re.match(r".*/.*", stripped):
+        hub_id = stripped
+    else:
+        hub_id = models_map.get(stripped)
+
+    if os.path.isdir(stripped):
+        model_bin = os.path.join(stripped, "model.bin")
+        present = os.path.isfile(model_bin)
+        return {
+            "present": present,
+            "resolved_path": os.path.abspath(stripped) if present else None,
+            "huggingface_repo_id": None,
+            "message": None
+            if present
+            else "model.bin not found in this directory.",
+        }
+
+    cache_dir = (download_root or "").strip() or None
+    try:
+        path = download_model(
+            stripped,
+            cache_dir=cache_dir,
+            local_files_only=True,
+        )
+        return {
+            "present": True,
+            "resolved_path": path,
+            "huggingface_repo_id": hub_id,
+            "message": None,
+        }
+    except Exception:
+        return {
+            "present": False,
+            "resolved_path": None,
+            "huggingface_repo_id": hub_id,
+            "message": "Model not found locally.",
+        }
+
+
+def download_local_whisper_model(
+    *,
+    model_name: str,
+    download_root: str | None,
+) -> dict[str, object]:
+    stripped = model_name.strip()
+    if not stripped:
+        raise TranscriptionConfigError("Model name is empty.")
+
+    try:
+        import faster_whisper.utils as fw_utils
+
+        download_model = fw_utils.download_model
+        models_map: dict[str, str] = getattr(fw_utils, "_MODELS", {})
+    except ModuleNotFoundError as error:
+        raise TranscriptionConfigError("faster-whisper is not installed on the server.") from error
+
+    hub_id: str | None
+    if re.match(r".*/.*", stripped):
+        hub_id = stripped
+    else:
+        hub_id = models_map.get(stripped)
+
+    if os.path.isdir(stripped):
+        model_bin = os.path.join(stripped, "model.bin")
+        if not os.path.isfile(model_bin):
+            raise TranscriptionProviderError("model.bin not found in this directory.")
+        return {
+            "resolved_path": os.path.abspath(stripped),
+            "huggingface_repo_id": None,
+        }
+
+    cache_dir = (download_root or "").strip() or None
+    try:
+        path = download_model(
+            stripped,
+            cache_dir=cache_dir,
+            local_files_only=False,
+        )
+    except Exception as error:
+        raise TranscriptionProviderError("Failed to download the requested local Whisper model.") from error
+
+    return {
+        "resolved_path": path,
+        "huggingface_repo_id": hub_id,
+    }
 
 
 def get_transcription_provider(settings: Settings) -> TranscriptionProvider:

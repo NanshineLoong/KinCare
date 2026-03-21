@@ -50,3 +50,25 @@ def test_get_settings_uses_kincare_default_database_path(monkeypatch, tmp_path) 
     settings = config_module.get_settings()
 
     assert settings.database_path.endswith("/backend/data/kincare.db")
+
+
+def test_get_settings_defaults_local_whisper_download_root_to_none(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    config_file = repo_root / "backend" / "app" / "core" / "config.py"
+    config_file.parent.mkdir(parents=True)
+    (repo_root / ".env").write_text("", encoding="utf-8")
+
+    for env_name in (
+        "KINCARE_LOCAL_WHISPER_DOWNLOAD_ROOT",
+        "KINCARE_SKIP_DOTENV",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+
+    monkeypatch.setattr(config_module, "__file__", str(config_file))
+
+    settings = config_module.get_settings()
+
+    assert settings.local_whisper_download_root is None

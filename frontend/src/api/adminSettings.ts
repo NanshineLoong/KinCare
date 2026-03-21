@@ -1,6 +1,6 @@
 import type { AuthSession } from "../auth/session";
 
-import { getAuthorized, sendAuthorized } from "./http";
+import { buildApiUrl, getAuthorized, sendAuthorized } from "./http";
 
 
 export type AdminSettings = {
@@ -51,4 +51,45 @@ export function updateAdminSettings(
       payload,
     },
   );
+}
+
+export type LocalWhisperModelStatus = {
+  present: boolean;
+  resolved_path: string | null;
+  huggingface_repo_id: string | null;
+  message: string | null;
+};
+
+export function getLocalWhisperModelStatus(
+  session: AuthSession,
+  params: { model: string; downloadRoot: string },
+): Promise<LocalWhisperModelStatus> {
+  const url = new URL(
+    buildApiUrl("/api/admin/settings/transcription/local-whisper-model-status"),
+  );
+  url.searchParams.set("model", params.model);
+  const root = params.downloadRoot.trim();
+  if (root) {
+    url.searchParams.set("download_root", root);
+  }
+  return getAuthorized<LocalWhisperModelStatus>(
+    `${url.pathname}${url.search}`,
+    session,
+  );
+}
+
+export function downloadLocalWhisperModel(
+  session: AuthSession,
+  payload: { model: string; downloadRoot: string },
+): Promise<LocalWhisperModelStatus> {
+  return sendAuthorized<
+    LocalWhisperModelStatus,
+    { model: string; download_root: string | null }
+  >("/api/admin/settings/transcription/local-whisper-model-download", session, {
+    method: "POST",
+    payload: {
+      model: payload.model,
+      download_root: payload.downloadRoot.trim() || null,
+    },
+  });
 }

@@ -126,6 +126,28 @@ class AdminSettingsRead(BaseModel):
         return _normalize_time(value)
 
 
+class LocalWhisperModelStatusRead(BaseModel):
+    present: bool
+    resolved_path: str | None = None
+    huggingface_repo_id: str | None = None
+    message: str | None = None
+
+
+class LocalWhisperModelDownloadRequest(BaseModel):
+    model: str
+    download_root: str | None = None
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, value: str) -> str:
+        return _normalize_required_text(value)
+
+    @field_validator("download_root")
+    @classmethod
+    def validate_download_root(cls, value: str | None) -> str | None:
+        return _normalize_optional_text(value)
+
+
 class AdminSettingsUpdate(BaseModel):
     health_summary_refresh_time: str | None = None
     care_plan_refresh_time: str | None = None

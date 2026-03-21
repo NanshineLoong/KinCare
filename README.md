@@ -47,7 +47,8 @@ Operational notes:
 - The browser talks only to `web`; Nginx proxies `/api` to the internal `api` service.
 - SQLite remains the only required persistent state and is stored in the `kincare-data` volume at `/data/kincare.db` inside the `api` container.
 - `mcp` is optional and not part of the default stack. Start it only when needed with `docker compose --profile mcp up -d`.
-- If you enable local Whisper or pre-downloaded Docling artifacts, the optional `kincare-models` volume is available for container-internal paths such as `/models/whisper`.
+- Local Whisper now defaults to the Hugging Face cache inside the `api` container and is persisted via the `kincare-hf-cache` volume mounted at `/root/.cache/huggingface`.
+- If you want explicit container-internal model directories such as `/models/docling`, the optional `kincare-models` volume remains available at `/models`.
 
 Backup and upgrade:
 

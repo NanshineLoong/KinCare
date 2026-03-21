@@ -12,6 +12,8 @@ const grantMemberPermissionMock = vi.fn();
 const revokeMemberPermissionMock = vi.fn();
 const getAdminSettingsMock = vi.fn();
 const updateAdminSettingsMock = vi.fn();
+const getLocalWhisperModelStatusMock = vi.fn();
+const downloadLocalWhisperModelMock = vi.fn();
 
 vi.mock("../api/members", () => ({
   createMember: (...args: unknown[]) => createMemberMock(...args),
@@ -24,6 +26,16 @@ vi.mock("../api/members", () => ({
 vi.mock("../api/adminSettings", () => ({
   getAdminSettings: (...args: unknown[]) => getAdminSettingsMock(...args),
   updateAdminSettings: (...args: unknown[]) => updateAdminSettingsMock(...args),
+  getLocalWhisperModelStatus: (...args: unknown[]) =>
+    getLocalWhisperModelStatusMock(...args),
+  downloadLocalWhisperModel: (...args: unknown[]) =>
+    downloadLocalWhisperModelMock(...args),
+}));
+
+const deleteFamilySpaceMock = vi.fn();
+
+vi.mock("../api/familySpace", () => ({
+  deleteFamilySpace: (...args: unknown[]) => deleteFamilySpaceMock(...args),
 }));
 
 const adminSession: AuthSession = {
@@ -115,7 +127,7 @@ const defaultAdminSettings = {
     model: "gpt-4o-mini-transcribe",
     language: "zh",
     timeout: 30,
-    local_whisper_model: "whisper-large-v3-turbo",
+    local_whisper_model: "small",
     local_whisper_device: "auto",
     local_whisper_compute_type: "default",
     local_whisper_download_root: null,
@@ -248,7 +260,16 @@ describe("SettingsSheet", () => {
     revokeMemberPermissionMock.mockReset();
     getAdminSettingsMock.mockReset();
     updateAdminSettingsMock.mockReset();
+    getLocalWhisperModelStatusMock.mockReset();
+    downloadLocalWhisperModelMock.mockReset();
+    deleteFamilySpaceMock.mockReset();
     getAdminSettingsMock.mockResolvedValue(defaultAdminSettings);
+    getLocalWhisperModelStatusMock.mockResolvedValue({
+      present: true,
+      resolved_path: "/tmp/mock-whisper",
+      huggingface_repo_id: null,
+      message: null,
+    });
     updateAdminSettingsMock.mockImplementation(async (_session, payload) => ({
       ...defaultAdminSettings,
       ...payload,
@@ -495,5 +516,92 @@ describe("SettingsSheet", () => {
     expect(
       screen.queryByRole("button", { name: "保存 AI 配置" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows danger zone and deletes family space when confirmed", async () => {
+    const onFamilySpaceDeleted = vi.fn();
+    const onClose = vi.fn();
+    deleteFamilySpaceMock.mockResolvedValue(undefined);
+
+    render(
+      <PreferencesProvider>
+        <SettingsSheet
+          members={members}
+          onClose={onClose}
+          onFamilySpaceDeleted={onFamilySpaceDeleted}
+          onMembersChange={() => {}}
+          open
+          session={adminSession}
+        />
+      </PreferencesProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "管理员配置" }));
+
+    expect(await screen.findByRole("heading", { name: "危险区域" })).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "注销家庭空间" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "确认注销" }));
+
+    await waitFor(() => {
+      expect(deleteFamilySpaceMock).toHaveBeenCalledWith(adminSession);
+      expect(onFamilySpaceDeleted).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it("downloads the missing local Whisper model and refreshes its status", async () => {
+    let probeCount = 0;
+    getLocalWhisperModelStatusMock.mockImplementation(async () => {
+      probeCount += 1;
+      if (probeCount === 1) {
+        return {
+          present: false,
+          resolved_path: null,
+          huggingface_repo_id: "Systran/faster-whisper-small",
+          message: "Model not found locally.",
+        };
+      }
+      return {
+        present: true,
+        resolved_path: "/tmp/hf-cache/models--Systran--faster-whisper-small/snapshots/123",
+        huggingface_repo_id: "Systran/faster-whisper-small",
+        message: null,
+      };
+    });
+    downloadLocalWhisperModelMock.mockResolvedValue({
+      present: true,
+      resolved_path: "/tmp/hf-cache/models--Systran--faster-whisper-small/snapshots/123",
+      huggingface_repo_id: "Systran/faster-whisper-small",
+      message: null,
+    });
+
+    renderSheet();
+
+    fireEvent.click(screen.getByRole("button", { name: "管理员配置" }));
+    await screen.findByRole("heading", { name: "语音转录" });
+    const localWhisperRadio = screen.getByRole("radio", { name: /本地 Whisper/ });
+    await waitFor(() => {
+      expect(localWhisperRadio).not.toBeDisabled();
+    });
+    fireEvent.click(localWhisperRadio);
+
+    const downloadButton = await screen.findByRole("button", { name: "下载" });
+    fireEvent.click(downloadButton);
+
+    await waitFor(() => {
+      expect(downloadLocalWhisperModelMock).toHaveBeenCalledWith(adminSession, {
+        model: "small",
+        downloadRoot: "",
+      });
+    });
+    await waitFor(() => {
+      expect(getLocalWhisperModelStatusMock).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByRole("button", { name: "下载" })).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("已找到本地模型")).toBeInTheDocument();
   });
 });

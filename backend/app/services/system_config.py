@@ -269,6 +269,9 @@ def update_admin_settings(
             continue
         value = transcription_updates[field_name]
         if value is None:
+            if key == LOCAL_WHISPER_DOWNLOAD_ROOT_KEY:
+                to_upsert[key] = ""
+                continue
             to_delete.append(key)
         else:
             to_upsert[key] = str(value)

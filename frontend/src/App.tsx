@@ -760,6 +760,7 @@ export default function App() {
         <SettingsSheet
           members={memberOptions}
           onClose={() => setIsSettingsOpen(false)}
+          onFamilySpaceDeleted={() => handleSignOut("/register")}
           onMembersChange={handleMembersChange}
           open={isSettingsOpen}
           session={session}

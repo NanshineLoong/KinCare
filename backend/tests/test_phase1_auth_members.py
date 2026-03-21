@@ -1,4 +1,5 @@
 import base64
+from dataclasses import replace
 import hashlib
 import hmac
 import importlib
@@ -594,7 +595,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
             "model": "gpt-4o-mini-transcribe",
             "language": "zh",
             "timeout": 30.0,
-            "local_whisper_model": "whisper-large-v3-turbo",
+            "local_whisper_model": "small",
             "local_whisper_device": "auto",
             "local_whisper_compute_type": "default",
             "local_whisper_download_root": None,
@@ -701,3 +702,37 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
             "model": "gpt-4.1-nano",
         },
     }
+
+
+def test_admin_can_clear_local_whisper_download_root_even_when_base_settings_define_one(
+    client: TestClient,
+) -> None:
+    admin = register_user(
+        client,
+        email="owner@example.com",
+        password="Secret123!",
+        name="管理员",
+    )
+    client.app.state.base_settings = replace(
+        client.app.state.base_settings,
+        local_whisper_download_root="/models/whisper",
+    )
+    client.app.state.settings = replace(
+        client.app.state.settings,
+        local_whisper_download_root="/models/whisper",
+    )
+
+    update_response = client.put(
+        "/api/admin/settings",
+        json={
+            "transcription": {
+                "provider": "local_whisper",
+                "local_whisper_download_root": None,
+            },
+        },
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+
+    assert update_response.status_code == 200, update_response.text
+    assert update_response.json()["transcription"]["local_whisper_download_root"] is None
+    assert client.app.state.settings.local_whisper_download_root == ""

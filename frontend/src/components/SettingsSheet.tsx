@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
+  downloadLocalWhisperModel,
   getAdminSettings,
+  getLocalWhisperModelStatus,
   updateAdminSettings,
   type AdminSettings,
+  type LocalWhisperModelStatus,
 } from "../api/adminSettings";
+import { deleteFamilySpace } from "../api/familySpace";
 import {
   createMember,
   deleteMember,
@@ -27,6 +31,8 @@ type SettingsSheetProps = {
   members: AuthMember[];
   session: AuthSession;
   onMembersChange: (members: AuthMember[]) => void;
+  /** Called after the family space is deleted on the server (session should be cleared by the host). */
+  onFamilySpaceDeleted?: () => void;
 };
 
 type SettingsTab = "members" | "preferences" | "admin";
@@ -917,6 +923,7 @@ export function SettingsSheet({
   members,
   session,
   onMembersChange,
+  onFamilySpaceDeleted,
 }: SettingsSheetProps) {
   const { language, setLanguage, t } = usePreferences();
   const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
@@ -937,10 +944,20 @@ export function SettingsSheet({
   const [sttModel, setSttModel] = useState("gpt-4o-mini-transcribe");
   const [sttLanguage, setSttLanguage] = useState("zh");
   const [sttTimeout, setSttTimeout] = useState("30");
-  const [localWhisperModel, setLocalWhisperModel] = useState("whisper-large-v3-turbo");
+  const [localWhisperModel, setLocalWhisperModel] = useState("small");
   const [localWhisperDevice, setLocalWhisperDevice] = useState("auto");
   const [localWhisperComputeType, setLocalWhisperComputeType] = useState("default");
   const [localWhisperDownloadRoot, setLocalWhisperDownloadRoot] = useState("");
+  const [localWhisperProbe, setLocalWhisperProbe] =
+    useState<LocalWhisperModelStatus | null>(null);
+  const [localWhisperProbeLoading, setLocalWhisperProbeLoading] = useState(false);
+  const [localWhisperDownloadLoading, setLocalWhisperDownloadLoading] = useState(false);
+  const [localWhisperProbeError, setLocalWhisperProbeError] = useState<string | null>(
+    null,
+  );
+  const localWhisperProbeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [chatBaseUrl, setChatBaseUrl] = useState("");
   const [chatApiKey, setChatApiKey] = useState("");
   const [chatModel, setChatModel] = useState("gpt-4.1-mini");
@@ -950,6 +967,11 @@ export function SettingsSheet({
     useState(true);
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
   const [memberPendingDelete, setMemberPendingDelete] = useState<AuthMember | null>(
+    null,
+  );
+  const [familySpaceDeleteExpanded, setFamilySpaceDeleteExpanded] = useState(false);
+  const [isDeletingFamilySpace, setIsDeletingFamilySpace] = useState(false);
+  const [familySpaceDeleteError, setFamilySpaceDeleteError] = useState<string | null>(
     null,
   );
   const [isPersistingSttProvider, setIsPersistingSttProvider] = useState(false);
@@ -1031,6 +1053,11 @@ export function SettingsSheet({
     setSettingsError(null);
     setAiError(null);
     setMemberPendingDelete(null);
+    setFamilySpaceDeleteExpanded(false);
+    setFamilySpaceDeleteError(null);
+    setLocalWhisperProbe(null);
+    setLocalWhisperProbeLoading(false);
+    setLocalWhisperProbeError(null);
 
     return () => {
       document.body.style.overflow = "";
@@ -1094,6 +1121,116 @@ export function SettingsSheet({
       cancelled = true;
     };
   }, [activeTab, isAdmin, open, session, t]);
+
+  const runLocalWhisperProbe = useCallback(async () => {
+    if (sttProvider !== "local_whisper") {
+      return;
+    }
+    const model = localWhisperModel.trim();
+    if (!model) {
+      setLocalWhisperProbe(null);
+      setLocalWhisperProbeError(null);
+      return;
+    }
+    setLocalWhisperProbeLoading(true);
+    setLocalWhisperProbeError(null);
+    try {
+      const result = await getLocalWhisperModelStatus(session, {
+        model: localWhisperModel,
+        downloadRoot: localWhisperDownloadRoot,
+      });
+      setLocalWhisperProbe(result);
+    } catch (error) {
+      setLocalWhisperProbe(null);
+      const message =
+        error instanceof Error ? error.message : t("settingsAiLocalWhisperCheckFailed");
+      setLocalWhisperProbeError(message);
+    } finally {
+      setLocalWhisperProbeLoading(false);
+    }
+  }, [
+    localWhisperDownloadRoot,
+    localWhisperModel,
+    session,
+    sttProvider,
+    t,
+  ]);
+
+  const handleDownloadLocalWhisperModel = useCallback(async () => {
+    if (sttProvider !== "local_whisper") {
+      return;
+    }
+    const model = localWhisperModel.trim();
+    if (!model) {
+      return;
+    }
+    setLocalWhisperDownloadLoading(true);
+    setLocalWhisperProbeError(null);
+    try {
+      await downloadLocalWhisperModel(session, {
+        model,
+        downloadRoot: localWhisperDownloadRoot,
+      });
+      await runLocalWhisperProbe();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t("settingsAiLocalWhisperCheckFailed");
+      setLocalWhisperProbeError(message);
+    } finally {
+      setLocalWhisperDownloadLoading(false);
+    }
+  }, [
+    localWhisperDownloadRoot,
+    localWhisperModel,
+    runLocalWhisperProbe,
+    session,
+    sttProvider,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (sttProvider !== "local_whisper") {
+      setLocalWhisperProbe(null);
+      setLocalWhisperProbeError(null);
+      setLocalWhisperProbeLoading(false);
+    }
+  }, [sttProvider]);
+
+  useEffect(() => {
+    if (!open || !isAdmin || activeTab !== "admin" || sttProvider !== "local_whisper") {
+      if (localWhisperProbeTimerRef.current) {
+        clearTimeout(localWhisperProbeTimerRef.current);
+        localWhisperProbeTimerRef.current = null;
+      }
+      return;
+    }
+    const model = localWhisperModel.trim();
+    if (!model) {
+      setLocalWhisperProbe(null);
+      setLocalWhisperProbeError(null);
+      return;
+    }
+    if (localWhisperProbeTimerRef.current) {
+      clearTimeout(localWhisperProbeTimerRef.current);
+    }
+    localWhisperProbeTimerRef.current = setTimeout(() => {
+      localWhisperProbeTimerRef.current = null;
+      void runLocalWhisperProbe();
+    }, 400);
+    return () => {
+      if (localWhisperProbeTimerRef.current) {
+        clearTimeout(localWhisperProbeTimerRef.current);
+      }
+    };
+  }, [
+    activeTab,
+    isAdmin,
+    localWhisperDownloadRoot,
+    localWhisperModel,
+    open,
+    runLocalWhisperProbe,
+    sttProvider,
+  ]);
 
   function schedulePersistRefreshTimes() {
     if (refreshPersistTimerRef.current) {
@@ -1222,6 +1359,29 @@ export function SettingsSheet({
     }
   }
 
+  async function executeDeleteFamilySpace() {
+    if (!isAdmin || isDeletingFamilySpace) {
+      return;
+    }
+
+    setIsDeletingFamilySpace(true);
+    setFamilySpaceDeleteError(null);
+    try {
+      await deleteFamilySpace(session);
+      setFamilySpaceDeleteExpanded(false);
+      onFamilySpaceDeleted?.();
+      onClose();
+    } catch (error) {
+      setFamilySpaceDeleteError(
+        error instanceof Error
+          ? error.message
+          : t("settingsAdminDeleteFamilySpaceError"),
+      );
+    } finally {
+      setIsDeletingFamilySpace(false);
+    }
+  }
+
   const tabLabels: Record<SettingsTab, string> = {
     preferences: t("settingsTabPreferences"),
     members: t("settingsTabMembers"),
@@ -1235,6 +1395,8 @@ export function SettingsSheet({
     "overflow-hidden rounded-xl bg-[#F0EEE8] ring-1 ring-[#615E57]/5";
   const adminFieldClass =
     "mt-2 w-full rounded-lg border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#615E57] focus:ring-1 focus:ring-[#615E57]";
+  const adminFieldRowInputClass =
+    "w-full min-w-0 flex-1 rounded-lg border border-[#D9D4CD] bg-white px-4 py-3 text-sm text-[#2D2926] outline-none transition focus:border-[#615E57] focus:ring-1 focus:ring-[#615E57]";
   const adminInlineInputClass =
     "w-full rounded-lg border border-[#D9D4CD] bg-[#FCF9F5] px-4 py-2.5 text-sm text-[#2D2926] outline-none transition focus:border-[#615E57] focus:ring-1 focus:ring-[#615E57] md:w-[150px]";
 
@@ -1964,8 +2126,8 @@ export function SettingsSheet({
                             </label>
                           </div>
 
-                          <label className="block text-sm font-medium text-[#2D2926]">
-                            {t("settingsAiLocalWhisperDownloadRoot")}
+                          <div className="block text-sm font-medium text-[#2D2926]">
+                            <span>{t("settingsAiLocalWhisperDownloadRoot")}</span>
                             <input
                               aria-label={t("settingsAiLocalWhisperDownloadRoot")}
                               className={adminFieldClass}
@@ -1976,11 +2138,74 @@ export function SettingsSheet({
                                 setLocalWhisperDownloadRoot(event.target.value);
                                 schedulePersistAiSettings();
                               }}
-                              placeholder="/models/whisper"
+                              placeholder=""
                               type="text"
                               value={localWhisperDownloadRoot}
                             />
-                          </label>
+                            {(localWhisperProbeLoading ||
+                              localWhisperDownloadLoading ||
+                              localWhisperProbeError ||
+                              localWhisperProbe) && (
+                              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                {localWhisperProbeLoading ? (
+                                  <span className="text-[#615E57]">
+                                    {t("settingsAiLocalWhisperChecking")}
+                                  </span>
+                                ) : null}
+                                {localWhisperDownloadLoading ? (
+                                  <span className="text-[#615E57]">
+                                    {t("settingsAiLocalWhisperManualDownload")}
+                                  </span>
+                                ) : null}
+                                {localWhisperProbeError ? (
+                                  <span className="font-medium text-red-600" role="alert">
+                                    {localWhisperProbeError}
+                                  </span>
+                                ) : null}
+                                {!localWhisperProbeLoading &&
+                                !localWhisperDownloadLoading &&
+                                !localWhisperProbeError &&
+                                localWhisperProbe?.present ? (
+                                  <span
+                                    aria-label={t("settingsAiLocalWhisperModelFound")}
+                                    className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"
+                                    role="status"
+                                    title={
+                                      localWhisperProbe.resolved_path ?? undefined
+                                    }
+                                  >
+                                    {t("settingsAiLocalWhisperModelFound")}
+                                  </span>
+                                ) : null}
+                                {!localWhisperProbeLoading &&
+                                !localWhisperDownloadLoading &&
+                                !localWhisperProbeError &&
+                                localWhisperProbe &&
+                                !localWhisperProbe.present ? (
+                                  <>
+                                    <span className="font-medium text-red-600" role="alert">
+                                      {localWhisperProbe.message &&
+                                      localWhisperProbe.message !== "Model not found locally."
+                                        ? localWhisperProbe.message
+                                        : t("settingsAiLocalWhisperModelNotFound")}
+                                    </span>
+                                    {localWhisperProbe.huggingface_repo_id ? (
+                                      <button
+                                        className="font-medium text-[#615E57] underline decoration-[#615E57]/40 underline-offset-2 hover:text-[#2D2926] disabled:cursor-not-allowed disabled:opacity-50"
+                                        disabled={localWhisperDownloadLoading}
+                                        onClick={() => {
+                                          void handleDownloadLocalWhisperModel();
+                                        }}
+                                        type="button"
+                                      >
+                                        {t("settingsAiLocalWhisperManualDownload")}
+                                      </button>
+                                    ) : null}
+                                  </>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
 
                           <div className="grid gap-4 md:grid-cols-2">
                             <label className="block text-sm font-medium text-[#2D2926]">
@@ -2023,6 +2248,94 @@ export function SettingsSheet({
                     </div>
                   </div>
                 )}
+              </section>
+
+              <section
+                aria-labelledby="settings-family-space-danger-heading"
+                className="mt-6 rounded-2xl border-2 border-red-300 bg-gradient-to-b from-red-50/90 to-white p-6 shadow-sm shadow-red-900/5 md:p-8"
+              >
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+                  <div className="min-w-0 max-w-2xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="material-symbols-outlined text-2xl text-red-700"
+                      >
+                        warning
+                      </span>
+                      <h3
+                        className="text-lg font-bold tracking-tight text-red-900"
+                        id="settings-family-space-danger-heading"
+                      >
+                        {t("settingsAdminDangerZoneTitle")}
+                      </h3>
+                    </div>
+                    <p className="text-sm leading-relaxed text-red-900/85">
+                      {t("settingsAdminDangerZoneDescription")}
+                    </p>
+                    {familySpaceDeleteError && (
+                      <p className="text-sm font-medium text-red-700" role="alert">
+                        {familySpaceDeleteError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 flex-col gap-3 lg:items-end">
+                    {!familySpaceDeleteExpanded ? (
+                      <button
+                        aria-label={t("settingsAdminDeleteFamilySpace")}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-900/25 transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                        onClick={() => {
+                          setFamilySpaceDeleteExpanded(true);
+                          setFamilySpaceDeleteError(null);
+                        }}
+                        type="button"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="material-symbols-outlined text-[22px]"
+                        >
+                          delete_forever
+                        </span>
+                        {t("settingsAdminDeleteFamilySpace")}
+                      </button>
+                    ) : (
+                      <div className="w-full max-w-md rounded-xl border border-red-200 bg-white p-5 ring-1 ring-red-100 lg:w-[min(100%,22rem)]">
+                        <p className="text-sm font-semibold leading-relaxed text-[#32332D]">
+                          {t("settingsAdminDeleteFamilySpaceConfirm")}
+                        </p>
+                        <div className="mt-4 flex flex-wrap justify-end gap-2">
+                          <button
+                            className="rounded-lg px-4 py-2 text-sm font-semibold text-[#5F5F59] transition hover:bg-[#EAE8E1] disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={isDeletingFamilySpace}
+                            onClick={() => {
+                              setFamilySpaceDeleteExpanded(false);
+                              setFamilySpaceDeleteError(null);
+                            }}
+                            type="button"
+                          >
+                            {t("settingsMembersAddCancel")}
+                          </button>
+                          <button
+                            aria-label={
+                              isDeletingFamilySpace
+                                ? t("settingsAdminDeleteFamilySpaceDeleting")
+                                : t("settingsAdminDeleteFamilySpaceConfirmButton")
+                            }
+                            className="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={isDeletingFamilySpace}
+                            onClick={() => void executeDeleteFamilySpace()}
+                            type="button"
+                          >
+                            {isDeletingFamilySpace
+                              ? t("settingsAdminDeleteFamilySpaceDeleting")
+                              : t("settingsAdminDeleteFamilySpaceConfirmButton")}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </section>
             </div>
           )}

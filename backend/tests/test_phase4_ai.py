@@ -1750,7 +1750,7 @@ def test_local_whisper_transcription_provider_uses_local_model(tmp_path: Any) ->
     )
 
     provider = transcription_module.LocalWhisperTranscriptionProvider(
-        model_name="whisper-large-v3-turbo",
+        model_name="small",
         device="cpu",
         compute_type="int8",
         prompt="常见药名：阿司匹林",
@@ -2318,3 +2318,112 @@ def test_manual_dashboard_care_plan_refresh_endpoint_generates_latest_reminders(
         "晚间按时服药",
     }
     assert dashboard_payload["today_reminders_refreshed_at"] is not None
+
+
+def test_admin_local_whisper_model_status_local_dir(client: TestClient, tmp_path: Any) -> None:
+    admin = register_user(
+        client,
+        password="Secret123!",
+        email="owner@example.com",
+        name="管理员",
+    )
+    model_dir = tmp_path / "m"
+    model_dir.mkdir()
+    (model_dir / "model.bin").write_bytes(b"x")
+
+    response = client.get(
+        f"/api/admin/settings/transcription/local-whisper-model-status?model={model_dir}",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["present"] is True
+    assert payload["resolved_path"] is not None
+
+
+def test_admin_local_whisper_model_status_missing_in_empty_cache(
+    client: TestClient, tmp_path: Any
+) -> None:
+    admin = register_user(
+        client,
+        password="Secret123!",
+        email="owner@example.com",
+        name="管理员",
+    )
+    cache = tmp_path / "empty"
+    cache.mkdir()
+    response = client.get(
+        f"/api/admin/settings/transcription/local-whisper-model-status?model=tiny&download_root={cache}",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["present"] is False
+    assert payload["huggingface_repo_id"] == "Systran/faster-whisper-tiny"
+
+
+def test_local_whisper_model_status_requires_admin(client: TestClient) -> None:
+    register_user(
+        client,
+        password="Secret123!",
+        email="owner@example.com",
+        name="管理员",
+    )
+    member = register_user(
+        client,
+        password="Secret123!",
+        email="member@example.com",
+        name="member-user",
+    )
+    response = client.get(
+        "/api/admin/settings/transcription/local-whisper-model-status?model=small",
+        headers=auth_headers(member["tokens"]["access_token"]),
+    )
+    assert response.status_code == 403
+
+
+def test_admin_local_whisper_model_download(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    admin = register_user(
+        client,
+        password="Secret123!",
+        email="owner@example.com",
+        name="管理员",
+    )
+    admin_settings_module = importlib.import_module("app.api.routes.admin_settings")
+    captured: dict[str, Any] = {}
+
+    def fake_download_local_whisper_model(*, model_name: str, download_root: str | None) -> dict[str, object]:
+        captured["model_name"] = model_name
+        captured["download_root"] = download_root
+        return {
+            "resolved_path": "/tmp/hf-cache/models--Systran--faster-whisper-small/snapshots/123",
+            "huggingface_repo_id": "Systran/faster-whisper-small",
+        }
+
+    monkeypatch.setattr(
+        admin_settings_module,
+        "download_local_whisper_model",
+        fake_download_local_whisper_model,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/admin/settings/transcription/local-whisper-model-download",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+        json={"model": "small", "download_root": None},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "present": True,
+        "resolved_path": "/tmp/hf-cache/models--Systran--faster-whisper-small/snapshots/123",
+        "huggingface_repo_id": "Systran/faster-whisper-small",
+        "message": None,
+    }
+    assert captured == {
+        "model_name": "small",
+        "download_root": None,
+    }

@@ -127,6 +127,15 @@ const translations = {
     settingsAiSaved: "AI 配置已更新。",
     settingsAiLoadError: "AI 配置加载失败，请稍后重试。",
     settingsAiSaveError: "AI 配置保存失败，请稍后重试。",
+    settingsAdminDangerZoneTitle: "危险区域",
+    settingsAdminDangerZoneDescription:
+      "注销家庭空间将永久删除本空间内的所有成员档案、健康数据、对话与调度任务，所有关联账号将无法再登录。此操作不可撤销。",
+    settingsAdminDeleteFamilySpace: "注销家庭空间",
+    settingsAdminDeleteFamilySpaceConfirm:
+      "确定要注销当前家庭空间吗？所有用户数据将被永久清除。",
+    settingsAdminDeleteFamilySpaceConfirmButton: "确认注销",
+    settingsAdminDeleteFamilySpaceDeleting: "注销中…",
+    settingsAdminDeleteFamilySpaceError: "注销失败，请稍后重试。",
     settingsAiSectionTranscription: "语音转录",
     settingsAiSectionTranscriptionDescription: "配置 STT provider、语言、模型和超时参数。",
     settingsAiSectionChatModel: "对话模型",
@@ -143,6 +152,15 @@ const translations = {
     settingsAiLocalWhisperDevice: "Local Whisper 设备",
     settingsAiLocalWhisperComputeType: "Local Whisper 精度",
     settingsAiLocalWhisperDownloadRoot: "Local Whisper 下载目录",
+    settingsAiLocalWhisperVerifyFolderHint:
+      "检查当前路径是否已有模型",
+    settingsAiLocalWhisperChecking: "检查模型…",
+    settingsAiLocalWhisperManualDownload: "下载",
+    settingsAiLocalWhisperCheckFailed: "模型检查失败",
+    settingsAiLocalWhisperModelNotFound: "未找到本地模型",
+    settingsAiLocalWhisperModelFound: "已找到本地模型",
+    settingsAiLocalWhisperPathHint:
+      "留空时使用 Hugging Face 默认缓存目录。浏览器无法获取服务器绝对路径，请手动填写后端主机或容器内看到的路径。",
     settingsAiChatBaseUrl: "对话 Base URL",
     settingsAiChatApiKey: "对话 API Key",
     settingsAiChatModel: "对话模型",
@@ -524,6 +542,15 @@ const translations = {
     settingsAiSaved: "AI settings updated.",
     settingsAiLoadError: "Failed to load AI settings. Please try again later.",
     settingsAiSaveError: "Failed to save AI settings. Please try again later.",
+    settingsAdminDangerZoneTitle: "Danger zone",
+    settingsAdminDangerZoneDescription:
+      "Deleting the family space permanently removes all member profiles, health data, chat history, and scheduled tasks for this space. Linked accounts can no longer sign in. This cannot be undone.",
+    settingsAdminDeleteFamilySpace: "Delete family space",
+    settingsAdminDeleteFamilySpaceConfirm:
+      "Delete this family space and wipe all user data permanently?",
+    settingsAdminDeleteFamilySpaceConfirmButton: "Delete permanently",
+    settingsAdminDeleteFamilySpaceDeleting: "Deleting…",
+    settingsAdminDeleteFamilySpaceError: "Could not delete the family space. Please try again.",
     settingsAiSectionTranscription: "Speech Transcription",
     settingsAiSectionTranscriptionDescription: "Configure the STT provider, language, model, and timeout.",
     settingsAiSectionChatModel: "Chat Model",
@@ -540,6 +567,15 @@ const translations = {
     settingsAiLocalWhisperDevice: "Local Whisper Device",
     settingsAiLocalWhisperComputeType: "Local Whisper Precision",
     settingsAiLocalWhisperDownloadRoot: "Local Whisper Download Root",
+    settingsAiLocalWhisperVerifyFolderHint:
+      "Check whether the current path already contains the model",
+    settingsAiLocalWhisperChecking: "Checking model…",
+    settingsAiLocalWhisperManualDownload: "Download",
+    settingsAiLocalWhisperCheckFailed: "Model check failed",
+    settingsAiLocalWhisperModelNotFound: "Model Not Found",
+    settingsAiLocalWhisperModelFound: "Local model ready",
+    settingsAiLocalWhisperPathHint:
+      "Leave this empty to use the default Hugging Face cache. Browsers cannot read server-side absolute paths, so enter the path as seen by the backend host or container.",
     settingsAiChatBaseUrl: "Chat Base URL",
     settingsAiChatApiKey: "Chat API Key",
     settingsAiChatModel: "Chat Model",
