@@ -10,7 +10,7 @@
 - 健康数据采用简化版健康事实层
 - 成员授权采用 `read / write / manage` 三级权限，并支持 `specific / all` 范围
 - 首页家庭仪表盘、成员概览、统一输入区、会话历史共享同一套数据语义
-- 当前开发运行时继续使用 SQLite；`docker-compose.yml` 与 `mcp-server/` 保留为后续阶段骨架
+- 当前开发运行时继续使用 SQLite；官方终端用户安装路径为单机 Docker Compose，开发工作流仍以本地 FastAPI + Vite 为主
 
 ## 设计原则
 
@@ -66,6 +66,7 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 - 统一输入区、语音采集、SSE 消息流和草稿确认交互
 - 会话历史列表与会话恢复
 - 设置 Sheet 三 Tab：**偏好**（语言切换 zh/en + 每日刷新时间 + 外观深浅/系统，均 localStorage 持久化；时间配置 admin 专用）、**AI 配置**（管理员专用，语音转录与对话模型运行参数）
+- Docker 部署时由前置静态 Web 容器提供 SPA 资源，并以同源 `/api` 反向代理到 API Server
 
 ### API Server
 
@@ -101,7 +102,7 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 
 - 后续对外复用 API / service 层能力
 - 不是当前 Web 对话路径的一部分
-- 保持 skeleton 状态，待应用内能力稳定后再推进
+- 在 Compose 中保持可选 profile 状态，待应用内能力稳定后再推进
 
 ## 核心数据流
 

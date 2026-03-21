@@ -45,12 +45,12 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev -- --host 0.0.0.0 --port 517
 ```
 
 ```bash
-# 目标部署骨架（不是当前主开发路径）
+# 官方终端用户安装路径
 docker compose up --build
 docker compose logs -f
 ```
 
-> 当前开发基线继续使用本地 SQLite（`KINCARE_DB_PATH`）和本机分别启动的 FastAPI/Vite。`docker-compose.yml` 与 `mcp-server/` 仍保留为后续阶段的目标骨架。
+> 当前开发基线继续使用本地 SQLite（`KINCARE_DB_PATH`）与本机分别启动的 FastAPI/Vite；官方终端用户安装路径为单机 Docker Compose。`mcp-server/` 仍保留为可选的后续能力暴露层，不属于默认安装栈。
 
 ## 测试
 
@@ -101,8 +101,8 @@ KinCare/
 ├── stitch-screens/            # 旧 UI 参考（只读，不再是当前设计基线）
 ├── backend/
 ├── frontend/
-├── mcp-server/                # 占位骨架
-└── docker-compose.yml         # 目标部署骨架
+├── mcp-server/                # 可选后续能力暴露层
+└── docker-compose.yml         # 官方单机安装入口
 ```
 
 - `stitch-screens/` **禁止修改**

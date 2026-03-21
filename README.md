@@ -9,7 +9,8 @@ KinCare is a locally deployed family health management system. This repository n
 - Health data model: simplified health fact layer from [ADR-0009](./docs/adr/0009-simplified-health-fact-layer.md)
 - Permission model: three-level member permissions with scoped grants from [ADR-0011](./docs/adr/0011-three-level-member-permissions.md)
 - AI runtime: in-app PydanticAI with tool-calling conversations, structured actions, draft approval flow, and unified transcription entry from [ADR-0010](./docs/adr/0010-pydantic-ai-tool-calling.md)
-- Runtime baseline: local FastAPI + Vite + SQLite for current development; `docker-compose.yml` and `mcp-server/` remain future-facing skeletons
+- Official install path: single-machine Docker Compose with `web + api` as the default stack
+- Development baseline: local FastAPI + Vite + SQLite remains the recommended workflow for feature work
 
 ## Delivery Status
 
@@ -27,7 +28,32 @@ KinCare is a locally deployed family health management system. This repository n
 - Settings sheet with three tabs: **Preferences** (language zh/en, daily refresh times for admin, dark/light/system theme) and **AI Config** (admin-only voice transcription and chat model parameters, persisted to `system_config` table)
 - Future MCP exposure after the in-app architecture stabilizes
 
-## Quick Start
+## Install with Docker Compose
+
+```bash
+cp .env.example .env
+# Edit .env and set at least KINCARE_JWT_SECRET plus any AI / STT credentials you need
+
+docker compose up -d
+```
+
+Default Docker URL:
+
+- Web app: `http://localhost:8080`
+
+Operational notes:
+
+- The browser talks only to `web`; Nginx proxies `/api` to the internal `api` service.
+- SQLite remains the only required persistent state and is stored in the `kincare-data` volume at `/data/kincare.db` inside the `api` container.
+- `mcp` is optional and not part of the default stack. Start it only when needed with `docker compose --profile mcp up -d`.
+- If you enable local Whisper or pre-downloaded Docling artifacts, the optional `kincare-models` volume is available for container-internal paths such as `/models/whisper`.
+
+Backup and upgrade:
+
+- Backup the SQLite database before upgrades. The required backup target is `/data/kincare.db` inside the `kincare-data` volume.
+- Upgrade local source installs with `docker compose build --pull && docker compose up -d`.
+
+## Local Development
 
 ```bash
 # Create local config once
@@ -46,7 +72,7 @@ npm ci
 VITE_API_BASE_URL=http://localhost:8000 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
-Default local URLs:
+Default local development URLs:
 
 - Frontend: `http://localhost:5173`
 - Backend health check: `http://localhost:8000/health`
@@ -79,7 +105,7 @@ Attachment parsing notes:
 - Install `docling[rapidocr]` with backend dependencies to enable PDF / image / DOCX parsing.
 - The new chat attachment endpoint keeps audio uploads on the existing STT flow and parses documents separately.
 - Legacy `.doc` files use the local macOS `textutil` fallback when available; converting them to `.docx` or PDF remains the safer path for cross-platform deployments.
-- For offline or weak-network deployments, prefetch Docling models with `docling-tools models download` and point `KINCARE_DOCLING_ARTIFACTS_PATH` to that local directory.
+- For offline or weak-network deployments, prefetch Docling models with `docling-tools models download` and point `KINCARE_DOCLING_ARTIFACTS_PATH` to that container-internal directory, such as `/models/docling`, when using Docker.
 
 ## Testing
 
@@ -109,8 +135,8 @@ KinCare/
 ├── stitch-screens/       # Old design reference, read-only, no longer the active UI baseline
 ├── backend/
 ├── frontend/
-├── mcp-server/           # Future-facing skeleton
-└── docker-compose.yml    # Future-facing deployment skeleton
+├── mcp-server/           # Optional future-facing service, not part of the default install path
+└── docker-compose.yml    # Official single-machine installation entry point
 ```
 
 ## Source-of-Truth Documents

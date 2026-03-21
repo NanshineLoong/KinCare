@@ -2,39 +2,89 @@ services:
   api:
     build:
       context: ./backend
+    restart: unless-stopped
     environment:
       KINCARE_DB_PATH: /data/kincare.db
       KINCARE_JWT_SECRET: ${KINCARE_JWT_SECRET:-change-me-in-production}
       KINCARE_AI_BASE_URL: ${KINCARE_AI_BASE_URL:-}
       KINCARE_AI_API_KEY: ${KINCARE_AI_API_KEY:-}
       KINCARE_AI_MODEL: ${KINCARE_AI_MODEL:-gpt-4.1-mini}
+      KINCARE_STT_PROVIDER: ${KINCARE_STT_PROVIDER:-openai}
+      KINCARE_STT_BASE_URL: ${KINCARE_STT_BASE_URL:-}
+      KINCARE_STT_API_KEY: ${KINCARE_STT_API_KEY:-}
+      KINCARE_STT_MODEL: ${KINCARE_STT_MODEL:-gpt-4o-mini-transcribe}
+      KINCARE_STT_LANGUAGE: ${KINCARE_STT_LANGUAGE:-zh}
+      KINCARE_STT_PROMPT: ${KINCARE_STT_PROMPT:-}
+      KINCARE_STT_TIMEOUT_SECONDS: ${KINCARE_STT_TIMEOUT_SECONDS:-30}
+      KINCARE_LOCAL_WHISPER_MODEL: ${KINCARE_LOCAL_WHISPER_MODEL:-whisper-large-v3-turbo}
+      KINCARE_LOCAL_WHISPER_DEVICE: ${KINCARE_LOCAL_WHISPER_DEVICE:-auto}
+      KINCARE_LOCAL_WHISPER_COMPUTE_TYPE: ${KINCARE_LOCAL_WHISPER_COMPUTE_TYPE:-default}
+      KINCARE_LOCAL_WHISPER_DOWNLOAD_ROOT: ${KINCARE_LOCAL_WHISPER_DOWNLOAD_ROOT:-/models/whisper}
+      KINCARE_DOCLING_ARTIFACTS_PATH: ${KINCARE_DOCLING_ARTIFACTS_PATH:-}
       KINCARE_SCHEDULER_ENABLED: ${KINCARE_SCHEDULER_ENABLED:-1}
       KINCARE_SCHEDULER_TIMEZONE: ${KINCARE_SCHEDULER_TIMEZONE:-Asia/Shanghai}
-    ports:
-      - "${API_PORT:-8000}:8000"
+      KINCARE_HEALTH_SUMMARY_REFRESH_HOUR: ${KINCARE_HEALTH_SUMMARY_REFRESH_HOUR:-5}
+      KINCARE_HEALTH_SUMMARY_REFRESH_MINUTE: ${KINCARE_HEALTH_SUMMARY_REFRESH_MINUTE:-0}
+      KINCARE_CARE_PLAN_REFRESH_HOUR: ${KINCARE_CARE_PLAN_REFRESH_HOUR:-6}
+      KINCARE_CARE_PLAN_REFRESH_MINUTE: ${KINCARE_CARE_PLAN_REFRESH_MINUTE:-0}
     volumes:
-      - backend-data:/data
+      - kincare-data:/data
+      - kincare-models:/models
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   web:
     build:
       context: ./frontend
+    restart: unless-stopped
     depends_on:
-      - api
-    environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      api:
+        condition: service_healthy
     ports:
-      - "${WEB_PORT:-5173}:5173"
+      - "${WEB_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   mcp:
+    profiles: ["mcp"]
     build:
       context: ./mcp-server
+    restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
-      API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+      API_BASE_URL: http://api:8000
       PORT: ${MCP_PORT:-8081}
     ports:
       - "${MCP_PORT:-8081}:8081"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081', timeout=5).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
 volumes:
-  backend-data:
+  kincare-data:
+  kincare-models:
