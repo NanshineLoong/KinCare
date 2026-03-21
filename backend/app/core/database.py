@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS family_space (
 CREATE TABLE IF NOT EXISTS user_account (
     id TEXT PRIMARY KEY,
     family_space_id TEXT NOT NULL REFERENCES family_space(id) ON DELETE CASCADE,
-    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    email TEXT UNIQUE,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
     created_at TEXT NOT NULL
@@ -296,6 +297,20 @@ def _table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
     return {str(row[1]) for row in rows}
 
 
+def _ensure_user_account_schema_is_compatible(connection: sqlite3.Connection, database_path: Path) -> None:
+    columns = _table_columns(connection, "user_account")
+    if not columns or "username" in columns:
+        return
+
+    raise RuntimeError(
+        "Legacy user_account schema detected after the username-first auth switch. "
+        "Please delete and recreate the SQLite database before restarting. "
+        f"Current database: {database_path}. "
+        "Use backend/data/kincare.db for local development or /data/kincare.db in the "
+        "kincare-data Docker volume."
+    )
+
+
 def _migrate_member_access_grant(connection: sqlite3.Connection) -> None:
     columns = _table_columns(connection, "member_access_grant")
     if not columns or "can_write" not in columns:
@@ -491,6 +506,7 @@ class Database:
         with sqlite3.connect(self.database_path) as connection:
             for table_name in LEGACY_TABLES:
                 connection.execute(f"DROP TABLE IF EXISTS {table_name}")
+            _ensure_user_account_schema_is_compatible(connection, self.database_path)
             _migrate_member_access_grant(connection)
             _migrate_health_summary_schema(connection)
             _migrate_care_plan_schema(connection)

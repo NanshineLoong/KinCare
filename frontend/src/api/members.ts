@@ -27,7 +27,8 @@ export type MemberPermissionGrant = {
   permission_level: GrantedPermissionLevel;
   target_scope: PermissionScope;
   created_at: string;
-  user_email: string;
+  user_username: string;
+  user_email: string | null;
   user_role: string;
   user_member_id: string | null;
   user_member_name: string | null;

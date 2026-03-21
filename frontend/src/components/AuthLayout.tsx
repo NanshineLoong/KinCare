@@ -3,6 +3,10 @@ import type { FormEvent, ReactNode, SVGProps } from "react";
 
 import { usePreferences } from "../preferences";
 
+/** Hero image aligned with `stitch_/login/code.html` */
+const AUTH_CARD_HERO_IMAGE =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuDi8CTXj8_tmtlfvnHbJ35Oz-IeW2ipB_2r_mDwL-E3VOBXLVUKTy76LGFs-tPRmugoOuRqU7WcKMorcp4InY25CGY3RfSHcfzeLKa4BsSewIQh2XV-9_HXiEKQQgQdlnDqnQxuH0NiceijADpzpZIYTOV-rgqPAPyATupM7aLmnhl7CE4XxjbgvfiChdfkA1ee19VxC2uXg81wh1Ave3aKyx5E8DDhYKOtYgxFa48XvrIu84291qpLQW0TX6zyY4-00rLI_xwlhFY";
+
 type AuthLayoutProps = {
   title: string;
   description: string;
@@ -67,16 +71,18 @@ function AuthField({ id, label, icon: Icon, iconName, input, aside, trailing }: 
         {aside}
       </div>
       <div className="relative group">
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-warm-gray/55 transition-colors group-focus-within:text-apple-blue">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-warm-gray opacity-50 transition-colors group-focus-within:text-apple-blue group-focus-within:opacity-100">
           {iconName ? (
-            <span aria-hidden className="material-symbols-outlined text-[20px]">{iconName}</span>
+            <span aria-hidden className="material-symbols-outlined text-[20px]">
+              {iconName}
+            </span>
           ) : Icon ? (
             <Icon aria-hidden className="h-5 w-5" />
           ) : null}
         </span>
         {input}
         {trailing ? (
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-warm-gray/55 hover:text-warm-gray">
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-warm-gray opacity-50 transition-opacity hover:opacity-100">
             {trailing}
           </span>
         ) : null}
@@ -107,42 +113,29 @@ export function AuthLayout({
       </div>
 
       <header className="relative z-10 border-b border-gentle-blue/80 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue">
-              <span aria-hidden className="material-symbols-outlined text-[22px]">health_and_safety</span>
-            </div>
-            <p className="text-sm font-bold tracking-tight text-warm-gray">{t("authBrand")}</p>
+        <div className="mx-auto flex max-w-[1400px] items-center px-6 py-4 sm:px-8">
+          <div className="flex min-w-0 shrink-0 items-center">
+            <img
+              alt="KinCare"
+              className="h-14 w-auto object-contain sm:h-16"
+              src="/KinCare.svg"
+            />
           </div>
-          <button
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue transition hover:bg-apple-blue/15"
-            type="button"
-          >
-            <span aria-hidden className="material-symbols-outlined text-[22px]">help</span>
-          </button>
         </div>
       </header>
 
       <main className="relative z-10 flex min-h-[calc(100vh-79px)] items-center justify-center px-6 py-10">
-        <div className="w-full max-w-[480px] overflow-hidden rounded-xl border border-gentle-blue bg-white shadow-apple">
-          <div className="relative h-12 overflow-hidden bg-gradient-to-br from-gentle-blue via-soft-sage to-warm-cream">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.92),transparent_50%),radial-gradient(circle_at_bottom_right,_rgba(255,255,255,0.45),transparent_44%)]" />
-            <div className="absolute inset-x-6 bottom-0 flex items-end justify-between">
-              <div className="mb-2 h-8 w-5 rounded-t-xl rounded-b-md bg-[#c9e6df]" />
-              <div className="mb-1.5 flex h-10 w-7 flex-col items-center justify-end rounded-t-lg rounded-b-md bg-[#b6d9ce]">
-                <div className="mb-1 h-4 w-4 rounded-full bg-[#f6d4b8]" />
-              </div>
-              <div className="mb-1 flex h-8 w-5 flex-col items-center justify-end rounded-t-md rounded-b-sm bg-white/80">
-                <div className="mb-1 h-3 w-3 rounded-full bg-[#f6d4b8]" />
-              </div>
-              <div className="mb-2 flex h-12 w-8 flex-col items-center justify-end rounded-t-lg rounded-b-md bg-[#8ab1a8]">
-                <div className="mb-1 h-4 w-4 rounded-full bg-[#f6d4b8]" />
-              </div>
-            </div>
-            <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white via-white/90 to-transparent" />
+        <div className="w-full max-w-[480px] overflow-hidden rounded-xl border border-gentle-blue bg-white shadow-apple transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-[1.01] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
+          <div
+            aria-label={t("authCardHeroAlt")}
+            className="relative h-48 w-full bg-cover bg-center bg-no-repeat"
+            role="img"
+            style={{ backgroundImage: `url("${AUTH_CARD_HERO_IMAGE}")` }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
           </div>
 
-          <div className="px-8 pb-10 pt-6">
+          <div className="px-8 pb-10 pt-4">
             <div className="mb-8">
               <h1 className="text-3xl font-bold tracking-tight text-warm-gray">{title}</h1>
               <p className="mt-2 text-sm text-warm-gray/80">{description}</p>
@@ -154,13 +147,13 @@ export function AuthLayout({
               {extra}
 
               {errorMessage ? (
-                <div className="rounded-2xl border border-[#f3d3d0] bg-[#fff4f3] px-4 py-3 text-sm text-[#a65d56]">
+                <div className="rounded-lg border border-[#f3d3d0] bg-[#fff4f3] px-4 py-3 text-sm text-[#a65d56]">
                   {errorMessage}
                 </div>
               ) : null}
 
               <button
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-apple-blue px-4 py-4 text-base font-bold text-white shadow-apple transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-apple-blue px-4 py-4 text-base font-bold text-white shadow-lg shadow-apple-blue/20 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isSubmitting}
                 type="submit"
               >

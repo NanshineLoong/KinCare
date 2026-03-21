@@ -7,7 +7,8 @@ export type AuthTokens = {
 export type AuthUser = {
   id: string;
   family_space_id: string;
-  email: string;
+  username: string;
+  email: string | null;
   role: string;
   created_at: string;
 };

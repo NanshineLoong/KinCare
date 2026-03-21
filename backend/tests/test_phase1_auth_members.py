@@ -38,23 +38,26 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
 def register_user(
     client: TestClient,
     *,
-    email: str,
+    username: str | None = None,
     password: str,
-    name: str,
+    email: str | None = None,
+    name: str | None = None,
 ) -> dict[str, Any]:
+    actual_username = username or name
+    assert actual_username is not None
     response = client.post(
         "/api/auth/register",
-        json={"email": email, "password": password, "name": name},
+        json={"username": actual_username, "password": password, "email": email},
     )
 
     assert response.status_code == 201
     return response.json()
 
 
-def login_user(client: TestClient, *, email: str, password: str) -> dict[str, Any]:
+def login_user(client: TestClient, *, username: str, password: str) -> dict[str, Any]:
     response = client.post(
         "/api/auth/login",
-        json={"email": email, "password": password},
+        json={"username": username, "password": password},
     )
 
     assert response.status_code == 200
@@ -105,12 +108,12 @@ def decode_jwt_payload(token: str) -> dict[str, Any]:
 def test_first_registration_creates_admin_family_space_and_member(client: TestClient) -> None:
     payload = register_user(
         client,
-        email="owner@example.com",
+        username="王医生",
         password="Secret123!",
-        name="王医生",
     )
 
-    assert payload["user"]["email"] == "owner@example.com"
+    assert payload["user"]["username"] == "王医生"
+    assert payload["user"]["email"] is None
     assert payload["user"]["role"] == "admin"
     assert payload["member"]["name"] == "王医生"
     assert payload["member"]["user_account_id"] == payload["user"]["id"]
@@ -130,14 +133,13 @@ def test_first_registration_creates_admin_family_space_and_member(client: TestCl
 def test_login_and_refresh_support_expired_access_tokens(client: TestClient) -> None:
     registered = register_user(
         client,
-        email="owner@example.com",
+        username="张小满",
         password="Secret123!",
-        name="张小满",
     )
 
     logged_in = login_user(
         client,
-        email="owner@example.com",
+        username="张小满",
         password="Secret123!",
     )
 
@@ -176,14 +178,13 @@ def test_login_and_refresh_support_expired_access_tokens(client: TestClient) -> 
 def test_login_with_remember_me_extends_refresh_session_to_30_days(client: TestClient) -> None:
     register_user(
         client,
-        email="owner@example.com",
+        username="CaseUser",
         password="Secret123!",
-        name="张小满",
     )
 
     regular_login_response = client.post(
         "/api/auth/login",
-        json={"email": "owner@example.com", "password": "Secret123!", "remember_me": False},
+        json={"username": "caseuser", "password": "Secret123!", "remember_me": False},
     )
     assert regular_login_response.status_code == 200
     regular_payload = regular_login_response.json()
@@ -193,7 +194,7 @@ def test_login_with_remember_me_extends_refresh_session_to_30_days(client: TestC
 
     remembered_login_response = client.post(
         "/api/auth/login",
-        json={"email": "owner@example.com", "password": "Secret123!", "remember_me": True},
+        json={"username": "CASEUSER", "password": "Secret123!", "remember_me": True},
     )
     assert remembered_login_response.status_code == 200
     remembered_payload = remembered_login_response.json()
@@ -212,18 +213,59 @@ def test_login_with_remember_me_extends_refresh_session_to_30_days(client: TestC
     assert refreshed_claims["remember_session"] is True
 
 
+def test_registration_rejects_duplicate_username_case_insensitively(client: TestClient) -> None:
+    register_user(
+        client,
+        username="CaseUser",
+        password="Secret123!",
+    )
+
+    response = client.post(
+        "/api/auth/register",
+        json={"username": "caseuser", "password": "Secret123!"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Username already exists."
+
+
+def test_registration_rejects_invalid_username_characters(client: TestClient) -> None:
+    response = client.post(
+        "/api/auth/register",
+        json={"username": "张 三🙂", "password": "Secret123!"},
+    )
+
+    assert response.status_code == 422
+    assert "Username may only contain Chinese characters" in response.text
+
+
+def test_registration_rejects_duplicate_optional_email(client: TestClient) -> None:
+    register_user(
+        client,
+        username="用户一",
+        password="Secret123!",
+        email="owner@example.com",
+    )
+
+    response = client.post(
+        "/api/auth/register",
+        json={"username": "用户二", "password": "Secret123!", "email": "owner@example.com"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email already in use."
+
+
 def test_member_cannot_create_or_delete_other_members(client: TestClient) -> None:
     admin = register_user(
         client,
-        email="owner@example.com",
+        username="管理员",
         password="Secret123!",
-        name="管理员",
     )
     member = register_user(
         client,
-        email="member@example.com",
+        username="普通成员",
         password="Secret123!",
-        name="普通成员",
     )
 
     create_response = client.post(
@@ -253,9 +295,8 @@ def test_member_cannot_create_or_delete_other_members(client: TestClient) -> Non
 def test_admin_can_create_update_and_delete_managed_members(client: TestClient) -> None:
     admin = register_user(
         client,
-        email="owner@example.com",
+        username="管理员",
         password="Secret123!",
-        name="管理员",
     )
 
     create_response = client.post(
@@ -352,7 +393,7 @@ def test_admin_can_delete_a_member_with_a_bound_user_account(client: TestClient)
 
     login_response = client.post(
         "/api/auth/login",
-        json={"email": "member@example.com", "password": "Secret123!"},
+        json={"username": "普通成员", "password": "Secret123!"},
     )
     assert login_response.status_code == 401
 

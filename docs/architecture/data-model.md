@@ -234,6 +234,24 @@ Support Models
 - `FamilySpace`：家庭顶层组织单元
 - `UserAccount`：系统登录账号，角色为 `admin / member`
 
+`UserAccount` 当前字段语义：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | TEXT | 主键 |
+| family_space_id | TEXT | 所属家庭空间 |
+| username | TEXT | 必填、唯一、用于登录，默认也作为首次显示名来源 |
+| email | TEXT? | 可选联系方式；非空时唯一 |
+| password_hash | TEXT | 密码哈希 |
+| role | TEXT | `admin / member` |
+| created_at | TEXT | 创建时间 |
+
+说明：
+
+- 认证层不再维护单独 `name`
+- 注册时会自动创建绑定的 `FamilyMember`，并初始化 `family_member.name = username`
+- `username` 支持中文，当前约束为 3-24 个字符，仅允许中文、英文字母、数字、`_`、`-`
+
 ### MemberAccessGrant
 
 成员级授权模型，定义普通用户对其他成员数据的显式能力。

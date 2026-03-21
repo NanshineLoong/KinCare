@@ -116,6 +116,7 @@ function createSessionPayload(
     user: {
       id: "user-1",
       family_space_id: "family-1",
+      username: "管理员",
       email: "owner@example.com",
       role: "admin",
       created_at: "2026-03-15T08:00:00Z",
@@ -1666,7 +1667,7 @@ describe("App", () => {
 
       if (method === "POST" && pathname === "/api/auth/login") {
         expect(JSON.parse(String(init?.body))).toEqual({
-          email: "owner@example.com",
+          username: "管理员",
           password: "Secret123!",
           remember_me: true,
         });
@@ -1684,8 +1685,8 @@ describe("App", () => {
 
     renderApp("/login");
 
-    fireEvent.change(screen.getByLabelText("电子邮箱"), {
-      target: { value: "owner@example.com" },
+    fireEvent.change(screen.getByLabelText("用户名"), {
+      target: { value: "管理员" },
     });
     fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "Secret123!" },

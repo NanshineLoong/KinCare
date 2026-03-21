@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { register } from "../api/auth";
 import type { AuthSession } from "../auth/session";
+import { isValidUsername, normalizeUsername } from "../auth/username";
 import { AuthField, AuthLayout, LockIcon, MailIcon, UserIcon } from "../components/AuthLayout";
 import { usePreferences } from "../preferences";
 
@@ -12,14 +13,14 @@ type RegisterPageProps = {
 };
 
 type RegisterFormState = {
-  name: string;
+  username: string;
   email: string;
   password: string;
   confirmPassword: string;
 };
 
 const initialState: RegisterFormState = {
-  name: "",
+  username: "",
   email: "",
   password: "",
   confirmPassword: "",
@@ -46,13 +47,18 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
       return;
     }
 
+    if (!isValidUsername(formState.username)) {
+      setErrorMessage(t("authUsernameInvalid"));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const session = await register({
-        name: formState.name,
-        email: formState.email,
+        username: normalizeUsername(formState.username),
         password: formState.password,
+        email: formState.email.trim() ? formState.email.trim() : undefined,
       });
       onAuthenticated(session);
       navigate("/app", { replace: true });
@@ -76,22 +82,22 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
       title={t("registerTitle")}
     >
       <AuthField
-        id="register-name"
+        id="register-username"
         icon={UserIcon}
         input={
           <input
-            autoComplete="name"
-            className="w-full rounded-2xl border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/25"
-            id="register-name"
-            name="name"
+            autoComplete="username"
+            className="w-full rounded-lg border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/50"
+            id="register-username"
+            name="username"
             onChange={updateField}
-            placeholder={t("registerNamePlaceholder")}
+            placeholder={t("registerUsernamePlaceholder")}
             required
             type="text"
-            value={formState.name}
+            value={formState.username}
           />
         }
-        label={t("registerName")}
+        label={t("registerUsername")}
       />
       <AuthField
         id="register-email"
@@ -99,12 +105,11 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
         input={
           <input
             autoComplete="email"
-            className="w-full rounded-2xl border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/25"
+            className="w-full rounded-lg border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/50"
             id="register-email"
             name="email"
             onChange={updateField}
             placeholder={t("registerEmailPlaceholder")}
-            required
             type="email"
             value={formState.email}
           />
@@ -117,7 +122,7 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
         input={
           <input
             autoComplete="new-password"
-            className="w-full rounded-2xl border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/25"
+            className="w-full rounded-lg border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/50"
             id="register-password"
             name="password"
             onChange={updateField}
@@ -135,7 +140,7 @@ export function RegisterPage({ onAuthenticated }: RegisterPageProps) {
         input={
           <input
             autoComplete="new-password"
-            className="w-full rounded-2xl border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/25"
+            className="w-full rounded-lg border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/50"
             id="register-confirm-password"
             name="confirmPassword"
             onChange={updateField}

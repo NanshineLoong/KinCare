@@ -81,7 +81,8 @@ class MemberPermissionGrantRead(BaseModel):
     permission_level: GrantedPermissionLevel
     target_scope: PermissionScope
     created_at: str
-    user_email: str
+    user_username: str
+    user_email: str | None = None
     user_role: str
     user_member_id: str | None = None
     user_member_name: str | None = None

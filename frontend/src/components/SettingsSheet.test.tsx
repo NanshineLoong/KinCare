@@ -30,6 +30,7 @@ const adminSession: AuthSession = {
   user: {
     id: "user-1",
     family_space_id: "family-1",
+    username: "管理员",
     email: "owner@example.com",
     role: "admin",
     created_at: "2026-03-15T08:00:00Z",
@@ -60,6 +61,7 @@ const memberSession: AuthSession = {
   user: {
     ...adminSession.user,
     id: "user-2",
+    username: "张妈妈",
     email: "member@example.com",
     role: "member",
   },
@@ -180,6 +182,7 @@ function installPermissionMocks(store: PermissionStore) {
         permission_level: payload.permission_level,
         target_scope: payload.target_scope,
         created_at: `2026-03-15T08:0${counter}:00Z`,
+        user_username: subject?.name ?? payload.user_account_id,
         user_email: `${payload.user_account_id}@example.com`,
         user_role: subject?.id === "member-1" ? "admin" : "member",
         user_member_id: subject?.id ?? null,

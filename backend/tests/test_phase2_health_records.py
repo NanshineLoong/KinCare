@@ -32,13 +32,16 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
 def register_user(
     client: TestClient,
     *,
-    email: str,
+    username: str | None = None,
     password: str,
-    name: str,
+    email: str | None = None,
+    name: str | None = None,
 ) -> dict[str, Any]:
+    actual_username = username or name
+    assert actual_username is not None
     response = client.post(
         "/api/auth/register",
-        json={"email": email, "password": password, "name": name},
+        json={"username": actual_username, "password": password, "email": email},
     )
     assert response.status_code == 201, response.text
     return response.json()

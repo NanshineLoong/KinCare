@@ -22,6 +22,7 @@ def user_from_row(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": row["id"],
         "family_space_id": row["family_space_id"],
+        "username": row["username"],
         "email": row["email"],
         "password_hash": row["password_hash"],
         "role": row["role"],
@@ -74,12 +75,13 @@ def create_family_space(connection: sqlite3.Connection, *, name: str) -> dict[st
     return record
 
 
-def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, Any] | None:
+def get_user_by_username(connection: sqlite3.Connection, username: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
         SELECT
             ua.id,
             ua.family_space_id,
+            ua.username,
             ua.email,
             ua.password_hash,
             ua.role,
@@ -87,9 +89,9 @@ def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, A
             fm.id AS member_id
         FROM user_account AS ua
         LEFT JOIN family_member AS fm ON fm.user_account_id = ua.id
-        WHERE ua.email = ?
+        WHERE ua.username = ? COLLATE NOCASE
         """,
-        (email,),
+        (username,),
     ).fetchone()
     return user_from_row(row) if row else None
 
@@ -100,6 +102,7 @@ def get_user_by_id(connection: sqlite3.Connection, user_id: str) -> dict[str, An
         SELECT
             ua.id,
             ua.family_space_id,
+            ua.username,
             ua.email,
             ua.password_hash,
             ua.role,
@@ -114,17 +117,40 @@ def get_user_by_id(connection: sqlite3.Connection, user_id: str) -> dict[str, An
     return user_from_row(row) if row else None
 
 
+def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT
+            ua.id,
+            ua.family_space_id,
+            ua.username,
+            ua.email,
+            ua.password_hash,
+            ua.role,
+            ua.created_at,
+            fm.id AS member_id
+        FROM user_account AS ua
+        LEFT JOIN family_member AS fm ON fm.user_account_id = ua.id
+        WHERE ua.email = ?
+        """,
+        (email,),
+    ).fetchone()
+    return user_from_row(row) if row else None
+
+
 def create_user(
     connection: sqlite3.Connection,
     *,
     family_space_id: str,
-    email: str,
+    username: str,
+    email: str | None,
     password_hash: str,
     role: str,
 ) -> dict[str, Any]:
     record = {
         "id": str(uuid.uuid4()),
         "family_space_id": family_space_id,
+        "username": username,
         "email": email,
         "password_hash": password_hash,
         "role": role,
@@ -132,8 +158,8 @@ def create_user(
     }
     connection.execute(
         """
-        INSERT INTO user_account (id, family_space_id, email, password_hash, role, created_at)
-        VALUES (:id, :family_space_id, :email, :password_hash, :role, :created_at)
+        INSERT INTO user_account (id, family_space_id, username, email, password_hash, role, created_at)
+        VALUES (:id, :family_space_id, :username, :email, :password_hash, :role, :created_at)
         """,
         record,
     )

@@ -78,6 +78,7 @@ def get_member_access_grant(
         """
         SELECT
             mag.*,
+            ua.username AS user_username,
             ua.email AS user_email,
             ua.role AS user_role,
             fm_user.id AS user_member_id,
@@ -228,6 +229,7 @@ def list_permissions_for_member(connection: sqlite3.Connection, member_id: str) 
         """
         SELECT
             mag.*,
+            ua.username AS user_username,
             ua.email AS user_email,
             ua.role AS user_role,
             fm_user.id AS user_member_id,
@@ -260,6 +262,7 @@ def list_permissions_for_user(connection: sqlite3.Connection, user_account_id: s
         """
         SELECT
             mag.*,
+            ua.username AS user_username,
             ua.email AS user_email,
             ua.role AS user_role,
             fm_user.id AS user_member_id,

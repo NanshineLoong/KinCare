@@ -4,13 +4,15 @@ import { apiBaseUrl } from "./client";
 
 
 export type LoginPayload = {
-  email: string;
+  username: string;
   password: string;
   remember_me?: boolean;
 };
 
-export type RegisterPayload = LoginPayload & {
-  name: string;
+export type RegisterPayload = {
+  username: string;
+  password: string;
+  email?: string;
 };
 
 async function parseResponse(response: Response) {

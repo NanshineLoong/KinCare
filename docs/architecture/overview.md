@@ -6,6 +6,7 @@
 
 - 单实例 = 一个家庭空间
 - 前端为 React + Vite SPA，后端为 FastAPI
+- 认证采用 username-first：`username` 为登录标识，`email` 为可选联系方式
 - AI 在应用内运行，基于 PydanticAI
 - 健康数据采用简化版健康事实层
 - 成员授权采用 `read / write / manage` 三级权限，并支持 `specific / all` 范围
@@ -71,6 +72,7 @@ Web/App/API/MCP Client ──▶ MCP Server ──▶ API Server
 ### API Server
 
 - 认证、成员级权限、健康数据 CRUD
+- 用户认证以 `username` 为唯一登录标识；`email` 仅作为可选联系字段参与去重
 - Dashboard 聚合、成员详情与会话历史查询
 - AI 会话入口、附件解析接口、SSE 流式输出、草稿确认和音频转写接口
 - 定时任务触发与健康摘要 / 提醒写入

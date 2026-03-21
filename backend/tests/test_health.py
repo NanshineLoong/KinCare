@@ -1,19 +1,39 @@
+from __future__ import annotations
+
+import importlib
+import sys
+from typing import Any
+
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+
+def _clear_app_modules() -> None:
+    for module_name in list(sys.modules):
+        if module_name == "app" or module_name.startswith("app."):
+            sys.modules.pop(module_name, None)
 
 
-client = TestClient(app)
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
+    monkeypatch.setenv("KINCARE_DB_PATH", str(tmp_path / "kincare.db"))
+    monkeypatch.setenv("KINCARE_SKIP_DOTENV", "1")
+
+    _clear_app_modules()
+    main_module = importlib.import_module("app.main")
+
+    with TestClient(main_module.app) as test_client:
+        yield test_client
 
 
-def test_health_endpoint_returns_ok() -> None:
+def test_health_endpoint_returns_ok(client: TestClient) -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
-def test_cors_preflight_allows_frontend_origin() -> None:
+def test_cors_preflight_allows_frontend_origin(client: TestClient) -> None:
     response = client.options(
         "/api/auth/login",
         headers={

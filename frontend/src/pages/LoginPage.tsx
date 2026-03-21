@@ -1,8 +1,9 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { login } from "../api/auth";
 import type { AuthSession } from "../auth/session";
+import { isValidUsername, normalizeUsername } from "../auth/username";
 import { AuthField, AuthLayout } from "../components/AuthLayout";
 import { usePreferences } from "../preferences";
 
@@ -12,13 +13,13 @@ type LoginPageProps = {
 };
 
 type LoginFormState = {
-  email: string;
+  username: string;
   password: string;
   rememberMe: boolean;
 };
 
 const initialState: LoginFormState = {
-  email: "",
+  username: "",
   password: "",
   rememberMe: false,
 };
@@ -43,11 +44,17 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
+
+    if (!isValidUsername(formState.username)) {
+      setErrorMessage(t("authUsernameInvalid"));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const session = await login({
-        email: formState.email,
+        username: normalizeUsername(formState.username),
         password: formState.password,
         remember_me: formState.rememberMe,
       });
@@ -71,7 +78,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
         <label className="flex cursor-pointer items-center gap-2">
           <input
             checked={formState.rememberMe}
-            className="h-4 w-4 rounded border-gentle-blue text-apple-blue focus:ring-apple-blue/25"
+            className="h-4 w-4 rounded border-gentle-blue bg-warm-cream/50 text-apple-blue focus:ring-apple-blue"
             name="rememberMe"
             onChange={updateField}
             type="checkbox"
@@ -85,35 +92,30 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
       title={t("loginTitle")}
     >
       <AuthField
-        iconName="mail"
-        id="login-email"
+        iconName="person"
+        id="login-username"
         input={
           <input
-            autoComplete="email"
-            className="w-full rounded-2xl border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/25"
-            id="login-email"
-            name="email"
+            autoComplete="username"
+            className="w-full rounded-lg border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-4 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/50"
+            id="login-username"
+            name="username"
             onChange={updateField}
-            placeholder={t("loginEmailPlaceholder")}
+            placeholder={t("loginUsernamePlaceholder")}
             required
-            type="email"
-            value={formState.email}
+            type="text"
+            value={formState.username}
           />
         }
-        label={t("loginEmail")}
+        label={t("loginUsername")}
       />
       <AuthField
-        aside={
-          <Link className="text-xs font-medium text-apple-blue hover:underline" to="/forgot-password">
-            Forgot password?
-          </Link>
-        }
         iconName="lock"
         id="login-password"
         input={
           <input
             autoComplete="current-password"
-            className="w-full rounded-2xl border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-12 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/25"
+            className="w-full rounded-lg border border-gentle-blue bg-warm-cream/50 py-3.5 pl-12 pr-12 text-sm text-warm-gray outline-none transition focus:border-apple-blue focus:ring-2 focus:ring-apple-blue/50"
             id="login-password"
             name="password"
             onChange={updateField}
@@ -127,7 +129,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
         trailing={
           <button
             aria-label={showPassword ? t("loginHidePassword") : t("loginShowPassword")}
-            className="text-warm-gray/55 hover:text-warm-gray"
+            className="text-warm-gray"
             onClick={() => setShowPassword((v) => !v)}
             type="button"
           >

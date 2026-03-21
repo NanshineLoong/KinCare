@@ -32,7 +32,7 @@ def create_agent(settings: Settings) -> KinCareAgent | None:
 async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
     parts = [
         "你是 KinCare 家庭健康助手，帮助用户管理家庭成员的健康档案。",
-        f"当前用户：{ctx.deps.current_user.email}",
+        f"当前用户：{ctx.deps.current_user.username}",
         f"用户角色：{ctx.deps.current_user.role}",
         f"家庭空间：{ctx.deps.family_space_id}",
         f"今天：{datetime.now(UTC).date().isoformat()}",

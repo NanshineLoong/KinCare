@@ -18,7 +18,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 class CurrentUser:
     id: str
     family_space_id: str
-    email: str
+    username: str
+    email: str | None
     role: str
     member_id: str | None
 
@@ -56,6 +57,7 @@ def get_current_user(
     return CurrentUser(
         id=user["id"],
         family_space_id=user["family_space_id"],
+        username=user["username"],
         email=user["email"],
         role=user["role"],
         member_id=user["member_id"],

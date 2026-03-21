@@ -21,6 +21,7 @@ KinCare is a locally deployed family health management system. This repository n
 ## Product Scope
 
 - Family dashboard, member profile, and manual editing workflows
+- Username-first authentication: `username` is the login identifier, `email` is optional contact info
 - Simplified health archive around `Observation`, `SleepRecord`, `WorkoutRecord`, `Condition`, `Medication`, `Encounter`, `HealthSummary`, and `CarePlan`
 - Member-level permissions with `read / write / manage` and `specific / all` scope
 - AI conversation with controlled tools, structured suggestions/drafts, session history, and voice transcription
@@ -52,6 +53,7 @@ Backup and upgrade:
 
 - Backup the SQLite database before upgrades. The required backup target is `/data/kincare.db` inside the `kincare-data` volume.
 - Upgrade local source installs with `docker compose build --pull && docker compose up -d`.
+- The username-first auth switch is not backward-compatible with older SQLite files that only contain `user_account.email`. Recreate the database before restart by removing `/data/kincare.db` from the `kincare-data` volume.
 
 ## Local Development
 
@@ -76,6 +78,10 @@ Default local development URLs:
 
 - Frontend: `http://localhost:5173`
 - Backend health check: `http://localhost:8000/health`
+
+Database reset note:
+
+- The username-first auth switch is not backward-compatible with the previous SQLite schema. If startup reports a legacy `user_account` schema, delete `backend/data/kincare.db` and restart so the schema is recreated.
 
 Optional AI runtime configuration:
 

@@ -1,22 +1,35 @@
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from pydantic import BaseModel, field_validator
 
 from app.schemas.member import MemberRead
 
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-\u3400-\u4DBF\u4E00-\u9FFF]{3,24}$")
+
+
+def normalize_username(value: str) -> str:
+    cleaned = unicodedata.normalize("NFKC", value.strip())
+    if not cleaned:
+        raise ValueError("Username is required.")
+    if not USERNAME_PATTERN.fullmatch(cleaned):
+        raise ValueError(
+            "Username may only contain Chinese characters, letters, numbers, underscores, or hyphens, and must be 3-24 characters."
+        )
+    return cleaned
+
 
 class RegisterRequest(BaseModel):
-    email: str
+    username: str
     password: str
-    name: str
+    email: str | None = None
 
-    @field_validator("email")
+    @field_validator("username")
     @classmethod
-    def validate_email(cls, value: str) -> str:
-        cleaned = value.strip().lower()
-        if "@" not in cleaned or "." not in cleaned.rsplit("@", maxsplit=1)[-1]:
-            raise ValueError("A valid email address is required.")
-        return cleaned
+    def validate_username(cls, value: str) -> str:
+        return normalize_username(value)
 
     @field_validator("password")
     @classmethod
@@ -25,24 +38,28 @@ class RegisterRequest(BaseModel):
             raise ValueError("Password must be at least 8 characters.")
         return value
 
-    @field_validator("name")
+    @field_validator("email")
     @classmethod
-    def validate_name(cls, value: str) -> str:
-        cleaned = value.strip()
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip().lower()
         if not cleaned:
-            raise ValueError("Name is required.")
+            return None
+        if "@" not in cleaned or "." not in cleaned.rsplit("@", maxsplit=1)[-1]:
+            raise ValueError("A valid email address is required.")
         return cleaned
 
 
 class LoginRequest(BaseModel):
-    email: str
+    username: str
     password: str
     remember_me: bool = False
 
-    @field_validator("email")
+    @field_validator("username")
     @classmethod
-    def validate_email(cls, value: str) -> str:
-        return value.strip().lower()
+    def validate_username(cls, value: str) -> str:
+        return normalize_username(value)
 
 
 class RefreshRequest(BaseModel):
@@ -58,7 +75,8 @@ class TokenPair(BaseModel):
 class UserRead(BaseModel):
     id: str
     family_space_id: str
-    email: str
+    username: str
+    email: str | None
     role: str
     created_at: str
 

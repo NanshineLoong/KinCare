@@ -43,6 +43,7 @@ def _public_user(user: dict[str, str]) -> dict[str, str]:
     return {
         "id": user["id"],
         "family_space_id": user["family_space_id"],
+        "username": user["username"],
         "email": user["email"],
         "role": user["role"],
         "created_at": user["created_at"],
@@ -59,20 +60,26 @@ def _member_with_permission(member: dict[str, object], *, role: str) -> dict[str
 
 def register_user(request: RegisterRequest, database: Database, settings: Settings) -> dict[str, object]:
     with database.connection() as connection:
-        existing_user = repository.get_user_by_email(connection, request.email)
+        existing_user = repository.get_user_by_username(connection, request.username)
         if existing_user is not None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered.")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists.")
+
+        if request.email:
+            existing_email_user = repository.get_user_by_email(connection, request.email)
+            if existing_email_user is not None:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use.")
 
         family_space = repository.get_family_space(connection)
         user_count = repository.count_users(connection)
         role = "admin" if user_count == 0 else "member"
 
         if family_space is None:
-            family_space = repository.create_family_space(connection, name=f"{request.name} 的家")
+            family_space = repository.create_family_space(connection, name=f"{request.username} 的家")
 
         user = repository.create_user(
             connection,
             family_space_id=family_space["id"],
+            username=request.username,
             email=request.email,
             password_hash=hash_password(request.password),
             role=role,
@@ -81,7 +88,7 @@ def register_user(request: RegisterRequest, database: Database, settings: Settin
             connection,
             family_space_id=family_space["id"],
             user_account_id=user["id"],
-            name=request.name,
+            name=request.username,
         )
 
     return {
@@ -93,9 +100,9 @@ def register_user(request: RegisterRequest, database: Database, settings: Settin
 
 def login_user(request: LoginRequest, database: Database, settings: Settings) -> dict[str, object]:
     with database.connection() as connection:
-        user = repository.get_user_by_email(connection, request.email)
+        user = repository.get_user_by_username(connection, request.username)
         if user is None or not verify_password(request.password, user["password_hash"]):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
         member = repository.get_member_by_user_account_id(connection, user["id"])
 
     if member is None:
