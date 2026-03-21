@@ -1,4 +1,4 @@
-# HomeVital .gitignore — 基于项目文档与架构
+# KinCare .gitignore — 基于项目文档与架构
 
 # === 环境与密钥（安全） ===
 .env

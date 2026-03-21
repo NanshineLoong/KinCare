@@ -1,1 +1,1 @@
-"""HomeVital backend package."""
+"""KinCare backend package."""

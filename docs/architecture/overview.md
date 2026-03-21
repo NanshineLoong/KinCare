@@ -1,6 +1,6 @@
-# HomeVital 架构总览
+# KinCare 架构总览
 
-> 本文档定义当前开发主线的目标架构。若旧实现、旧文档或旧术语与本文冲突，以 [HomeVital v2 开发计划](../../.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md)、[ADR-0009](../adr/0009-simplified-health-fact-layer.md)、[ADR-0010](../adr/0010-pydantic-ai-tool-calling.md) 与 [ADR-0011](../adr/0011-three-level-member-permissions.md) 为准。
+> 本文档定义当前开发主线的目标架构。若旧实现、旧文档或旧术语与本文冲突，以 [KinCare v2 开发计划](../../.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md)、[ADR-0009](../adr/0009-simplified-health-fact-layer.md)、[ADR-0010](../adr/0010-pydantic-ai-tool-calling.md) 与 [ADR-0011](../adr/0011-three-level-member-permissions.md) 为准。
 
 ## 当前主线
 
@@ -28,13 +28,13 @@
 |---|---|
 | 家庭成员 | 通过浏览器使用家庭仪表盘、成员档案、权限界面与 AI 对话 |
 | 外部 LLM / STT 服务 | 提供 PydanticAI 推理与真实语音转写能力 |
-| 外部 AI / MCP Client | 后续阶段可通过 MCP 接入 HomeVital |
+| 外部 AI / MCP Client | 后续阶段可通过 MCP 接入 KinCare |
 
 ## 容器视图
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
-│                         HomeVital                          │
+│                         KinCare                          │
 │                                                            │
 │  ┌──────────────┐      ┌──────────────────────────────┐    │
 │  │   Web App    │─────▶│           API Server         │    │

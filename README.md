@@ -1,8 +1,8 @@
-# HomeVital
+# KinCare
 
 **Self-hosted family health assistant for a single household**
 
-HomeVital is a locally deployed family health management system. This repository now follows the active development baseline in [`.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md`](./.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md). The docs intentionally describe the latest target architecture rather than preserving superseded plan history.
+KinCare is a locally deployed family health management system. This repository now follows the active development baseline in [`.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md`](./.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md). The docs intentionally describe the latest target architecture rather than preserving superseded plan history.
 
 ## Active Baseline (2026-03)
 
@@ -36,8 +36,8 @@ cp .env.example .env
 
 # Backend
 cd backend
-UV_CACHE_DIR=/tmp/homevital-uv-cache uv venv .venv
-UV_CACHE_DIR=/tmp/homevital-uv-cache uv pip install --python .venv/bin/python -r requirements.txt
+UV_CACHE_DIR=/tmp/kincare-uv-cache uv venv .venv
+UV_CACHE_DIR=/tmp/kincare-uv-cache uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/uvicorn app.main:app --reload
 
 # Frontend (another terminal)
@@ -53,24 +53,24 @@ Default local URLs:
 
 Optional AI runtime configuration:
 
-- `HOMEVITAL_AI_BASE_URL`
-- `HOMEVITAL_AI_API_KEY`
-- `HOMEVITAL_AI_MODEL`
-- `HOMEVITAL_STT_PROVIDER` (`openai` or `local_whisper`)
-- `HOMEVITAL_STT_BASE_URL` / `HOMEVITAL_STT_API_KEY` (optional; defaults to the AI values when omitted)
-- `HOMEVITAL_STT_MODEL`
-- `HOMEVITAL_STT_LANGUAGE`
-- `HOMEVITAL_STT_PROMPT`
-- `HOMEVITAL_STT_TIMEOUT_SECONDS`
-- `HOMEVITAL_LOCAL_WHISPER_MODEL`
-- `HOMEVITAL_LOCAL_WHISPER_DEVICE`
-- `HOMEVITAL_LOCAL_WHISPER_COMPUTE_TYPE`
-- `HOMEVITAL_LOCAL_WHISPER_DOWNLOAD_ROOT`
-- `HOMEVITAL_DOCLING_ARTIFACTS_PATH` (optional; points Docling to a pre-downloaded local model directory for offline parsing)
-- `HOMEVITAL_HEALTH_SUMMARY_REFRESH_HOUR`
-- `HOMEVITAL_HEALTH_SUMMARY_REFRESH_MINUTE`
-- `HOMEVITAL_CARE_PLAN_REFRESH_HOUR`
-- `HOMEVITAL_CARE_PLAN_REFRESH_MINUTE`
+- `KINCARE_AI_BASE_URL`
+- `KINCARE_AI_API_KEY`
+- `KINCARE_AI_MODEL`
+- `KINCARE_STT_PROVIDER` (`openai` or `local_whisper`)
+- `KINCARE_STT_BASE_URL` / `KINCARE_STT_API_KEY` (optional; defaults to the AI values when omitted)
+- `KINCARE_STT_MODEL`
+- `KINCARE_STT_LANGUAGE`
+- `KINCARE_STT_PROMPT`
+- `KINCARE_STT_TIMEOUT_SECONDS`
+- `KINCARE_LOCAL_WHISPER_MODEL`
+- `KINCARE_LOCAL_WHISPER_DEVICE`
+- `KINCARE_LOCAL_WHISPER_COMPUTE_TYPE`
+- `KINCARE_LOCAL_WHISPER_DOWNLOAD_ROOT`
+- `KINCARE_DOCLING_ARTIFACTS_PATH` (optional; points Docling to a pre-downloaded local model directory for offline parsing)
+- `KINCARE_HEALTH_SUMMARY_REFRESH_HOUR`
+- `KINCARE_HEALTH_SUMMARY_REFRESH_MINUTE`
+- `KINCARE_CARE_PLAN_REFRESH_HOUR`
+- `KINCARE_CARE_PLAN_REFRESH_MINUTE`
 
 The backend automatically loads the project root `.env`, so local AI credentials can be stored there instead of being prefixed on the startup command.
 
@@ -79,13 +79,13 @@ Attachment parsing notes:
 - Install `docling[rapidocr]` with backend dependencies to enable PDF / image / DOCX parsing.
 - The new chat attachment endpoint keeps audio uploads on the existing STT flow and parses documents separately.
 - Legacy `.doc` files use the local macOS `textutil` fallback when available; converting them to `.docx` or PDF remains the safer path for cross-platform deployments.
-- For offline or weak-network deployments, prefetch Docling models with `docling-tools models download` and point `HOMEVITAL_DOCLING_ARTIFACTS_PATH` to that local directory.
+- For offline or weak-network deployments, prefetch Docling models with `docling-tools models download` and point `KINCARE_DOCLING_ARTIFACTS_PATH` to that local directory.
 
 ## Testing
 
 ```bash
 # Backend
-cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest
+cd backend && UV_CACHE_DIR=/tmp/kincare-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest
 
 # Frontend
 cd frontend && npm test
@@ -96,11 +96,11 @@ The repository does not currently include E2E tests. For doc-only work, consiste
 ## Project Structure
 
 ```text
-HomeVital/
+KinCare/
 ├── AGENTS.md
 ├── README.md
 ├── .cursor/plans/
-│   └── homevital_v2_开发计划_a24f52a8.plan.md
+│   └── kincare_v2_开发计划_a24f52a8.plan.md
 ├── docs/
 │   ├── adr/
 │   ├── architecture/
@@ -117,7 +117,7 @@ HomeVital/
 
 | Document | Purpose |
 |---|---|
-| [Active Plan](./.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md) | Current development order and status |
+| [Active Plan](./.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md) | Current development order and status |
 | [Architecture Overview](./docs/architecture/overview.md) | System boundaries and runtime shape |
 | [Data Model](./docs/architecture/data-model.md) | Active health data schema baseline |
 | [Phase 4 AI Design](./docs/architecture/phase-4-ai-design.md) | Active AI orchestration design |

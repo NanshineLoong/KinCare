@@ -17,10 +17,10 @@ def _clear_app_modules() -> None:
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
-    monkeypatch.setenv("HOMEVITAL_DB_PATH", str(tmp_path / "homevital.db"))
-    monkeypatch.setenv("HOMEVITAL_JWT_SECRET", "phase-2-test-secret")
-    monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "900")
-    monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "3600")
+    monkeypatch.setenv("KINCARE_DB_PATH", str(tmp_path / "kincare.db"))
+    monkeypatch.setenv("KINCARE_JWT_SECRET", "phase-2-test-secret")
+    monkeypatch.setenv("KINCARE_ACCESS_TOKEN_TTL_SECONDS", "900")
+    monkeypatch.setenv("KINCARE_REFRESH_TOKEN_TTL_SECONDS", "3600")
 
     _clear_app_modules()
     main_module = importlib.import_module("app.main")

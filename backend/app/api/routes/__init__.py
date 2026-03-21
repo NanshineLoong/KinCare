@@ -1,1 +1,1 @@
-"""Route modules for the HomeVital backend."""
+"""Route modules for the KinCare backend."""

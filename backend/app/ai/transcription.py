@@ -161,7 +161,7 @@ def _load_local_whisper_model(
 def _build_openai_provider(settings: Settings) -> OpenAITranscriptionProvider:
     if not settings.stt_base_url or not settings.stt_api_key:
         raise TranscriptionConfigError(
-            "OpenAI STT provider requires HOMEVITAL_STT_BASE_URL and HOMEVITAL_STT_API_KEY (or AI fallbacks)."
+            "OpenAI STT provider requires KINCARE_STT_BASE_URL and KINCARE_STT_API_KEY (or AI fallbacks)."
         )
     return OpenAITranscriptionProvider(
         base_url=settings.stt_base_url,

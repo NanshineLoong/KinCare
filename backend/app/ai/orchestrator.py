@@ -192,7 +192,7 @@ class ChatOrchestrator:
                 "tool.error",
                 {
                     "tool_name": "agent",
-                    "error": "AI 模型尚未配置。请设置 HOMEVITAL_AI_BASE_URL 和 HOMEVITAL_AI_API_KEY。",
+                    "error": "AI 模型尚未配置。请设置 KINCARE_AI_BASE_URL 和 KINCARE_AI_API_KEY。",
                 },
             )
             self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)

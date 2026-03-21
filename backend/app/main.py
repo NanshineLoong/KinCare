@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.ai.orchestrator import ChatOrchestrator
-from app.ai.scheduler import HomeVitalScheduler
+from app.ai.scheduler import KinCareScheduler
 from app.api.routes.admin_settings import router as admin_settings_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
@@ -32,7 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     database = Database(base_settings.database_path)
     database.initialize()
     resolved_settings = load_runtime_settings(database, base_settings)
-    scheduler = HomeVitalScheduler(database, settings=resolved_settings)
+    scheduler = KinCareScheduler(database, settings=resolved_settings)
     orchestrator = ChatOrchestrator(
         database=database,
         settings=resolved_settings,
@@ -48,7 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             scheduler.shutdown()
 
-    app = FastAPI(title="HomeVital API", lifespan=lifespan)
+    app = FastAPI(title="KinCare API", lifespan=lifespan)
     app.state.base_settings = base_settings
     app.state.settings = resolved_settings
     app.state.database = database

@@ -1,6 +1,6 @@
 # 架构决策记录 (ADR)
 
-本目录记录 HomeVital 项目的架构决策，采用 [MADR](https://adr.github.io/madr/) 格式。
+本目录记录 KinCare 项目的架构决策，采用 [MADR](https://adr.github.io/madr/) 格式。
 
 ## 规则
 

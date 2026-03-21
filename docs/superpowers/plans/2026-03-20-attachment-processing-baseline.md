@@ -28,7 +28,7 @@ def test_attachment_endpoint_rejects_unsupported_files(...): ...
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_endpoint' -q`
+Run: `cd backend && UV_CACHE_DIR=/tmp/kincare-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_endpoint' -q`
 Expected: FAIL because `/api/chat/attachments` and parser wiring do not exist yet
 
 - [ ] **Step 3: Write minimal implementation**
@@ -37,7 +37,7 @@ Create attachment schema, service, and route. Route audio to existing STT path, 
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_endpoint' -q`
+Run: `cd backend && UV_CACHE_DIR=/tmp/kincare-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_endpoint' -q`
 Expected: PASS
 
 ### Task 2: Add failing tests for chat attachment context injection
@@ -57,7 +57,7 @@ def test_chat_message_can_include_attachment_context(...): ...
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_context' -q`
+Run: `cd backend && UV_CACHE_DIR=/tmp/kincare-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_context' -q`
 Expected: FAIL because chat message payload does not accept attachments and agent deps lack attachment context
 
 - [ ] **Step 3: Write minimal implementation**
@@ -66,7 +66,7 @@ Add attachment payload schema, persist attachment metadata with the user message
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_context' -q`
+Run: `cd backend && UV_CACHE_DIR=/tmp/kincare-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -k 'attachment_context' -q`
 Expected: PASS
 
 ## Chunk 2: Frontend Shared Attachment UX
@@ -144,7 +144,7 @@ Document Docling installation and optional local artifacts path configuration.
 
 - [ ] **Step 2: Run focused backend verification**
 
-Run: `cd backend && UV_CACHE_DIR=/tmp/homevital-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -q`
+Run: `cd backend && UV_CACHE_DIR=/tmp/kincare-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest backend/tests/test_phase4_ai.py -q`
 Expected: PASS
 
 - [ ] **Step 3: Run focused frontend verification**

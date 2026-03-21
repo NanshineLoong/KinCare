@@ -33,7 +33,7 @@ export type AuthSession = {
   tokens: AuthTokens;
 };
 
-export const sessionStorageKey = "homevital.session";
+export const sessionStorageKey = "kincare.session";
 
 export function readSession(): AuthSession | null {
   const rawValue = window.localStorage.getItem(sessionStorageKey);

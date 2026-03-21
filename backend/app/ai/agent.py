@@ -11,10 +11,10 @@ from app.ai.deps import AIDeps
 from app.ai.tools import register_tools
 from app.core.config import Settings
 AgentOutput = str | DeferredToolRequests
-HomeVitalAgent = Agent[AIDeps, AgentOutput]
+KinCareAgent = Agent[AIDeps, AgentOutput]
 
 
-def create_agent(settings: Settings) -> HomeVitalAgent | None:
+def create_agent(settings: Settings) -> KinCareAgent | None:
     model = build_model(settings)
     if model is None:
         return None
@@ -31,7 +31,7 @@ def create_agent(settings: Settings) -> HomeVitalAgent | None:
 
 async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
     parts = [
-        "你是 HomeVital 家庭健康助手，帮助用户管理家庭成员的健康档案。",
+        "你是 KinCare 家庭健康助手，帮助用户管理家庭成员的健康档案。",
         f"当前用户：{ctx.deps.current_user.email}",
         f"用户角色：{ctx.deps.current_user.role}",
         f"家庭空间：{ctx.deps.family_space_id}",

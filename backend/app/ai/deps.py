@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.ai.scheduler import HomeVitalScheduler
+from app.ai.scheduler import KinCareScheduler
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
 from app.schemas.chat import ChatAttachmentContext
@@ -20,7 +20,7 @@ class AIDeps:
     focus_resolution_source: str
     focus_changed: bool
     visible_members: tuple[dict[str, str], ...]
-    scheduler: HomeVitalScheduler
+    scheduler: KinCareScheduler
     session_id: str
     page_context: str | None
     attachments: tuple[ChatAttachmentContext, ...] = ()

@@ -50,7 +50,7 @@ def _parse_time_value(value: str) -> tuple[int, int]:
     return int(hour_text), int(minute_text)
 
 
-class HomeVitalScheduler:
+class KinCareScheduler:
     def __init__(self, database: Database, *, settings: Settings) -> None:
         self.database = database
         self._timezone = ZoneInfo(settings.scheduler_timezone)
@@ -375,7 +375,7 @@ def create_scheduled_task(
     current_user: CurrentUser,
     member_id: str | None,
     payload: dict[str, Any],
-    scheduler: HomeVitalScheduler | None = None,
+    scheduler: KinCareScheduler | None = None,
 ) -> dict[str, Any]:
     if scheduler is None:
         app = getattr(database, "app", None)
@@ -405,7 +405,7 @@ def disable_scheduled_task(
     database: Database,
     current_user: CurrentUser,
     task_id: str,
-    scheduler: HomeVitalScheduler | None = None,
+    scheduler: KinCareScheduler | None = None,
 ) -> dict[str, Any]:
     if scheduler is None:
         app = getattr(database, "app", None)
@@ -435,5 +435,5 @@ def disable_scheduled_task(
     return updated_task
 
 
-def run_scheduled_task_now(scheduler: HomeVitalScheduler, task_id: str) -> dict[str, Any]:
+def run_scheduled_task_now(scheduler: KinCareScheduler, task_id: str) -> dict[str, Any]:
     return scheduler.run_task_now(task_id)

@@ -5,9 +5,9 @@
 
 ## 背景与问题
 
-HomeVital 面向技术用户的私有部署场景。需要决定部署方式。
+KinCare 面向技术用户的私有部署场景。需要决定部署方式。
 
-问题：如何让用户尽可能简单地在本地部署 HomeVital？
+问题：如何让用户尽可能简单地在本地部署 KinCare？
 
 ## 考虑的方案
 
@@ -36,7 +36,7 @@ HomeVital 面向技术用户的私有部署场景。需要决定部署方式。
 
 ```bash
 git clone <repo>
-cd HomeVital
+cd KinCare
 docker compose up -d
 # 访问 http://localhost:<port>
 ```

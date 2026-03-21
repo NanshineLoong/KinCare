@@ -830,7 +830,7 @@ const defaultPreferences: Required<StoredPreferences> = {
 
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
-export const appPreferencesStorageKey = "homevital.preferences";
+export const appPreferencesStorageKey = "kincare.preferences";
 
 function readStoredPreferences(): Required<StoredPreferences> {
   if (typeof window === "undefined") {

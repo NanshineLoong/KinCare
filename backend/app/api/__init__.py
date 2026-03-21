@@ -1,1 +1,1 @@
-"""API layer for the HomeVital backend."""
+"""API layer for the KinCare backend."""

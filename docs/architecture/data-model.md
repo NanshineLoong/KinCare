@@ -1,4 +1,4 @@
-# HomeVital 健康数据模型
+# KinCare 健康数据模型
 
 > 本文档定义当前开发主线的健康数据模型。总体资源化方向继承自 ADR-0001，当前字段、权限和会话语义以 [ADR-0009](../adr/0009-simplified-health-fact-layer.md) 与 [ADR-0011](../adr/0011-three-level-member-permissions.md) 为准。
 

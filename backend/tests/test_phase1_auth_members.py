@@ -18,15 +18,15 @@ def _clear_app_modules() -> None:
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> TestClient:
-    monkeypatch.setenv("HOMEVITAL_DB_PATH", str(tmp_path / "homevital.db"))
-    monkeypatch.setenv("HOMEVITAL_JWT_SECRET", "phase-1-test-secret")
-    monkeypatch.setenv("HOMEVITAL_ACCESS_TOKEN_TTL_SECONDS", "1800")
-    monkeypatch.setenv("HOMEVITAL_REFRESH_TOKEN_TTL_SECONDS", "1209600")
-    monkeypatch.setenv("HOMEVITAL_REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS", "2592000")
-    monkeypatch.setenv("HOMEVITAL_SKIP_DOTENV", "1")
-    monkeypatch.setenv("HOMEVITAL_AI_BASE_URL", "https://example.invalid/v1")
-    monkeypatch.setenv("HOMEVITAL_AI_API_KEY", "test-key")
-    monkeypatch.setenv("HOMEVITAL_AI_MODEL", "test-model")
+    monkeypatch.setenv("KINCARE_DB_PATH", str(tmp_path / "kincare.db"))
+    monkeypatch.setenv("KINCARE_JWT_SECRET", "phase-1-test-secret")
+    monkeypatch.setenv("KINCARE_ACCESS_TOKEN_TTL_SECONDS", "1800")
+    monkeypatch.setenv("KINCARE_REFRESH_TOKEN_TTL_SECONDS", "1209600")
+    monkeypatch.setenv("KINCARE_REMEMBER_ME_REFRESH_TOKEN_TTL_SECONDS", "2592000")
+    monkeypatch.setenv("KINCARE_SKIP_DOTENV", "1")
+    monkeypatch.setenv("KINCARE_AI_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("KINCARE_AI_API_KEY", "test-key")
+    monkeypatch.setenv("KINCARE_AI_MODEL", "test-model")
 
     _clear_app_modules()
     main_module = importlib.import_module("app.main")

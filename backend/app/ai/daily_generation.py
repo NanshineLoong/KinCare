@@ -122,7 +122,7 @@ def _snapshot_prompt(snapshot: DailyHealthSnapshot) -> str:
 
 SUMMARY_AGENT_INSTRUCTIONS = "\n".join(
     [
-        "你负责为 HomeVital 首页生成每日健康摘要。",
+        "你负责为 KinCare 首页生成每日健康摘要。",
         "只能使用输入快照中的事实，不要补充未提供的数据。",
         "按重要程度从高到低输出 0-4 条结构化摘要；如果没有值得提示的状态，返回 summaries = []。",
         "category 与 label 使用中文动态主题，不要复用固定分类，也不要为了凑数补标题。",
@@ -134,7 +134,7 @@ SUMMARY_AGENT_INSTRUCTIONS = "\n".join(
 
 CARE_PLAN_AGENT_INSTRUCTIONS = "\n".join(
     [
-        "你负责为 HomeVital 生成当天 0-3 条 AI 提醒。",
+        "你负责为 KinCare 生成当天 0-3 条 AI 提醒。",
         "只能使用输入快照中的事实，不要编造不存在的数据。",
         "如果今天没有明确且有价值的提醒，就返回 care_plans = []。",
         "每条提醒都必须包含 category、title、description、time_slot；可选返回 icon_key、assignee_member_id、notes。",

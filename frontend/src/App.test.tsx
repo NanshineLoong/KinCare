@@ -956,7 +956,7 @@ describe("App", () => {
 
     expect(
       screen.queryByText(
-        "您好，我是 HomeVital 助手。请先选择成员，或直接询问当前的健康摘要与提醒。",
+        "您好，我是 KinCare 助手。请先选择成员，或直接询问当前的健康摘要与提醒。",
       ),
     ).not.toBeInTheDocument();
   });

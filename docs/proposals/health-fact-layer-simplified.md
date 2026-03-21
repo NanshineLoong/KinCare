@@ -14,7 +14,7 @@
 
 ## Current Source of Truth
 
-- [当前开发计划](../../.cursor/plans/homevital_v2_开发计划_a24f52a8.plan.md)
+- [当前开发计划](../../.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md)
 - [架构总览](../architecture/overview.md)
 - [数据模型](../architecture/data-model.md)
 - [ADR-0009](../adr/0009-simplified-health-fact-layer.md)

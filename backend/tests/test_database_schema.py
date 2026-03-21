@@ -6,7 +6,7 @@ from app.core.database import Database
 
 
 def test_initialize_drops_legacy_tables(tmp_path) -> None:
-    database_path = tmp_path / "homevital.db"
+    database_path = tmp_path / "kincare.db"
 
     with sqlite3.connect(database_path) as connection:
         connection.executescript(

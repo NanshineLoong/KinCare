@@ -7,7 +7,7 @@
 
 ## 背景与问题
 
-ADR-0001 确立了 HomeVital 采用 FHIR 风格的健康事实层，但当前 MVP 实现仍保留了较多面向通用医疗档案的复杂度，例如 `DocumentReference`、`MedicationStatement`、冗余的成员病史字段，以及不直接贴合当前 UI 和 OpenWearables 接入的资源划分。
+ADR-0001 确立了 KinCare 采用 FHIR 风格的健康事实层，但当前 MVP 实现仍保留了较多面向通用医疗档案的复杂度，例如 `DocumentReference`、`MedicationStatement`、冗余的成员病史字段，以及不直接贴合当前 UI 和 OpenWearables 接入的资源划分。
 
 随着 MVP-v1 范围收敛，现有数据模型暴露出以下问题：
 
@@ -54,7 +54,7 @@ ADR-0001 确立了 HomeVital 采用 FHIR 风格的健康事实层，但当前 MV
 
 ### 1. 继续保留资源化建模
 
-HomeVital 仍然按 `FamilyMember` 为核心聚合根，围绕其组织 Observation、Condition、Medication、Encounter、CarePlan 等资源，避免退化为页面专用表。
+KinCare 仍然按 `FamilyMember` 为核心聚合根，围绕其组织 Observation、Condition、Medication、Encounter、CarePlan 等资源，避免退化为页面专用表。
 
 ### 2. 事件型数据独立建模
 
