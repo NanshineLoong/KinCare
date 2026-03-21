@@ -46,6 +46,8 @@ import {
 } from "../preferences";
 import { Button } from "./Button";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { LocalizedDateInput } from "./LocalizedDateInput";
+import { LocalizedDateTimeInput } from "./LocalizedDateTimeInput";
 import { ResourceFormModal } from "./ResourceFormModal";
 
 type MemberProfileModalProps = {
@@ -434,11 +436,11 @@ function OverviewTabContent({
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-[#7D746D]">{t("memberProfileBirthDate")}</label>
-              <input
-                type="date"
+              <LocalizedDateInput
+                locale={locale}
+                onChange={(v) => setFormData({ ...formData, birth_date: v })}
+                size="sm"
                 value={formData.birth_date}
-                onChange={e => setFormData({ ...formData, birth_date: e.target.value })}
-                className="w-full rounded-xl border border-[#F2EDE7] px-3 py-2 text-sm outline-none focus:border-[#4A6076]"
               />
             </div>
             <div>
@@ -887,11 +889,19 @@ function HealthDataTabContent({
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileSleepStart")}</label>
-            <input type="datetime-local" value={sleepForm?.start || ""} onChange={(e) => setSleepForm(s => s ? { ...s, start: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
+            <LocalizedDateTimeInput
+              locale={locale}
+              onChange={(v) => setSleepForm((s) => (s ? { ...s, start: v } : null))}
+              value={sleepForm?.start || ""}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileSleepEnd")}</label>
-            <input type="datetime-local" value={sleepForm?.end || ""} onChange={(e) => setSleepForm(s => s ? { ...s, end: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
+            <LocalizedDateTimeInput
+              locale={locale}
+              onChange={(v) => setSleepForm((s) => (s ? { ...s, end: v } : null))}
+              value={sleepForm?.end || ""}
+            />
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="napCheck" checked={sleepForm?.nap || false} onChange={(e) => setSleepForm(s => s ? { ...s, nap: e.target.checked } : null)} className="h-4 w-4 rounded border-gray-300 text-[#4A6076]" />
@@ -914,11 +924,19 @@ function HealthDataTabContent({
           </div>
           <div>
             <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileWorkoutStart")}</label>
-            <input type="datetime-local" value={workoutForm?.start || ""} onChange={(e) => setWorkoutForm(w => w ? { ...w, start: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
+            <LocalizedDateTimeInput
+              locale={locale}
+              onChange={(v) => setWorkoutForm((w) => (w ? { ...w, start: v } : null))}
+              value={workoutForm?.start || ""}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileWorkoutEnd")}</label>
-            <input type="datetime-local" value={workoutForm?.end || ""} onChange={(e) => setWorkoutForm(w => w ? { ...w, end: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2" />
+            <LocalizedDateTimeInput
+              locale={locale}
+              onChange={(v) => setWorkoutForm((w) => (w ? { ...w, end: v } : null))}
+              value={workoutForm?.end || ""}
+            />
           </div>
         </div>
       </ResourceFormModal>
@@ -1146,7 +1164,11 @@ function HealthRecordsTabContent({
           </div>
           <div>
             <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileOnsetOrRecordDate")}</label>
-            <input type="date" value={formState?.date || ""} onChange={(e) => setFormState(s => s ? { ...s, date: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
+            <LocalizedDateInput
+              locale={locale}
+              onChange={(v) => setFormState((s) => (s ? { ...s, date: v } : null))}
+              value={formState?.date || ""}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileNotes")}</label>
@@ -1209,12 +1231,14 @@ function EncountersTabContent({
   onSaveEncounter,
   onDeleteEncounter,
   t,
+  locale,
 }: {
   encounters: EncounterRecord[];
   isEditing: boolean;
   onSaveEncounter: (id: string | null, payload: any) => Promise<void>;
   onDeleteEncounter: (id: string) => Promise<void>;
   t: (key: TranslationKey, variables?: Record<string, string | number>) => string;
+  locale: string;
 }) {
   const [formState, setFormState] = useState<{ id: string | null; date: string; type: string; facility: string; department: string; doctor: string; summary: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1334,7 +1358,11 @@ function EncountersTabContent({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileEncounterDate")}</label>
-              <input type="date" value={formState?.date || ""} onChange={(e) => setFormState(s => s ? { ...s, date: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
+              <LocalizedDateInput
+                locale={locale}
+                onChange={(v) => setFormState((s) => (s ? { ...s, date: v } : null))}
+                value={formState?.date || ""}
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileEncounterType")}</label>
@@ -1393,12 +1421,14 @@ function MedicationsTabContent({
   onSaveMedication,
   onDeleteMedication,
   t,
+  locale,
 }: {
   medications: MedicationRecord[];
   isEditing: boolean;
   onSaveMedication: (id: string | null, payload: any) => Promise<void>;
   onDeleteMedication: (id: string) => Promise<void>;
   t: (key: TranslationKey, variables?: Record<string, string | number>) => string;
+  locale: string;
 }) {
   const [formState, setFormState] = useState<{ id: string | null; name: string; status: string; startDate: string; endDate: string; dosage: string; indication: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1568,12 +1598,20 @@ function MedicationsTabContent({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileMedicationStartDate")}</label>
-              <input type="date" value={formState?.startDate || ""} onChange={(e) => setFormState(s => s ? { ...s, startDate: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
+              <LocalizedDateInput
+                locale={locale}
+                onChange={(v) => setFormState((s) => (s ? { ...s, startDate: v } : null))}
+                value={formState?.startDate || ""}
+              />
             </div>
             {formState?.status === "stopped" && (
               <div>
                 <label className="mb-1 block text-sm font-bold text-[#7D746D]">{t("memberProfileMedicationEndDate")}</label>
-                <input type="date" value={formState?.endDate || ""} onChange={(e) => setFormState(s => s ? { ...s, endDate: e.target.value } : null)} className="w-full rounded-xl border border-[#F2EDE7] px-4 py-2 outline-none focus:border-[#4A6076]" />
+                <LocalizedDateInput
+                  locale={locale}
+                  onChange={(v) => setFormState((s) => (s ? { ...s, endDate: v } : null))}
+                  value={formState?.endDate || ""}
+                />
               </div>
             )}
           </div>
@@ -1893,6 +1931,7 @@ export function MemberProfileModal({
                   <EncountersTabContent
                     encounters={state.encounters}
                     isEditing={isEditing}
+                    locale={locale}
                     onDeleteEncounter={handleDeleteEncounter}
                     onSaveEncounter={handleSaveEncounter}
                     t={t}
@@ -1901,6 +1940,7 @@ export function MemberProfileModal({
                 {activeTab === "medications" && (
                   <MedicationsTabContent
                     isEditing={isEditing}
+                    locale={locale}
                     medications={state.medications}
                     onDeleteMedication={handleDeleteMedication}
                     onSaveMedication={handleSaveMedication}

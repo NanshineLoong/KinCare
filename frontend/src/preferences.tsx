@@ -872,6 +872,14 @@ const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
 export const appPreferencesStorageKey = "kincare.preferences";
 
+export function syncDocumentHtmlLangFromStorage(): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const stored = readStoredPreferences();
+  document.documentElement.lang = stored.language === "en" ? "en-US" : "zh-CN";
+}
+
 function readStoredPreferences(): Required<StoredPreferences> {
   if (typeof window === "undefined") {
     return defaultPreferences;
@@ -961,6 +969,13 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
     document.documentElement.dataset.theme = resolvedTheme;
     document.documentElement.style.colorScheme = resolvedTheme;
   }, [resolvedTheme]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.lang = language === "en" ? "en-US" : "zh-CN";
+  }, [language]);
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
