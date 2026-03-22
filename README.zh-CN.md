@@ -2,7 +2,7 @@
 
 <img src="assets/KinCare.svg" alt="KinCare logo" width="70%" valign="middle">
 
-<h2 align="center">自托管、由 AI 驱动的家庭健康空间</h2>
+<h3 align="center">自托管、由 AI 驱动的家庭健康空间</h3>
 
 <img src="assets/screenshot.png" alt="KinCare 截图" width="90%">
 

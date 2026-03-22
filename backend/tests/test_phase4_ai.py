@@ -1,9 +1,11 @@
 from __future__ import annotations
+import asyncio
 from contextlib import ExitStack
 from dataclasses import replace
 from datetime import UTC, datetime
 import importlib
 import json
+from types import SimpleNamespace
 import sys
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -446,6 +448,8 @@ def test_chat_prompt_uses_english_internal_instructions_and_requested_output_lan
     assert "You are the KinCare family health assistant" in prompt_dump
     assert "Respond to the user in English." in prompt_dump
     assert "Use English for all internal instructions." in prompt_dump
+    assert "For condition records, category must be exactly one of: diagnosis, chronic, allergy, family-history." in prompt_dump
+    assert "Do not emit unsupported condition categories such as acute" in prompt_dump
     assert "用中文回答" not in prompt_dump
 
 
@@ -471,6 +475,47 @@ def test_chat_returns_tool_error_when_ai_is_not_configured(unconfigured_client: 
     assert [item["event"] for item in events] == ["session.started", "tool.error"]
     assert "AI" in events[1]["data"]["error"]
     assert "配置" in events[1]["data"]["error"]
+
+
+def test_build_system_prompt_restricts_condition_categories_to_supported_values(client: TestClient) -> None:
+    agent_module = importlib.import_module("app.ai.agent")
+    dependencies_module = importlib.import_module("app.core.dependencies")
+    deps_module = importlib.import_module("app.ai.deps")
+
+    prompt = asyncio.run(
+        agent_module.build_system_prompt(
+            SimpleNamespace(
+                deps=deps_module.AIDeps(
+                    database=client.app.state.database,
+                    current_user=dependencies_module.CurrentUser(
+                        id="user-1",
+                        family_space_id="family-1",
+                        username="管理员",
+                        email=None,
+                        preferred_language="zh",
+                        role="admin",
+                        member_id="member-1",
+                    ),
+                    family_space_id="family-1",
+                    focus_member_id="member-1",
+                    focus_member_name="奶奶",
+                    previous_focus_member_id=None,
+                    previous_focus_member_name=None,
+                    focus_resolution_source="explicit",
+                    focus_changed=False,
+                    visible_members=(),
+                    scheduler=client.app.state.scheduler,
+                    session_id="session-1",
+                    page_context="member-profile",
+                    output_language="zh",
+                    attachments=(),
+                )
+            )
+        )
+    )
+
+    assert "diagnosis, chronic, allergy, family-history" in prompt
+    assert "Do not emit unsupported condition categories such as acute" in prompt
 
 
 def test_chat_cannot_read_unauthorized_member_data(client: TestClient) -> None:
@@ -1431,6 +1476,60 @@ def test_chat_loop_limit_returns_tool_error_when_model_exceeds_request_limit(cli
 
     tool_error = next(item for item in events if item["event"] == "tool.error")
     assert "request_limit" in tool_error["data"]["error"]
+
+
+def test_chat_returns_tool_error_when_model_emits_invalid_health_record_category(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="member-profile",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "draft_health_record_actions",
+                    {
+                        "summary": "提取急性疾病记录。",
+                        "actions": [
+                            {
+                                "action": "create",
+                                "resource": "conditions",
+                                "target_member_id": managed_member["id"],
+                                "payload": {
+                                    "category": "acute",
+                                    "display_name": "急性胃炎",
+                                    "clinical_status": "active",
+                                },
+                            }
+                        ],
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="member-profile",
+            content="帮我把这次急性胃炎记到档案里",
+        )
+
+    tool_error = next(item for item in events if item["event"] == "tool.error")
+    assert tool_error["data"]["tool_name"] == "draft_health_record_actions"
+    assert "acute" in tool_error["data"]["error"]
 
 
 def test_transcription_endpoint_returns_text_and_handles_empty_audio(client: TestClient) -> None:

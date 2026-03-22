@@ -2,7 +2,7 @@
 
 <img src="assets/KinCare.svg" alt="KinCare logo" width="70%" valign="middle">
 
-<h2 align="center">Self-hosted family health space powered by AI</h2>
+<h3 align="center">Self-hosted family health space powered by AI</h3>
 
 <img src="assets/screenshot.png" alt="KinCare screenshot" width="90%">
 

@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+SQLITE_BUSY_TIMEOUT_MS = 5_000
+
 
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
@@ -530,9 +532,14 @@ class Database:
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self.database_path, check_same_thread=False)
+        connection = sqlite3.connect(
+            self.database_path,
+            check_same_thread=False,
+            timeout=SQLITE_BUSY_TIMEOUT_MS / 1000,
+        )
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
         try:
             yield connection
             connection.commit()

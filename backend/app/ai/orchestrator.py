@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -243,6 +244,11 @@ class ChatOrchestrator:
             self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
             yield error_event
             return
+        except UnexpectedModelBehavior as error:
+            error_event = self._model_behavior_error_event(error)
+            self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
+            yield error_event
+            return
 
         history_payload = self._serialize_history(result.all_messages_json())
         if isinstance(result.output, DeferredToolRequests):
@@ -363,6 +369,13 @@ class ChatOrchestrator:
             return {
                 "created_counts": created_counts,
                 "assistant_message": "审批后的执行超过循环上限，请重试。",
+            }
+        except UnexpectedModelBehavior as error:
+            error_event = self._model_behavior_error_event(error)
+            self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
+            return {
+                "created_counts": created_counts,
+                "assistant_message": error_event.data["error"],
             }
 
         history_payload = self._serialize_history(result.all_messages_json())
@@ -564,6 +577,38 @@ class ChatOrchestrator:
 
     def _serialize_history(self, history_json: bytes) -> list[dict[str, Any]]:
         return list(json.loads(history_json.decode("utf-8")))
+
+    def _model_behavior_error_event(self, error: UnexpectedModelBehavior) -> StreamEvent:
+        tool_name = self._tool_name_from_model_behavior(error)
+        validation_message = self._extract_validation_message(error)
+        return StreamEvent(
+            "tool.error",
+            {
+                "tool_name": tool_name,
+                "error": validation_message or str(error),
+            },
+        )
+
+    def _tool_name_from_model_behavior(self, error: UnexpectedModelBehavior) -> str:
+        match = re.search(r"Tool '([^']+)'", str(error))
+        return match.group(1) if match else "agent"
+
+    def _extract_validation_message(self, error: UnexpectedModelBehavior) -> str | None:
+        current_error: BaseException | None = error
+        while current_error is not None:
+            message = str(current_error)
+            if (
+                "actions.0.category" in message
+                and "diagnosis" in message
+                and "family-history" in message
+                and "input_value='acute'" in message
+            ):
+                return (
+                    "AI 生成了不支持的 conditions.category：acute。"
+                    " 请重试，或改用 diagnosis、chronic、allergy、family-history 之一。"
+                )
+            current_error = current_error.__cause__
+        return None
 
     def _is_empty_stream_error(self, error: Exception) -> bool:
         if isinstance(error, UnexpectedModelBehavior):

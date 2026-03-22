@@ -4,7 +4,10 @@ import hashlib
 import hmac
 import importlib
 import json
+import sqlite3
 import sys
+import threading
+import time
 from typing import Any
 
 import pytest
@@ -199,6 +202,36 @@ def test_user_can_update_preferred_language_and_login_returns_it(client: TestCli
         password="Secret123!",
     )
     assert logged_in["user"]["preferred_language"] == "zh"
+
+
+def test_update_preferences_waits_for_short_sqlite_write_lock(client: TestClient) -> None:
+    registered = register_user(
+        client,
+        username="张小满",
+        password="Secret123!",
+    )
+    database_path = client.app.state.database.database_path
+    lock_connection = sqlite3.connect(database_path, timeout=0, check_same_thread=False)
+    lock_connection.execute("BEGIN IMMEDIATE")
+
+    def release_lock() -> None:
+        time.sleep(0.1)
+        lock_connection.commit()
+        lock_connection.close()
+
+    release_thread = threading.Thread(target=release_lock)
+    release_thread.start()
+    try:
+        update_response = client.put(
+            "/api/auth/preferences",
+            headers=auth_headers(registered["tokens"]["access_token"]),
+            json={"preferred_language": "zh"},
+        )
+    finally:
+        release_thread.join()
+
+    assert update_response.status_code == 200, update_response.text
+    assert update_response.json()["preferred_language"] == "zh"
 
 
 def test_login_with_remember_me_extends_refresh_session_to_30_days(client: TestClient) -> None:

@@ -46,6 +46,8 @@ async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
         "- Health-record writes must go through tools. Do not claim a record has already been changed in plain text.",
         "- High-risk health-record writes must wait for user confirmation.",
         "- Health-record suggestions and drafts must use the HealthRecordAction shape. Always provide action, resource, and target_member_id. Provide record_id for update and delete.",
+        "- For condition records, category must be exactly one of: diagnosis, chronic, allergy, family-history.",
+        "- Do not emit unsupported condition categories. Map short-term illnesses into diagnosis if the record belongs in conditions.",
         "- If the current consulting person is not uniquely resolved and you need to read or modify member data, ask which authorized family member the user means.",
         "- If the current consulting person has already been resolved, default HealthRecordAction.target_member_id to that member unless the user explicitly requests another authorized member.",
     ]

@@ -859,6 +859,124 @@ describe("App", () => {
     });
   });
 
+  it("shows backend tool errors from chat streams instead of a generic network failure", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: "member-2",
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        return sseResponse([
+          {
+            event: "session.started",
+            data: { session_id: "chat-1", member_id: "member-2" },
+          },
+          {
+            event: "tool.error",
+            data: {
+              tool_name: "draft_health_record_actions",
+              error: "AI 生成了不支持的 conditions.category：acute。",
+            },
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    const dialog = await openHomeChatOverlay();
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "帮我记录这次急性胃炎" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(
+      await within(dialog).findByText("AI 生成了不支持的 conditions.category：acute。"),
+    ).toBeInTheDocument();
+  });
+
+  it("maps transport-level chat failures to a connection-specific message", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: "member-2",
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        throw new TypeError("NetworkError when attempting to fetch resource.");
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    const dialog = await openHomeChatOverlay();
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "帮我总结今天情况" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(
+      await within(dialog).findByText("聊天连接已中断，请稍后重试。"),
+    ).toBeInTheDocument();
+  });
+
   it("sends the current preferences language with chat requests", async () => {
     window.localStorage.setItem(
       sessionStorageKey,

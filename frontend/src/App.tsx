@@ -59,6 +59,16 @@ function loadStoredSession(): AuthSession | null {
   return stored;
 }
 
+function describeChatTransportError(error: unknown) {
+  if (error instanceof Error) {
+    if (/networkerror|failed to fetch|load failed/i.test(error.message)) {
+      return "聊天连接已中断，请稍后重试。";
+    }
+    return error.message;
+  }
+  return "AI chat failed. Please try again later.";
+}
+
 export default function App() {
   const { t, language, setLanguage } = usePreferences();
   const activeChatRunIdRef = useRef(0);
@@ -557,9 +567,7 @@ export default function App() {
         return;
       }
       restoreChatAttachments(pendingAttachmentState);
-      setChatError(
-        error instanceof Error ? error.message : "AI chat failed. Please try again later.",
-      );
+      setChatError(describeChatTransportError(error));
     } finally {
       if (isActiveRun()) {
         setIsChatBusy(false);
