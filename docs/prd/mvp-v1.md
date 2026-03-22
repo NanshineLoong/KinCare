@@ -1,136 +1,136 @@
-# KinCare MVP v1 — 产品需求文档
+# KinCare MVP v1 - Product Requirements Document
 
-> 本 PRD 已同步到当前 v2 主线。MVP v1 以家庭仪表盘、三级成员权限、统一 AI 对话入口、结构化健康档案和会话历史为核心。
+> KinCare is a privately hosted AI family health space. This document describes the current product scope and core capabilities.
 
-## 产品定位
+## Product Positioning
 
-KinCare 是一个私有部署的 AI 家庭健康管理助手。每个部署实例服务一个家庭，聚合全家健康信息，提供家庭仪表盘、结构化健康档案、AI 对话、每日摘要与提醒、权限管理和会话恢复能力。
+KinCare is a privately hosted AI family health management assistant. Each deployment instance serves one family, aggregates household health information, and provides a family dashboard, structured health records, AI chat, daily summaries and reminders, permission management, and session restoration.
 
-## MVP v1 范围
+## MVP v1 Scope
 
-### F1: 家庭空间与成员权限
+### F1: Family Space And Member Permissions
 
-**概述：** 一个 KinCare 实例 = 一个家庭空间。
+**Overview:** One KinCare instance = one family space.
 
-**功能点：**
+**Features:**
 
-- F1.1 用户注册与登录
-  - 第一个注册用户自动成为家庭管理员
-  - 后续用户加入同一家庭空间
-- F1.2 管理员添加成员
-  - 支持无账号成员，例如老人和儿童
-  - 成员后续可绑定账号
-- F1.3 三级权限模型
-  - 管理员拥有全量能力
-  - 普通成员默认只能查看目录级基础信息
-  - 健康数据授权采用 `read / write / manage`
-  - 授权支持 `specific`（单成员）和 `all`（全部成员）范围
-- F1.4 权限管理界面
-  - 管理员或具备 `manage` 能力的用户可查看、授予和撤销授权
+- F1.1 User registration and login
+  - The first registered user automatically becomes the family administrator
+  - Later users join the same family space
+- F1.2 Administrator adds members
+  - Supports account-less members, such as elderly people and children
+  - Members can bind an account later
+- F1.3 Three-level permission model
+  - Administrators have full capabilities
+  - Normal members can by default view only directory-level basic information
+  - Health data authorization uses `read / write / manage`
+  - Authorization supports `specific` single-member and `all` all-member scope
+- F1.4 Permission management UI
+  - Administrators or users with `manage` capability can view, grant, and revoke authorizations
 
-### F2: 家庭仪表盘与成员档案
+### F2: Family Dashboard And Member Profiles
 
-**概述：** 首页与成员概览共享同一套摘要语义和提醒语义。
+**Overview:** The home page and member overview share the same summary and reminder semantics.
 
-**功能点：**
+**Features:**
 
-- F2.1 家庭仪表盘
-  - 首页以全家聚合视图展示成员状态、权限摘要、AI 摘要和今日提醒
-  - 今日提醒按时间段分组展示
-- F2.2 成员档案
-  - 统一查看成员基础信息、观察记录、睡眠、运动、疾病、用药、就诊和 AI 摘要
-- F2.3 手动编辑
-  - `FamilyMember`、`Observation`、`Condition`、`Medication`、`Encounter`、`SleepRecord`、`WorkoutRecord` 支持前端手动编辑
-  - 编辑权限受成员级授权控制
-- F2.4 健康数据语义
-  - `HealthSummary` 支持 AI 自定义主题与 `good / warning / alert` 状态
-  - `CarePlan` 支持 `time_slot`、`icon_key`、执行成员和备注
+- F2.1 Family dashboard
+  - The home page shows member status, permission summaries, AI summaries, and today's reminders in a household-wide aggregated view
+  - Today's reminders are grouped by time slot
+- F2.2 Member profiles
+  - View member basic info, observations, sleep, workouts, conditions, medications, encounters, and AI summaries in one unified place
+- F2.3 Manual editing
+  - `FamilyMember`, `Observation`, `Condition`, `Medication`, `Encounter`, `SleepRecord`, and `WorkoutRecord` support manual editing from the frontend
+  - Editing permission is controlled by member-level authorization
+- F2.4 Health data semantics
+  - `HealthSummary` supports AI-defined topics and `good / warning / alert` status
+  - `CarePlan` supports `time_slot`, `icon_key`, assignee member, and notes
 
-### F3: AI 对话、语音与写回
+### F3: AI Chat, Voice, And Write-Back
 
-**概述：** AI 基于成员级权限和健康档案提供受控的对话式能力。
+**Overview:** AI provides controlled conversational capabilities based on member-level permissions and health records.
 
-**功能点：**
+**Features:**
 
-- F3.1 统一对话入口
-  - 支持文字、语音，以及作为对话上下文的附件输入
-  - 语音通过 Web Audio API + 后端 STT 转写进入同一输入框
-- F3.2 结构化草稿确认
-  - AI 可从对话中生成 Observation、Condition、Medication、Encounter 等草稿
-  - 高风险写入必须经过确认
-- F3.3 建议与写回统一结构
-  - 建议和草稿共用 `HealthRecordAction`
-  - 支持 `create / update / delete`
-  - 建议必须指向已存在的档案栏目并携带目标成员
-- F3.4 每日健康摘要与提醒
-  - AI 每日为成员生成 flexible `HealthSummary`
-  - AI 每日刷新多条 `CarePlan`
-  - 首页和成员概览展示这些结果
+- F3.1 Unified conversation entrypoint
+  - Supports text, voice, and attachment input as chat context
+  - Voice enters the same input box through Web Audio API plus backend STT transcription
+- F3.2 Structured draft confirmation
+  - AI can generate drafts for Observation, Condition, Medication, Encounter, and similar records from chat
+  - High-risk writes must be confirmed
+- F3.3 Unified suggestion and write-back structure
+  - Suggestions and drafts share `HealthRecordAction`
+  - Supports `create / update / delete`
+  - Suggestions must target an existing record section and carry the target member
+- F3.4 Daily health summaries and reminders
+  - AI generates flexible `HealthSummary` outputs for members every day
+  - AI refreshes multiple `CarePlan` items every day
+  - The home page and member overview display these results
 
-### F4: 会话历史
+### F4: Session History
 
-**概述：** 对话不是一次性输入框，而是可恢复的家庭健康工作流。
+**Overview:** Chat is not a disposable input box, but a recoverable family health workflow.
 
-**功能点：**
+**Features:**
 
-- F4.1 会话列表
-  - 按更新时间倒序展示历史会话
-  - 返回标题、摘要和更新时间
-- F4.2 会话恢复
-  - 用户可恢复完整消息历史与当前上下文
-- F4.3 自动标题 / 摘要
-  - 会话创建后生成可读标题和简短摘要
+- F4.1 Session list
+  - Shows history sessions sorted by updated time descending
+  - Returns title, summary, and updated time
+- F4.2 Session restoration
+  - Users can restore full message history and current context
+- F4.3 Automatic title / summary
+  - Generates a readable title and short summary after session creation
 
-### F6: 系统设置
+### F6: System Settings
 
-**概述：** 用户可通过设置 Sheet 调整个人偏好和系统运行参数，无需编辑服务端文件。
+**Overview:** Users can adjust personal preferences and system runtime parameters through the settings sheet without editing server-side files.
 
-**功能点：**
+**Features:**
 
-- F6.1 偏好设置（所有用户）
-  - **语言**：支持中文 / 英文两种界面语言，切换后全局即时生效，偏好存储 `localStorage`
-  - **时间**（仅管理员可编辑）：可配置每日健康状态刷新时间（HealthSummary 生成触发时刻）和每日提醒刷新时间（CarePlan 生成触发时刻），调度器运行时读取
-  - **外观**：支持浅色 / 深色 / 跟随系统三种主题，偏好存储 `localStorage`
-- F6.2 AI 配置（仅管理员）
-  - **语音转录**：配置 STT provider（openai / local_whisper）、api_key、model、language 等参数
-  - **对话模型**：配置 LLM 的 base_url、api_key、model
-  - 配置持久化到数据库 `system_config` 表，运行时优先级高于 `.env` 默认值，保存后下次请求即生效
-  - `api_key` 类字段脱敏展示；数据库连接、端口、JWT 密钥等部署级配置不纳入此界面
+- F6.1 Preferences (all users)
+  - **Language:** supports Chinese and English UI language, takes effect globally immediately after switching, and stores the preference in `localStorage`
+  - **Time** (editable by admins only): configures the daily health status refresh time, the trigger time for `HealthSummary` generation, and the daily reminder refresh time, the trigger time for `CarePlan` generation; these are read by the scheduler at runtime
+  - **Appearance:** supports light, dark, and system themes, with preferences stored in `localStorage`
+- F6.2 AI Config (admins only)
+  - **Speech transcription:** configures STT provider parameters such as `openai / local_whisper`, `api_key`, `model`, and `language`
+  - **Chat model:** configures the LLM `base_url`, `api_key`, and `model`
+  - Configuration is persisted in the `system_config` database table, takes precedence over `.env` defaults at runtime, and applies on the next request after saving
+  - `api_key`-like fields are shown in masked form; deployment-level configuration such as database connection, ports, and JWT secrets is outside the scope of this UI
 
-### F5: 部署与扩展
+### F5: Deployment And Extension
 
-**概述：** 官方终端用户安装路径为单机 Docker Compose，同时保留本地 FastAPI + Vite 作为当前主开发方式。
+**Overview:** The official end-user installation path is single-machine Docker Compose, while local FastAPI + Vite remains the primary development workflow.
 
-**功能点：**
+**Features:**
 
-- F5.1 本地开发运行
-  - 本地 SQLite
-  - 分别启动前后端
-- F5.2 官方安装路径
-  - `docker-compose.yml` 作为单机自部署入口
-  - MCP 作为可选的后续对外能力暴露层
+- F5.1 Local development runtime
+  - Local SQLite
+  - Start frontend and backend separately
+- F5.2 Official installation path
+  - `docker-compose.yml` is the self-hosted single-machine installation entrypoint
+  - MCP remains an optional later external capability exposure layer
 
-## 非功能性需求
+## Non-Functional Requirements
 
-| 维度 | 要求 |
+| Dimension | Requirement |
 |---|---|
-| 隐私 | 默认本地存储，外部调用仅限模型服务等必要依赖 |
-| 安全 | 严格成员级权限控制，AI 不得绕过服务层 |
-| 性能 | 面向家庭规模使用场景，无需高并发架构 |
-| 可用性 | 本地部署可容忍短暂不可用，但数据必须可恢复 |
-| 可扩展 | 保持未来设备接入、MCP、部署升级的扩展空间 |
+| Privacy | Local storage by default, with external calls limited to necessary dependencies such as model services |
+| Security | Strict member-level permission control; AI must not bypass the service layer |
+| Performance | Designed for family-scale usage scenarios and does not require high-concurrency architecture |
+| Availability | Local deployments can tolerate short outages, but data must remain recoverable |
+| Extensibility | Preserve room for future device integration, MCP, and deployment upgrades |
 
-## UI 参考
+## UI Reference
 
-- 当前实现以 v2 计划中的首页仪表盘、统一输入区、成员档案和权限面板为目标
-- `stitch-screens/` 只保留为早期参考，不再作为当前 UI 目标
+- The product UI centers on the family dashboard, unified input area, member profiles, and permission panels
+- `stitch-screens/` is kept only as an early reference and is no longer the current UI target
 
-## 成功标准
+## Success Criteria
 
-1. 用户可注册、登录并管理家庭成员与授权关系
-2. 首页能展示全家 AI 摘要、提醒和历史会话入口
-3. 成员档案能查看并手动编辑核心健康信息
-4. AI 能在权限允许下进行问答、建议、草稿生成和确认写回
-5. 语音输入能进入统一对话链路并转写为文本
-6. 用户可在"偏好" Tab 切换语言和外观，管理员还可配置每日刷新时间；管理员可在"AI 配置" Tab 管理语音转录与对话模型的运行参数
-7. 文档与实现继续围绕当前简化健康事实层、PydanticAI 编排和三级权限模型推进
+1. Users can register, log in, and manage family members and authorization relationships
+2. The home page can show AI summaries, reminders, and a history-session entrypoint for the whole family
+3. Member profiles can display and manually edit core health information
+4. AI can answer questions, give suggestions, generate drafts, and confirm write-back within the allowed permission scope
+5. Voice input can enter the unified conversation flow and be transcribed into text
+6. Users can switch language and appearance in the Preferences tab, while administrators can also configure daily refresh times; administrators can manage speech transcription and chat model runtime parameters in the AI Config tab
+7. Documentation and implementation continue to follow the current simplified health fact layer, PydanticAI orchestration, and three-level permission model

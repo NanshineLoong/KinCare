@@ -151,6 +151,46 @@ const translations = {
     settingsAiLocalWhisperModel: "Local Whisper 模型",
     settingsAiLocalWhisperDevice: "Local Whisper 设备",
     settingsAiLocalWhisperComputeType: "Local Whisper 精度",
+    settingsAiLocalWhisperCustomModel: "自定义 Local Whisper 模型",
+    settingsAiLocalWhisperCustomModelPlaceholder: "例如本地目录或 huggingface repo id",
+    settingsAiLocalWhisperCustomModelHint:
+      "仅在你需要填写本地模型目录或自定义 Hugging Face 仓库时使用。",
+    settingsAiLocalWhisperModelCustomOption: "自定义路径或 Hugging Face Repo",
+    settingsAiLocalWhisperModelRecommendedHint:
+      "默认推荐：多语言，适合普通 CPU 或入门级 NVIDIA GPU。",
+    settingsAiLocalWhisperModelSmallHint:
+      "体积更小，适合英语场景和更弱的机器。",
+    settingsAiLocalWhisperModelLargeHint:
+      "精度更高，但更吃显存或内存。",
+    settingsAiLocalWhisperDeviceAuto: "auto",
+    settingsAiLocalWhisperDeviceCpu: "cpu",
+    settingsAiLocalWhisperDeviceCuda: "cuda",
+    settingsAiLocalWhisperDeviceAutoDescription:
+      "自动判断可用设备；有 NVIDIA CUDA 环境时通常优先走 GPU。",
+    settingsAiLocalWhisperDeviceCpuDescription:
+      "强制只用 CPU，最稳妥，但通常会更慢。",
+    settingsAiLocalWhisperDeviceCudaDescription:
+      "强制使用 NVIDIA GPU；仅在后端机器已正确安装 CUDA 运行环境时可用。",
+    settingsAiLocalWhisperComputeTypeDefaultDescription:
+      "按运行环境自动选择精度；最适合不确定机器能力时。",
+    settingsAiLocalWhisperComputeTypeAutoDescription:
+      "让运行时自己挑选兼容精度，常用于先追求可用性。",
+    settingsAiLocalWhisperComputeTypeInt8Description:
+      "更省内存，通常适合 CPU 场景，也可用于部分 GPU。",
+    settingsAiLocalWhisperComputeTypeInt8Float32Description:
+      "INT8 权重搭配 FP32 计算，兼顾兼容性和内存占用。",
+    settingsAiLocalWhisperComputeTypeInt8Float16Description:
+      "INT8 权重搭配 FP16 计算，通常用于支持 FP16 的 NVIDIA GPU。",
+    settingsAiLocalWhisperComputeTypeInt8Bfloat16Description:
+      "INT8 权重搭配 BF16 计算，需要硬件支持 BF16。",
+    settingsAiLocalWhisperComputeTypeInt16Description:
+      "16 位整型模式，较少用，主要用于特定部署环境。",
+    settingsAiLocalWhisperComputeTypeFloat16Description:
+      "半精度浮点，通常适合显存足够的 NVIDIA GPU。",
+    settingsAiLocalWhisperComputeTypeBfloat16Description:
+      "BF16 精度，需要后端硬件和运行库支持。",
+    settingsAiLocalWhisperComputeTypeFloat32Description:
+      "全精度浮点，兼容性最好，但内存占用更高。",
     settingsAiLocalWhisperDownloadRoot: "Local Whisper 下载目录",
     settingsAiLocalWhisperVerifyFolderHint:
       "检查当前路径是否已有模型",
@@ -566,6 +606,47 @@ const translations = {
     settingsAiLocalWhisperModel: "Local Whisper Model",
     settingsAiLocalWhisperDevice: "Local Whisper Device",
     settingsAiLocalWhisperComputeType: "Local Whisper Precision",
+    settingsAiLocalWhisperCustomModel: "Custom Local Whisper Model",
+    settingsAiLocalWhisperCustomModelPlaceholder:
+      "For example a local directory or Hugging Face repo ID",
+    settingsAiLocalWhisperCustomModelHint:
+      "Use this only when you need a local converted model directory or a custom Hugging Face repository.",
+    settingsAiLocalWhisperModelCustomOption: "Custom path or Hugging Face repo",
+    settingsAiLocalWhisperModelRecommendedHint:
+      "Recommended default: multilingual and balanced for regular CPUs or entry-level NVIDIA GPUs.",
+    settingsAiLocalWhisperModelSmallHint:
+      "Smaller footprint, better suited to English-only usage and weaker machines.",
+    settingsAiLocalWhisperModelLargeHint:
+      "Higher accuracy, but needs noticeably more VRAM or RAM.",
+    settingsAiLocalWhisperDeviceAuto: "auto",
+    settingsAiLocalWhisperDeviceCpu: "cpu",
+    settingsAiLocalWhisperDeviceCuda: "cuda",
+    settingsAiLocalWhisperDeviceAutoDescription:
+      "Automatically picks an available device; usually prefers GPU when NVIDIA CUDA is available.",
+    settingsAiLocalWhisperDeviceCpuDescription:
+      "Force CPU only. Most compatible, but usually slower.",
+    settingsAiLocalWhisperDeviceCudaDescription:
+      "Force an NVIDIA GPU. Use this only when the backend host has CUDA set up correctly.",
+    settingsAiLocalWhisperComputeTypeDefaultDescription:
+      "Use the runtime default precision. Best when you are unsure what the machine supports.",
+    settingsAiLocalWhisperComputeTypeAutoDescription:
+      "Let the runtime choose a compatible precision automatically.",
+    settingsAiLocalWhisperComputeTypeInt8Description:
+      "Lower memory use. Commonly a good fit for CPU workloads and some GPU setups.",
+    settingsAiLocalWhisperComputeTypeInt8Float32Description:
+      "INT8 weights with FP32 compute for a compatibility-first tradeoff.",
+    settingsAiLocalWhisperComputeTypeInt8Float16Description:
+      "INT8 weights with FP16 compute, typically for NVIDIA GPUs with FP16 support.",
+    settingsAiLocalWhisperComputeTypeInt8Bfloat16Description:
+      "INT8 weights with BF16 compute, which requires BF16-capable hardware.",
+    settingsAiLocalWhisperComputeTypeInt16Description:
+      "16-bit integer mode, mostly useful for specific deployment environments.",
+    settingsAiLocalWhisperComputeTypeFloat16Description:
+      "Half precision float, usually best on NVIDIA GPUs with enough VRAM.",
+    settingsAiLocalWhisperComputeTypeBfloat16Description:
+      "BF16 precision, requiring backend hardware and runtime support.",
+    settingsAiLocalWhisperComputeTypeFloat32Description:
+      "Full precision float. Most compatible, but uses more memory.",
     settingsAiLocalWhisperDownloadRoot: "Local Whisper Download Root",
     settingsAiLocalWhisperVerifyFolderHint:
       "Check whether the current path already contains the model",

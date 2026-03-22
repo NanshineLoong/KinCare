@@ -1,41 +1,41 @@
-# ADR-0007: 主数据库采用 PostgreSQL
+# ADR-0007: Use PostgreSQL As The Primary Database
 
-- **状态：** Accepted
-- **日期：** 2026-03-11
+- **Status:** Accepted
+- **Date:** 2026-03-11
 
-## 背景与问题
+## Context And Problem
 
-KinCare 需要持久化家庭成员、用户账号、FHIR 风格健康事实、对话历史和提醒数据。数据既有强关系结构，也包含部分灵活字段，例如文档抽取结果和扩展属性。
+KinCare needs to persist family members, user accounts, FHIR-style health facts, chat history, and reminder data. The data has strong relational structure but also includes some flexible fields, such as document extraction results and extension attributes.
 
-问题：MVP v1 应采用哪种数据库，才能在可靠性、建模清晰度和未来扩展之间取得平衡？
+Problem: which database should the MVP v1 use to balance reliability, modeling clarity, and future extensibility?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：PostgreSQL（选定）
+### Option A: PostgreSQL (selected)
 
-- 优点：关系建模成熟，适合用户、成员与健康资源之间的关联；事务能力可靠；JSONB 可容纳抽取结果等半结构化数据；Docker 生态成熟，适合本地部署
-- 缺点：需要维护数据库迁移；对纯文档型场景不如 NoSQL 灵活
+- Pros: mature relational modeling that fits relationships among users, members, and health resources; reliable transactions; JSONB can hold semi-structured data such as extraction results; the Docker ecosystem is mature and suitable for local deployment
+- Cons: database migrations must be maintained; less flexible than NoSQL for purely document-oriented scenarios
 
-### 方案 B：SQLite
+### Option B: SQLite
 
-- 优点：部署更简单，单文件即可运行
-- 缺点：并发和迁移能力有限；对 Docker 化和后续扩展支持较弱；不适合承载稍复杂的数据关系和演进
+- Pros: simpler deployment and can run from a single file
+- Cons: limited concurrency and migration capability; weaker support for containerization and future expansion; not ideal for somewhat complex relationships and evolution
 
-### 方案 C：MongoDB
+### Option C: MongoDB
 
-- 优点：对半结构化数据更灵活
-- 缺点：家庭成员、权限和健康事实层的关系约束会变弱；查询和一致性控制复杂度更高
+- Pros: more flexible for semi-structured data
+- Cons: relationship constraints among family members, permissions, and the health fact layer become weaker, and query plus consistency control becomes more complex
 
-## 决策
+## Decision
 
-采用**方案 A：PostgreSQL** 作为主数据库。
+Adopt **Option A: PostgreSQL** as the primary database.
 
-结构化健康事实、用户与权限关系使用关系型表建模；需要灵活存储的字段优先使用 JSONB，而不是放弃整体关系模型。
+Structured health facts and user-permission relationships are modeled with relational tables. Fields that require flexible storage should use JSONB rather than abandoning the overall relational model.
 
-## 后果
+## Consequences
 
-- **正面：** 能稳定支撑 FHIR 风格资源模型及其关联关系
-- **正面：** JSONB 为 AI 抽取原始结果等场景保留弹性
-- **正面：** 与 Docker Compose 集成成熟，便于本地持久化部署
-- **负面：** 需要引入迁移工具和数据库运维基础知识
-- **负面：** 对非常自由的文档结构不如文档数据库直接
+- **Positive:** It can reliably support FHIR-style resource models and their relationships
+- **Positive:** JSONB preserves flexibility for scenarios such as raw AI extraction results
+- **Positive:** Integration with Docker Compose is mature and works well for local persistent deployment
+- **Negative:** Migration tooling and basic database operations knowledge are required
+- **Negative:** It is less direct than a document database for highly free-form document structures

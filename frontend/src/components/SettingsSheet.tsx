@@ -68,6 +68,8 @@ type PermissionPickerProps = {
 
 type TranscriptionProvider = AdminSettings["transcription"]["provider"];
 
+const CUSTOM_LOCAL_WHISPER_MODEL_VALUE = "__custom__";
+
 const TAB_DEFINITIONS: Array<{
   key: SettingsTab;
   icon: string;
@@ -77,6 +79,103 @@ const TAB_DEFINITIONS: Array<{
   { key: "members", icon: "group" },
   { key: "admin", icon: "admin_panel_settings", adminOnly: true },
 ];
+
+const LOCAL_WHISPER_MODEL_OPTIONS = [
+  { value: "tiny.en", label: "tiny.en" },
+  { value: "tiny", label: "tiny" },
+  { value: "base.en", label: "base.en" },
+  { value: "base", label: "base" },
+  { value: "small.en", label: "small.en" },
+  { value: "small", label: "small" },
+  { value: "medium.en", label: "medium.en" },
+  { value: "medium", label: "medium" },
+  { value: "large-v1", label: "large-v1" },
+  { value: "large-v2", label: "large-v2" },
+  { value: "large-v3", label: "large-v3" },
+  { value: "large", label: "large" },
+  { value: "distil-small.en", label: "distil-small.en" },
+  { value: "distil-medium.en", label: "distil-medium.en" },
+  { value: "distil-large-v2", label: "distil-large-v2" },
+  { value: "distil-large-v3", label: "distil-large-v3" },
+  { value: "distil-large-v3.5", label: "distil-large-v3.5" },
+  { value: "large-v3-turbo", label: "large-v3-turbo" },
+  { value: "turbo", label: "turbo" },
+] as const;
+
+const LOCAL_WHISPER_DEVICE_OPTIONS = [
+  {
+    value: "auto",
+    labelKey: "settingsAiLocalWhisperDeviceAuto",
+    descriptionKey: "settingsAiLocalWhisperDeviceAutoDescription",
+  },
+  {
+    value: "cpu",
+    labelKey: "settingsAiLocalWhisperDeviceCpu",
+    descriptionKey: "settingsAiLocalWhisperDeviceCpuDescription",
+  },
+  {
+    value: "cuda",
+    labelKey: "settingsAiLocalWhisperDeviceCuda",
+    descriptionKey: "settingsAiLocalWhisperDeviceCudaDescription",
+  },
+] as const;
+
+const LOCAL_WHISPER_COMPUTE_TYPE_OPTIONS = [
+  {
+    value: "default",
+    label: "default",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeDefaultDescription",
+  },
+  {
+    value: "auto",
+    label: "auto",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeAutoDescription",
+  },
+  {
+    value: "int8",
+    label: "int8",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeInt8Description",
+  },
+  {
+    value: "int8_float32",
+    label: "int8_float32",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeInt8Float32Description",
+  },
+  {
+    value: "int8_float16",
+    label: "int8_float16",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeInt8Float16Description",
+  },
+  {
+    value: "int8_bfloat16",
+    label: "int8_bfloat16",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeInt8Bfloat16Description",
+  },
+  {
+    value: "int16",
+    label: "int16",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeInt16Description",
+  },
+  {
+    value: "float16",
+    label: "float16",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeFloat16Description",
+  },
+  {
+    value: "bfloat16",
+    label: "bfloat16",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeBfloat16Description",
+  },
+  {
+    value: "float32",
+    label: "float32",
+    descriptionKey: "settingsAiLocalWhisperComputeTypeFloat32Description",
+  },
+] as const;
+
+function isPresetLocalWhisperModel(value: string): boolean {
+  return LOCAL_WHISPER_MODEL_OPTIONS.some((option) => option.value === value);
+}
 
 function getAvatarColor(name: string): string {
   const palette = [
@@ -945,6 +1044,7 @@ export function SettingsSheet({
   const [sttLanguage, setSttLanguage] = useState("zh");
   const [sttTimeout, setSttTimeout] = useState("30");
   const [localWhisperModel, setLocalWhisperModel] = useState("small");
+  const [isCustomLocalWhisperModel, setIsCustomLocalWhisperModel] = useState(false);
   const [localWhisperDevice, setLocalWhisperDevice] = useState("auto");
   const [localWhisperComputeType, setLocalWhisperComputeType] = useState("default");
   const [localWhisperDownloadRoot, setLocalWhisperDownloadRoot] = useState("");
@@ -1073,6 +1173,9 @@ export function SettingsSheet({
     setSttLanguage(nextSettings.transcription.language ?? "");
     setSttTimeout(String(nextSettings.transcription.timeout));
     setLocalWhisperModel(nextSettings.transcription.local_whisper_model);
+    setIsCustomLocalWhisperModel(
+      !isPresetLocalWhisperModel(nextSettings.transcription.local_whisper_model),
+    );
     setLocalWhisperDevice(nextSettings.transcription.local_whisper_device);
     setLocalWhisperComputeType(nextSettings.transcription.local_whisper_compute_type);
     setLocalWhisperDownloadRoot(
@@ -1391,6 +1494,16 @@ export function SettingsSheet({
     { value: "zh", label: t("settingsLanguageChinese") },
     { value: "en", label: t("settingsLanguageEnglish") },
   ];
+  const localWhisperModelSelectValue = isCustomLocalWhisperModel
+    ? CUSTOM_LOCAL_WHISPER_MODEL_VALUE
+    : localWhisperModel;
+  const selectedLocalWhisperDevice =
+    LOCAL_WHISPER_DEVICE_OPTIONS.find((option) => option.value === localWhisperDevice) ??
+    LOCAL_WHISPER_DEVICE_OPTIONS[0];
+  const selectedLocalWhisperComputeType =
+    LOCAL_WHISPER_COMPUTE_TYPE_OPTIONS.find(
+      (option) => option.value === localWhisperComputeType,
+    ) ?? LOCAL_WHISPER_COMPUTE_TYPE_OPTIONS[0];
   const adminCardClass =
     "overflow-hidden rounded-xl bg-[#F0EEE8] ring-1 ring-[#615E57]/5";
   const adminFieldClass =
@@ -2076,25 +2189,70 @@ export function SettingsSheet({
                         <>
                           <label className="block text-sm font-medium text-[#2D2926]">
                             {t("settingsAiLocalWhisperModel")}
-                            <input
+                            <select
                               aria-label={t("settingsAiLocalWhisperModel")}
                               className={adminFieldClass}
                               disabled={
                                 isLoadingAdminSettings || isSavingAiSettings
                               }
                               onChange={(event) => {
-                                setLocalWhisperModel(event.target.value);
+                                const nextValue = event.target.value;
+                                if (nextValue === CUSTOM_LOCAL_WHISPER_MODEL_VALUE) {
+                                  setIsCustomLocalWhisperModel(true);
+                                  if (isPresetLocalWhisperModel(localWhisperModel)) {
+                                    setLocalWhisperModel("");
+                                  }
+                                  return;
+                                }
+                                setIsCustomLocalWhisperModel(false);
+                                setLocalWhisperModel(nextValue);
                                 schedulePersistAiSettings();
                               }}
-                              type="text"
-                              value={localWhisperModel}
-                            />
+                              value={localWhisperModelSelectValue}
+                            >
+                              {LOCAL_WHISPER_MODEL_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                              <option value={CUSTOM_LOCAL_WHISPER_MODEL_VALUE}>
+                                {t("settingsAiLocalWhisperModelCustomOption")}
+                              </option>
+                            </select>
+                            <div className="mt-3 space-y-2 rounded-lg border border-[#D9D4CD] bg-[#FCF9F5]/90 px-4 py-3 text-xs leading-5 text-[#5F5F59]">
+                              <p>{t("settingsAiLocalWhisperModelRecommendedHint")}</p>
+                              <p>{t("settingsAiLocalWhisperModelSmallHint")}</p>
+                              <p>{t("settingsAiLocalWhisperModelLargeHint")}</p>
+                            </div>
                           </label>
+
+                          {isCustomLocalWhisperModel && (
+                            <label className="block text-sm font-medium text-[#2D2926]">
+                              {t("settingsAiLocalWhisperCustomModel")}
+                              <input
+                                aria-label={t("settingsAiLocalWhisperCustomModel")}
+                                className={adminFieldClass}
+                                disabled={
+                                  isLoadingAdminSettings || isSavingAiSettings
+                                }
+                                onChange={(event) => {
+                                  setLocalWhisperModel(event.target.value);
+                                  schedulePersistAiSettings();
+                                }}
+                                placeholder={t("settingsAiLocalWhisperCustomModelPlaceholder")}
+                                type="text"
+                                value={localWhisperModel}
+                              />
+                              <p className="mt-2 text-xs leading-5 text-[#5F5F59]">
+                                {t("settingsAiLocalWhisperCustomModelHint")}
+                              </p>
+                            </label>
+                          )}
 
                           <div className="grid gap-4 md:grid-cols-2">
                             <label className="block text-sm font-medium text-[#2D2926]">
                               {t("settingsAiLocalWhisperDevice")}
-                              <input
+                              <select
                                 aria-label={t("settingsAiLocalWhisperDevice")}
                                 className={adminFieldClass}
                                 disabled={
@@ -2104,13 +2262,21 @@ export function SettingsSheet({
                                   setLocalWhisperDevice(event.target.value);
                                   schedulePersistAiSettings();
                                 }}
-                                type="text"
                                 value={localWhisperDevice}
-                              />
+                              >
+                                {LOCAL_WHISPER_DEVICE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {t(option.labelKey)}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="mt-2 text-xs leading-5 text-[#5F5F59]">
+                                {t(selectedLocalWhisperDevice.descriptionKey)}
+                              </p>
                             </label>
                             <label className="block text-sm font-medium text-[#2D2926]">
                               {t("settingsAiLocalWhisperComputeType")}
-                              <input
+                              <select
                                 aria-label={t("settingsAiLocalWhisperComputeType")}
                                 className={adminFieldClass}
                                 disabled={
@@ -2120,9 +2286,17 @@ export function SettingsSheet({
                                   setLocalWhisperComputeType(event.target.value);
                                   schedulePersistAiSettings();
                                 }}
-                                type="text"
                                 value={localWhisperComputeType}
-                              />
+                              >
+                                {LOCAL_WHISPER_COMPUTE_TYPE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="mt-2 text-xs leading-5 text-[#5F5F59]">
+                                {t(selectedLocalWhisperComputeType.descriptionKey)}
+                              </p>
                             </label>
                           </div>
 

@@ -1,41 +1,41 @@
-# ADR-0008: 认证采用 JWT Access Token + Refresh Token
+# ADR-0008: Use JWT Access Token + Refresh Token For Authentication
 
-- **状态：** Accepted
-- **日期：** 2026-03-11
+- **Status:** Accepted
+- **Date:** 2026-03-11
 
-## 背景与问题
+## Context And Problem
 
-KinCare 采用前后端分离架构，需要支持用户注册、登录、鉴权和会话续期。产品是单实例私有部署，不依赖第三方身份平台。
+KinCare uses a separated frontend-backend architecture and needs to support user registration, login, authentication, and session renewal. The product is a single-instance private deployment and does not depend on third-party identity platforms.
 
-问题：MVP v1 应采用什么认证方案，才能在实现成本、安全性和前后端协作之间保持平衡？
+Problem: what authentication approach should the MVP v1 use to balance implementation cost, security, and frontend-backend collaboration?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：JWT Access Token + Refresh Token（选定）
+### Option A: JWT access token + refresh token (selected)
 
-- 优点：适合前后端分离；Access Token 可保持接口鉴权轻量；Refresh Token 支持续期；无需引入外部身份服务
-- 缺点：需要处理 token 过期、刷新和吊销策略；如果存储不当会带来安全风险
+- Pros: fits frontend-backend separation; access tokens keep API authentication lightweight; refresh tokens support renewal; no external identity service is required
+- Cons: token expiry, refresh, and revocation strategies must be handled, and improper storage introduces security risk
 
-### 方案 B：服务端 Session + Cookie
+### Option B: Server-side session + cookie
 
-- 优点：服务端可集中控制会话状态
-- 缺点：对 API 和未来 MCP/外部调用场景不够直接；跨端和无状态部署时管理更复杂
+- Pros: session state can be centrally controlled by the server
+- Cons: less direct for APIs and future MCP or external invocation scenarios; more complex to manage across clients and in stateless deployments
 
-### 方案 C：第三方 OAuth / OIDC
+### Option C: Third-party OAuth / OIDC
 
-- 优点：安全能力和生态成熟
-- 缺点：与私有化、单实例部署目标不完全匹配；MVP 引入外部依赖过重
+- Pros: mature security capabilities and ecosystem
+- Cons: does not fully match the goals of private single-instance deployment, and introduces too much external dependency for the MVP
 
-## 决策
+## Decision
 
-采用**方案 A：JWT Access Token + Refresh Token**。
+Adopt **Option A: JWT access token + refresh token**.
 
-MVP 阶段由后端负责签发和校验 JWT。Access Token 用于接口访问，Refresh Token 用于续期。后续如需更强会话管理，可在新 ADR 中补充 token 存储、轮换和吊销策略。
+In the MVP stage, the backend is responsible for issuing and validating JWTs. Access tokens are used for API access, and refresh tokens are used for renewal. If stronger session management is needed later, token storage, rotation, and revocation strategies can be added through a new ADR.
 
-## 后果
+## Consequences
 
-- **正面：** 适合 SPA + API 架构，前后端边界清晰
-- **正面：** 与后续 MCP Server 或其他 API 客户端集成一致
-- **正面：** 不依赖外部身份提供商，符合私有部署目标
-- **负面：** 需要谨慎设计 token 生命周期和客户端存储方式
-- **负面：** 若未来增加更复杂的登录方式，需要额外扩展认证层
+- **Positive:** Fits the SPA + API architecture and keeps frontend-backend boundaries clear
+- **Positive:** Aligns well with future MCP server or other API-client integrations
+- **Positive:** Does not depend on external identity providers and matches private deployment goals
+- **Negative:** Token lifetime and client-side storage must be designed carefully
+- **Negative:** If more complex login methods are added later, the authentication layer will need additional expansion

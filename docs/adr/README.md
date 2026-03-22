@@ -1,25 +1,25 @@
-# 架构决策记录 (ADR)
+# Architecture Decision Records (ADR)
 
-本目录记录 KinCare 项目的架构决策，采用 [MADR](https://adr.github.io/madr/) 格式。
+This directory records the architecture decisions for the KinCare project and uses the [MADR](https://adr.github.io/madr/) format.
 
-## 规则
+## Rules
 
-- 新增 ADR 使用递增编号：`NNNN-<kebab-case-title>.md`
-- 已 Accepted 的 ADR **不可修改内容**，只能通过新 ADR Supersede
-- 每个 ADR 聚焦一个决策
+- New ADRs must use incrementing numbers: `NNNN-<kebab-case-title>.md`
+- Accepted ADRs must **not** have their content edited; they may only be superseded by a new ADR
+- Each ADR should focus on one decision
 
-## 索引
+## Index
 
-| ADR | 标题 | 状态 | 日期 | 当前作用 |
+| ADR | Title | Status | Date | Current role |
 |---|---|---|---|---|
-| [0001](./0001-fhir-style-data-model.md) | 采用 FHIR 风格数据模型 | Accepted | 2026-03-11 | 总体资源化方向保留；MVP 级字段与资源集合被 ADR-0009 部分 supersede |
-| [0002](./0002-single-instance-family-space.md) | 单实例 = 一个家庭空间 | Accepted | 2026-03-11 | 当前仍然有效 |
-| [0003](./0003-mcp-server-for-health-data.md) | MCP Server 暴露健康数据能力 | Accepted | 2026-03-11 | 仍为后续阶段方向，不是当前实现主线 |
-| [0004](./0004-docker-first-deployment.md) | Docker Compose 优先的部署策略 | Accepted | 2026-03-11 | 保留为目标部署方向；当前开发运行时仍以本地 FastAPI + Vite + SQLite 为主 |
-| [0005](./0005-frontend-stack-react-vite-tailwind.md) | 前端采用 React + Vite + TypeScript + Tailwind CSS | Accepted | 2026-03-11 | 当前仍然有效 |
-| [0006](./0006-backend-stack-fastapi.md) | 后端采用 Python + FastAPI | Accepted | 2026-03-11 | 当前仍然有效 |
-| [0007](./0007-postgresql-as-primary-database.md) | 主数据库采用 PostgreSQL | Accepted | 2026-03-11 | 保留为目标部署决策；当前开发基线仍使用 SQLite |
-| [0008](./0008-jwt-access-refresh-auth.md) | 认证采用 JWT Access Token + Refresh Token | Accepted | 2026-03-11 | 当前仍然有效 |
-| [0009](./0009-simplified-health-fact-layer.md) | MVP v1 采用简化版健康事实层 | Accepted | 2026-03-15 | 当前健康数据模型基线 |
-| [0010](./0010-pydantic-ai-tool-calling.md) | 应用内 AI 编排采用 PydanticAI Tool-Calling 循环 | Accepted | 2026-03-15 | 当前 AI 架构基线 |
-| [0011](./0011-three-level-member-permissions.md) | 成员授权采用三级权限与范围化授权 | Accepted | 2026-03-16 | 当前成员授权模型基线 |
+| [0001](./0001-fhir-style-data-model.md) | Adopt a FHIR-style data model | Accepted | 2026-03-11 | The overall resource-oriented direction remains; MVP-level fields and resource sets were partially superseded by ADR-0009 |
+| [0002](./0002-single-instance-family-space.md) | One instance = one family space | Accepted | 2026-03-11 | Still valid |
+| [0003](./0003-mcp-server-for-health-data.md) | Expose health-data capabilities through an MCP server | Accepted | 2026-03-11 | Still a later-phase direction, not the current implementation mainline |
+| [0004](./0004-docker-first-deployment.md) | Docker Compose first deployment strategy | Accepted | 2026-03-11 | Retained as the target deployment direction; current development runtime is still local FastAPI + Vite + SQLite |
+| [0005](./0005-frontend-stack-react-vite-tailwind.md) | Use React + Vite + TypeScript + Tailwind CSS for the frontend | Accepted | 2026-03-11 | Still valid |
+| [0006](./0006-backend-stack-fastapi.md) | Use Python + FastAPI for the backend | Accepted | 2026-03-11 | Still valid |
+| [0007](./0007-postgresql-as-primary-database.md) | Use PostgreSQL as the primary database | Accepted | 2026-03-11 | Retained as a target deployment decision; the current development baseline still uses SQLite |
+| [0008](./0008-jwt-access-refresh-auth.md) | Use JWT access tokens and refresh tokens for authentication | Accepted | 2026-03-11 | Still valid |
+| [0009](./0009-simplified-health-fact-layer.md) | Adopt a simplified health fact layer for MVP v1 | Accepted | 2026-03-15 | Current health-data model baseline |
+| [0010](./0010-pydantic-ai-tool-calling.md) | Use a PydanticAI tool-calling loop for in-app AI orchestration | Accepted | 2026-03-15 | Current AI architecture baseline |
+| [0011](./0011-three-level-member-permissions.md) | Adopt three-level member permissions with scoped grants | Accepted | 2026-03-16 | Current member authorization model baseline |

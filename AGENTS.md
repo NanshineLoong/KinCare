@@ -1,133 +1,128 @@
-# AGENTS.md — KinCare Agent 工作约束
+# AGENTS.md - KinCare Agent Working Constraints
 
-本文件定义 AI 编码 Agent 在本项目中的行为规范。所有自动化编码、审查、提交操作必须遵守以下约束。
-
----
-
-## 项目背景
-
-KinCare 当前按最新开发主线推进。修改代码前，先阅读以下文档并确认是否与本次任务直接相关：
-
-- 当前开发计划：`.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md`
-- 架构总览：`docs/architecture/overview.md`
-- 数据模型：`docs/architecture/data-model.md`
-- AI 架构：`docs/architecture/phase-4-ai-design.md`
-- 架构决策：`docs/adr/README.md`
-
-与旧实现或旧文档冲突时，优先级如下：
-
-1. 当前任务的直接用户指令
-2. 当前开发计划
-3. ADR-0011 / ADR-0009 / ADR-0010
-4. 当前架构文档
-5. 旧代码和旧设计痕迹
-
-> `docs/proposals/` 中的文件仅为 Accepted ADR 保留稳定引用，不再作为活跃开发的主真相源。
+This file defines the behavior rules for AI coding agents in this project. All automated coding, review, and commit operations must follow the constraints below.
 
 ---
 
-## 构建与运行
+## Project Context
+
+KinCare currently uses the architecture documents and ADRs in this repository as its primary sources of truth. Before modifying code, read the following documents first and confirm whether they are directly relevant to the task at hand:
+
+- Architecture overview: `docs/architecture/overview.md`
+- Data model: `docs/architecture/data-model.md`
+- AI architecture: `docs/architecture/ai-design.md`
+- Architecture decisions: `docs/adr/README.md`
+
+If old implementations or old documents conflict with the current direction, use this priority order:
+
+1. The user's direct instructions for the current task
+2. ADR-0011 / ADR-0009 / ADR-0010
+3. Current architecture documents
+4. Old code and old design traces
+
+---
+
+## Build And Run
 
 ```bash
-# 当前推荐的本地开发方式
-# 先复制根目录 .env.example 为 .env，并在其中填写 AI 配置等环境变量
+# Current recommended local development workflow
+# First copy the root .env.example to .env and fill in AI configuration and other environment variables
 
-# 后端
+# Backend
 cd backend
 UV_CACHE_DIR=/tmp/kincare-uv-cache uv venv .venv
 UV_CACHE_DIR=/tmp/kincare-uv-cache uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/uvicorn app.main:app --reload
 
-# 前端（另一个终端）
+# Frontend (in another terminal)
 cd frontend
 npm ci
 VITE_API_BASE_URL=http://localhost:8000 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
 ```bash
-# 官方终端用户安装路径
+# Official end-user installation path
 docker compose up --build
 docker compose logs -f
 ```
 
-> 当前开发基线继续使用本地 SQLite（`KINCARE_DB_PATH`）与本机分别启动的 FastAPI/Vite；官方终端用户安装路径为单机 Docker Compose。`mcp-server/` 仍保留为可选的后续能力暴露层，不属于默认安装栈。
+> The current development baseline continues to use local SQLite (`KINCARE_DB_PATH`) with FastAPI and Vite started separately on the host machine. The official end-user installation path is single-machine Docker Compose. `mcp-server/` remains an optional future capability exposure layer and is not part of the default installation stack.
 
-## 测试
+## Testing
 
 ```bash
-# 后端测试
+# Backend tests
 cd backend && UV_CACHE_DIR=/tmp/kincare-uv-cache uv run --no-project --with-requirements requirements-dev.txt pytest
 
-# 前端测试
+# Frontend tests
 cd frontend && npm test
 ```
 
-> 当前仓库尚未提供 E2E 测试。涉及实现变更的 PR，至少要运行与改动相关的后端和前端测试；若测试仍缺失，需在结果说明中明确指出。
+> This repository does not currently provide E2E tests. Any PR that changes implementation must run at least the relevant backend and frontend tests. If test coverage is still missing, state that explicitly in the result summary.
 
 ---
 
-## 代码风格
+## Code Style
 
-- 使用项目根目录的格式化/lint 配置
-- 提交前运行相关 lint / format / test
-- 函数、类、字段命名使用英文
-- 注释只解释非显而易见的意图、约束或权衡
+- Use the formatting and lint configuration defined at the project root
+- Run the relevant lint / format / test commands before committing
+- Use English for function, class, and field names
+- Comments should explain only non-obvious intent, constraints, or tradeoffs
 
-## AI 实现约束
+## AI Implementation Constraints
 
-- 修改 AI 对话、抽取、转写、调度前，先阅读 `docs/architecture/phase-4-ai-design.md`
-- AI 读取或修改健康数据时，必须复用现有业务服务层与成员级权限校验；不要让 AI 直接访问数据库
-- 成员级权限以 `read / write / manage` + `specific / all` 为准；不要继续沿用 `can_write` 布尔语义
-- 不要把全量或未授权的健康数据直接拼进 prompt；优先使用最小上下文 + 受控工具调用
-- 优先沿用 `backend/app/ai/` 下的 `deps.py`、`agent.py`、`daily_generation.py`、`orchestrator.py`、`tools/`、`transcription.py`、`extraction.py`、`scheduler.py` 职责边界
-- 附件解析优先沿用 `backend/app/attachments/` 边界；音频继续走 `transcription.py`，不要再把 PDF / 图片 / 文档解析塞回音频转写链路
-- 不要重新把旧的关键字路由 orchestrator、`providers/` 主抽象、`DocumentReference` 独立文档资源链路当作当前方案
-- 健康档案类高风险写入必须保持“生成草稿 -> 用户确认 -> 服务层写入”
-- 建议与草稿写回优先复用统一 `HealthRecordAction` 结构，不要再为 create / update / delete 走分叉协议
-- 对 PydanticAI、模型服务、ASR、文档解析、MCP 等外部系统的实现，以各自官方文档和当前版本说明为准；仓库文档只定义边界和当前默认路线
+- Before changing AI chat, extraction, transcription, or scheduling, read `docs/architecture/ai-design.md`
+- When AI reads or modifies health data, it must reuse the existing business service layer and member-level permission checks; do not let AI access the database directly
+- Member-level permissions are defined by `read / write / manage` plus `specific / all`; do not continue using the old `can_write` boolean semantics
+- Do not inject full or unauthorized health data directly into prompts; prefer minimal context plus controlled tool calls
+- Prefer to preserve the responsibility boundaries under `backend/app/ai/`: `deps.py`, `agent.py`, `daily_generation.py`, `orchestrator.py`, `tools/`, `transcription.py`, `extraction.py`, and `scheduler.py`
+- Attachment parsing should continue to use the `backend/app/attachments/` boundary; audio must continue through `transcription.py`; do not push PDF / image / document parsing back into the audio transcription path
+- Do not reintroduce the old keyword-routed orchestrator, the `providers/` main abstraction, or the `DocumentReference` standalone document-resource path as the current solution
+- High-risk health-record writes must continue to follow "generate draft -> user confirmation -> service-layer write"
+- Suggestions and draft write-back should reuse the unified `HealthRecordAction` structure; do not split `create / update / delete` into separate protocols again
+- For external systems such as PydanticAI, model services, ASR, document parsing, and MCP, rely on their official documentation and the current version behavior; repository documents define boundaries and the current default direction only
 
 ---
 
-## 目录规则
+## Directory Rules
 
 ```text
 KinCare/
-├── .cursor/plans/             # 当前开发计划
-├── docs/                      # 活跃文档与 ADR
+├── .cursor/plans/             # Internal planning files (if present)
+├── docs/                      # Active documentation and ADRs
 │   ├── prd/
 │   ├── architecture/
-│   ├── adr/
-│   └── proposals/             # 仅作 ADR 附件保留，不作主真相源
-├── stitch-screens/            # 旧 UI 参考（只读，不再是当前设计基线）
+│   └── adr/
+├── stitch-screens/            # Old UI references (read-only, no longer the current design baseline)
 ├── backend/
 ├── frontend/
-├── mcp-server/                # 可选后续能力暴露层
-└── docker-compose.yml         # 官方单机安装入口
+├── mcp-server/                # Optional future capability exposure layer
+└── docker-compose.yml         # Official single-machine installation entrypoint
 ```
 
-- `stitch-screens/` **禁止修改**
-- `docs/adr/` 中的 Accepted ADR **禁止修改内容**，只能通过新 ADR Supersede
-- 新增 ADR 使用递增编号：`docs/adr/NNNN-<kebab-case-title>.md`
+- `stitch-screens/` must **not** be modified
+- Accepted ADRs under `docs/adr/` must **not** have their content edited; only supersede them through a new ADR
+- New ADRs must use incrementing numbers: `docs/adr/NNNN-<kebab-case-title>.md`
 
 ---
 
-## 禁止事项
+## Prohibited Actions
 
-1. **不要**在代码中硬编码密钥、密码或个人健康数据
-2. **不要**修改 `stitch-screens/` 下的文件
-3. **不要**在没有对应验证的情况下提交功能代码
-4. **不要**引入未在依赖管理文件中声明的依赖
-5. **不要**在 PR 中混合不相关的变更
-6. **不要**修改已 Accepted 的 ADR 内容
-7. **不要**在代码中存储未脱敏的真实健康数据作为测试数据
-8. **不要**绕过服务层和权限模型直接操作健康数据
-9. **不要**把已被 supersede 的旧设计重新写回 README、架构文档或实现中
+1. Do **not** hardcode secrets, passwords, or personal health data in code
+2. Do **not** modify files under `stitch-screens/`
+3. Do **not** submit functional code without corresponding verification
+4. Do **not** introduce dependencies that are not declared in dependency management files
+5. Do **not** mix unrelated changes in the same PR
+6. Do **not** edit the content of Accepted ADRs
+7. Do **not** store non-anonymized real health data in code as test data
+8. Do **not** bypass the service layer and permission model to operate on health data directly
+9. Do **not** write superseded old designs back into the README, architecture documents, or implementation
 
 ---
 
-## 提交规范
+## Commit Convention
 
-使用 [Conventional Commits](https://www.conventionalcommits.org/)：
+Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```text
 <type>(<scope>): <description>
@@ -137,36 +132,36 @@ KinCare/
 [optional footer]
 ```
 
-**type 取值：**
+**Allowed `type` values:**
 
-| type | 用途 |
+| type | Purpose |
 |------|------|
-| `feat` | 新功能 |
-| `fix` | 修复 bug |
-| `docs` | 文档变更 |
-| `refactor` | 重构（不影响功能） |
-| `test` | 测试相关 |
-| `chore` | 构建/工具/依赖变更 |
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation change |
+| `refactor` | Refactor without functional change |
+| `test` | Test-related change |
+| `chore` | Build / tooling / dependency change |
 
-**scope 示例：** `auth`, `member`, `health-record`, `ai`, `ui`, `docs`
-
----
-
-## PR 流程
-
-1. 从主分支创建功能分支：`feat/<scope>-<description>` 或 `fix/<scope>-<description>`
-2. 实现单一关注点变更
-3. 运行与改动相关的验证命令
-4. 提交符合 Conventional Commits 规范的 commit
-5. 创建 PR，包含变更摘要、关联计划/ADR、测试计划与风险说明
+**Example scopes:** `auth`, `member`, `health-record`, `ai`, `ui`, `docs`
 
 ---
 
-## 数据安全提醒
+## PR Process
 
-KinCare 处理敏感的个人健康信息。开发时：
+1. Create a feature branch from the main branch: `feat/<scope>-<description>` or `fix/<scope>-<description>`
+2. Implement a single focused change
+3. Run verification commands relevant to the change
+4. Commit using the Conventional Commits format
+5. Create a PR with a change summary, related plan/ADR references, test plan, and risk notes
 
-- 测试数据必须使用虚构数据
-- 日志中不输出健康数据明文
-- API 响应不能泄漏超出权限模型的数据
-- 健康数据默认按成员级权限控制；家庭成员目录只返回当前阶段允许公开的基础信息
+---
+
+## Data Safety Reminder
+
+KinCare handles sensitive personal health information. During development:
+
+- Test data must be fictional
+- Logs must not output raw health data
+- API responses must not leak data beyond the permission model
+- Health data is controlled by member-level permissions by default; the family member directory should return only the basic information allowed to be exposed at the current stage

@@ -1,45 +1,45 @@
-# ADR-0003: MCP Server 暴露健康数据能力
+# ADR-0003: Expose Health-Data Capabilities Through An MCP Server
 
-- **状态：** Accepted
-- **日期：** 2026-03-11
+- **Status:** Accepted
+- **Date:** 2026-03-11
 
-## 背景与问题
+## Context And Problem
 
-KinCare 的设计目标之一是允许外部 AI 系统（如 OpenClaw）查询和操作家庭健康数据。需要决定对外暴露数据能力的方式。
+One of KinCare's design goals is to allow external AI systems, such as OpenClaw, to query and operate on family health data. We need to decide how to expose these data capabilities externally.
 
-问题：如何让外部 AI 系统访问 KinCare 的健康数据？
+Problem: how should external AI systems access KinCare health data?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：仅提供 REST API
+### Option A: Provide only a REST API
 
-- 优点：通用性强，任何 HTTP 客户端可调用
-- 缺点：AI Agent 需要额外适配层才能调用；无法利用 MCP 生态的工具发现和调用机制
+- Pros: broadly compatible and callable by any HTTP client
+- Cons: AI agents need an additional adaptation layer, and this cannot use MCP ecosystem tool discovery and invocation mechanisms
 
-### 方案 B：MCP Server + REST API 并存（选定）
+### Option B: MCP server plus REST API in parallel (selected)
 
-- 优点：MCP Server 让 AI Agent（Cursor、OpenClaw 等）可以原生发现和调用健康数据能力；REST API 供前端和其他场景使用
-- 缺点：需要维护两套接口（但 MCP Server 可以内部调用 API Server 的逻辑，避免重复）
+- Pros: the MCP server allows AI agents such as Cursor and OpenClaw to discover and call health-data capabilities natively; the REST API serves the frontend and other scenarios
+- Cons: two interfaces must be maintained, although the MCP server can call the API server's business logic internally to avoid duplication
 
-### 方案 C：仅 MCP Server
+### Option C: MCP server only
 
-- 优点：统一接口
-- 缺点：前端 Web App 不方便直接使用 MCP 协议
+- Pros: one unified interface
+- Cons: the frontend web app cannot conveniently use the MCP protocol directly
 
-## 决策
+## Decision
 
-采用**方案 B：MCP Server + REST API 并存**。
+Adopt **Option B: MCP server plus REST API in parallel**.
 
-MCP Server 暴露以下能力：
+The MCP server exposes the following capabilities:
 
-- **Tools：** 查询成员列表、查询健康记录（按成员/类型/时间范围）、查询指标趋势、新增观测记录、更新提醒状态
-- **Resources：** 成员档案摘要、最近健康事件摘要
+- **Tools:** list members, query health records by member, type, and time range, query metric trends, create observation records, and update reminder status
+- **Resources:** member profile summaries and recent health-event summaries
 
-MCP Server 内部调用 API Server 的业务逻辑层，不重复实现。同时支持封装为 OpenClaw Skill。
+The MCP server calls the API server's business logic layer internally rather than reimplementing it. It should also support packaging as an OpenClaw skill.
 
-## 后果
+## Consequences
 
-- **正面：** 外部 AI 系统可以原生调用健康数据，支持 OpenClaw 主动推送场景
-- **正面：** MCP 协议是 AI 工具生态的事实标准，接入成本低
-- **负面：** 需要关注 MCP 接口的认证和权限控制，防止未授权访问
-- **待定：** MCP Server 部署方式（独立进程 vs 内嵌于 API Server）在技术栈确定后决定
+- **Positive:** External AI systems can call health-data capabilities natively, including proactive OpenClaw push scenarios
+- **Positive:** MCP is the de facto standard in the AI tools ecosystem, so integration cost is relatively low
+- **Negative:** Authentication and permission control for the MCP interface must be handled carefully to prevent unauthorized access
+- **Open question:** The MCP server deployment shape, standalone process versus embedded in the API server, will be decided after the technical stack is finalized

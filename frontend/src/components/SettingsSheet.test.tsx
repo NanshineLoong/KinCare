@@ -474,9 +474,41 @@ describe("SettingsSheet", () => {
       });
     });
 
-    const localWhisperModelInput = screen.getByLabelText("Local Whisper 模型");
-    fireEvent.change(localWhisperModelInput, {
-      target: { value: "whisper-small" },
+    const localWhisperModelSelect = screen.getByRole("combobox", {
+      name: "Local Whisper 模型",
+    });
+    const localWhisperDeviceSelect = screen.getByRole("combobox", {
+      name: "Local Whisper 设备",
+    });
+    const localWhisperComputeTypeSelect = screen.getByRole("combobox", {
+      name: "Local Whisper 精度",
+    });
+
+    expect(localWhisperModelSelect).toHaveValue("small");
+    expect(
+      screen.getByText("默认推荐：多语言，适合普通 CPU 或入门级 NVIDIA GPU。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("体积更小，适合英语场景和更弱的机器。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("精度更高，但更吃显存或内存。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("自动判断可用设备；有 NVIDIA CUDA 环境时通常优先走 GPU。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("按运行环境自动选择精度；最适合不确定机器能力时。"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(localWhisperModelSelect, {
+      target: { value: "turbo" },
+    });
+    fireEvent.change(localWhisperDeviceSelect, {
+      target: { value: "cpu" },
+    });
+    fireEvent.change(localWhisperComputeTypeSelect, {
+      target: { value: "int8" },
     });
     const transcriptionTimeoutInput = screen.getByLabelText("转录超时时间（秒）");
     fireEvent.change(transcriptionTimeoutInput, { target: { value: "9.5" } });
@@ -495,9 +527,41 @@ describe("SettingsSheet", () => {
             language: "zh",
             timeout: 9.5,
             api_key: "stt-key",
-            local_whisper_model: "whisper-small",
-            local_whisper_device: "auto",
-            local_whisper_compute_type: "default",
+            local_whisper_model: "turbo",
+            local_whisper_device: "cpu",
+            local_whisper_compute_type: "int8",
+            local_whisper_download_root: null,
+          },
+          chat_model: {
+            base_url: "https://override.invalid/v1",
+            api_key: "override-key",
+            model: "gpt-4.1-nano",
+          },
+        });
+      },
+      { timeout: 3000 },
+    );
+
+    fireEvent.change(localWhisperModelSelect, {
+      target: { value: "__custom__" },
+    });
+    const customModelInput = await screen.findByLabelText("自定义 Local Whisper 模型");
+    fireEvent.change(customModelInput, {
+      target: { value: "my-org/custom-whisper" },
+    });
+
+    await waitFor(
+      () => {
+        expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
+          transcription: {
+            provider: "local_whisper",
+            model: "gpt-4o-mini-transcribe",
+            language: "zh",
+            timeout: 9.5,
+            api_key: "stt-key",
+            local_whisper_model: "my-org/custom-whisper",
+            local_whisper_device: "cpu",
+            local_whisper_compute_type: "int8",
             local_whisper_download_root: null,
           },
           chat_model: {

@@ -1,40 +1,40 @@
-# ADR-0001: 采用 FHIR 风格数据模型
+# ADR-0001: Adopt A FHIR-Style Data Model
 
-- **状态：** Accepted
-- **日期：** 2026-03-11
+- **Status:** Accepted
+- **Date:** 2026-03-11
 
-## 背景与问题
+## Context And Problem
 
-KinCare 需要一个统一的数据模型来存储来自多种来源（手动录入、文档抽取、可穿戴设备）的健康信息。这些数据需要支撑看板展示、AI 对话、MCP 查询和提醒生成等多种场景。
+KinCare needs a unified data model to store health information from multiple sources, including manual entry, document extraction, and wearable devices. This data must support dashboard display, AI chat, MCP queries, reminder generation, and other scenarios.
 
-问题：应该采用什么样的数据模型来标准化家庭健康信息？
+Problem: what kind of data model should be adopted to standardize family health information?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：完全符合 FHIR R4 规范
+### Option A: Full FHIR R4 compliance
 
-- 优点：与医疗行业标准完全兼容，可直接对接 FHIR 服务器
-- 缺点：FHIR 资源结构复杂（嵌套 JSON、Coding 系统、Extension 机制），对家庭场景过度设计；实现和维护成本高
+- Pros: fully compatible with healthcare industry standards and directly interoperable with FHIR servers
+- Cons: FHIR resource structures are complex, with nested JSON, coding systems, and extension mechanisms; this is over-designed for a family scenario and costly to implement and maintain
 
-### 方案 B：FHIR 风格的简化模型（选定）
+### Option B: A simplified FHIR-style model (selected)
 
-- 优点：借鉴 FHIR 的资源类型划分（Patient、Observation、Condition 等）获得语义清晰度，但使用简化的扁平表结构；后续可映射到标准 FHIR
-- 缺点：不能直接与 FHIR 生态工具互操作
+- Pros: borrows FHIR-style resource categories such as Patient, Observation, and Condition for semantic clarity, but uses simplified flat relational tables; can be mapped to standard FHIR later
+- Cons: cannot interoperate directly with existing FHIR ecosystem tools
 
-### 方案 C：自定义无约束模型
+### Option C: An unconstrained custom model
 
-- 优点：完全自由，初期开发快
-- 缺点：缺乏语义约束，数据结构容易混乱；AI 对话时难以建立一致的数据理解
+- Pros: completely flexible and fast for early development
+- Cons: lacks semantic constraints, so the data structure can become chaotic; it is also harder for AI chat to build a consistent understanding of the data
 
-## 决策
+## Decision
 
-采用**方案 B：FHIR 风格的简化模型**。
+Adopt **Option B: a simplified FHIR-style model**.
 
-资源类型借鉴 FHIR R4（FamilyMember/Observation/Condition/MedicationStatement/Encounter/DocumentReference/CarePlan），但字段结构简化为关系型表的扁平结构。指标编码 MVP 阶段使用自定义编码，预留后续映射到 LOINC/SNOMED CT 的能力。
+Resource types borrow from FHIR R4, including FamilyMember, Observation, Condition, MedicationStatement, Encounter, DocumentReference, and CarePlan, but field structures are simplified into flat relational tables. In the MVP stage, metric codes use custom codes while preserving the ability to map later to LOINC and SNOMED CT.
 
-## 后果
+## Consequences
 
-- **正面：** 数据语义清晰，不同数据来源可以映射到统一模型；AI 对话时有明确的数据结构可引用
-- **正面：** 后续如需对接 FHIR 生态，有清晰的映射路径
-- **负面：** 需要维护自定义编码表
-- **负面：** 不能直接使用 FHIR 现有工具库
+- **Positive:** Data semantics are clear, and different data sources can map into one unified model; AI chat has an explicit structure to reference
+- **Positive:** There is a clear future mapping path if FHIR ecosystem integration is needed
+- **Negative:** Custom coding tables must be maintained
+- **Negative:** Existing FHIR tooling cannot be used directly

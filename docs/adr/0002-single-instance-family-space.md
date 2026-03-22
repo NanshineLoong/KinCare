@@ -1,44 +1,44 @@
-# ADR-0002: 单实例 = 一个家庭空间
+# ADR-0002: One Instance = One Family Space
 
-- **状态：** Accepted
-- **日期：** 2026-03-11
+- **Status:** Accepted
+- **Date:** 2026-03-11
 
-## 背景与问题
+## Context And Problem
 
-KinCare 是私有部署的系统。需要决定一个部署实例如何组织用户和数据。
+KinCare is a privately deployed system. We need to decide how one deployment instance should organize users and data.
 
-问题：如何组织家庭空间与用户的关系？
+Problem: how should the relationship between family spaces and users be organized?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：多租户 SaaS 模型
+### Option A: A multi-tenant SaaS model
 
-- 优点：一个实例服务多个家庭，适合商业化
-- 缺点：多租户数据隔离复杂度高；与"私有部署"定位矛盾
+- Pros: one instance can serve multiple families and is suitable for commercialization
+- Cons: multi-tenant data isolation is more complex and conflicts with the "private deployment" positioning
 
-### 方案 B：单实例 = 一个家庭空间（选定）
+### Option B: One instance = one family space (selected)
 
-- 优点：架构简单，无需多租户隔离；符合"私有部署"场景——每个家庭自己部署一个实例
-- 缺点：无法在同一实例中服务多个家庭
+- Pros: the architecture is simple and does not require multi-tenant isolation; it matches the private deployment model, where each family deploys its own instance
+- Cons: one instance cannot serve multiple families
 
-### 方案 C：灵活多空间模型
+### Option C: A flexible multi-space model
 
-- 优点：一个实例可以有多个空间
-- 缺点：增加不必要的复杂度，MVP 阶段没有需求
+- Pros: one instance can contain multiple spaces
+- Cons: adds unnecessary complexity, and there is no need for it in the MVP stage
 
-## 决策
+## Decision
 
-采用**方案 B：单实例 = 一个家庭空间**。
+Adopt **Option B: one instance = one family space**.
 
-- 系统运行后，第一个注册用户自动成为家庭管理员
-- 后续注册用户自动加入该家庭空间
-- 管理员可直接添加"无账号成员"（老人、儿童），后续可绑定账号
-- 权限模型在家庭空间内部实现：管理员拥有全部权限，普通成员的访问受限
+- After the system starts, the first registered user automatically becomes the family administrator
+- Later registered users automatically join that family space
+- Administrators can directly add account-less members, such as elderly people or children, and those members can bind an account later
+- The permission model is implemented within the family space: administrators have full permissions, while normal members have restricted access
 
-## 后果
+## Consequences
 
-- **正面：** 架构极其简单，不需要租户选择、切换等逻辑
-- **正面：** 数据模型中 FamilySpace 只需一条记录，逻辑清晰
-- **正面：** UserAccount 与 FamilyMember 解耦，支持"无账号成员"场景
-- **负面：** 如果用户需要管理多个家庭（如帮助父母和岳父母），需要部署多个实例
-- **风险：** 需要注意开放注册可能导致非家庭成员加入；后续可通过管理员审核注册功能缓解
+- **Positive:** The architecture is extremely simple and does not require tenant selection or switching logic
+- **Positive:** Only one FamilySpace record is needed in the data model, which keeps the logic clear
+- **Positive:** UserAccount is decoupled from FamilyMember, supporting account-less members
+- **Negative:** If a user needs to manage multiple families, for example parents and parents-in-law, they must deploy multiple instances
+- **Risk:** Open registration can allow non-family members to join; this can later be mitigated with administrator-approved registration

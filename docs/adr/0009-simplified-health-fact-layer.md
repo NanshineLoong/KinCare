@@ -1,86 +1,91 @@
-# ADR-0009: MVP v1 采用简化版健康事实层
+# ADR-0009: Adopt A Simplified Health Fact Layer For MVP v1
 
-- **状态：** Accepted
-- **日期：** 2026-03-15
-- **关联提案：** [健康事实层简化设计：MVP-v1 精简版](../proposals/health-fact-layer-simplified.md)
-- **Supersedes：** ADR-0001 中关于 MVP 资源定义、字段集合和分类枚举的具体实现
+- **Status:** Accepted
+- **Date:** 2026-03-15
+- **Supersedes:** The specific MVP resource definitions, field sets, and category enums in ADR-0001
 
-## 背景与问题
+## Context And Problem
 
-ADR-0001 确立了 KinCare 采用 FHIR 风格的健康事实层，但当前 MVP 实现仍保留了较多面向通用医疗档案的复杂度，例如 `DocumentReference`、`MedicationStatement`、冗余的成员病史字段，以及不直接贴合当前 UI 和 OpenWearables 接入的资源划分。
+ADR-0001 established that KinCare would use a FHIR-style health fact layer, but the current MVP implementation still carries too much complexity from general medical record systems, including `DocumentReference`, `MedicationStatement`, redundant member history fields, and resource boundaries that do not map cleanly to the current UI and OpenWearables integration.
 
-随着 MVP-v1 范围收敛，现有数据模型暴露出以下问题：
+As the MVP v1 scope narrowed, the existing data model exposed the following problems:
 
-- 首页和成员页需要按 `慢病管理 / 生活习惯 / 生理指标` 直接查询和展示，当前 `Observation.category` 不匹配
-- 睡眠和运动本质是带起止时间的事件，继续塞入 `Observation` 会导致查询和展示都变复杂
-- `FamilyMember.allergies` 与 `FamilyMember.medical_history` 和 `Condition` 重复，存在双写与不一致风险
-- `DocumentReference` 及其 `source_ref` 链路超出当前 MVP 核心路径，增加 schema、接口和 AI 编排复杂度
-- 当前资源命名和字段设计与 UI 文案、日常使用场景不够贴合
+- The home page and member pages need to query and present data directly by `chronic-vitals / lifestyle / body-vitals`, but the current `Observation.category` does not match
+- Sleep and workout data are event-shaped by nature, with start and end times, and keeping them inside `Observation` makes querying and presentation more complex
+- `FamilyMember.allergies` and `FamilyMember.medical_history` duplicate `Condition`, creating double-write and inconsistency risk
+- `DocumentReference` and its `source_ref` chain are outside the MVP's current core path and add complexity to the schema, APIs, and AI orchestration
+- Current resource naming and field design do not fit the UI language and everyday usage scenarios well enough
 
-问题：在保持 FHIR 风格总体方向不变的前提下，MVP-v1 应采用什么样的健康事实层结构，才能同时满足 UI、AI 与设备接入需求，并压缩实现复杂度？
+Problem: while keeping the overall FHIR-style direction, what health fact layer structure should the MVP v1 adopt so it can satisfy UI, AI, and device-integration needs while reducing implementation complexity?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：保留现有 FHIR 风格实现，仅做局部打补丁
+### Option A: Keep the current FHIR-style implementation and patch it locally
 
-- 优点：迁移最小，当前代码可复用较多
-- 缺点：会继续保留冗余字段、资源语义不清和 UI 映射复杂度，长期成本更高
+- Pros: minimal migration and more reuse of current code
+- Cons: redundant fields, unclear resource semantics, and UI mapping complexity would remain, raising long-term cost
 
-### 方案 B：在 FHIR 风格边界内采用简化版健康事实层（选定）
+### Option B: Adopt a simplified health fact layer within FHIR-style boundaries (selected)
 
-- 优点：保留清晰资源边界，同时把资源集合、字段与枚举压缩到 MVP 真正需要的范围；与 UI 和 OpenWearables 映射更直接
-- 缺点：需要一次性 schema 和服务层迁移；会影响现有 API 和测试
+- Pros: preserves clear resource boundaries while compressing the resource set, fields, and enums to the scope the MVP actually needs; maps more directly to the UI and OpenWearables
+- Cons: requires a one-time schema and service-layer migration, affecting current APIs and tests
 
-### 方案 C：放弃资源化建模，改为完全按页面定制的数据表
+### Option C: Abandon resource-oriented modeling and switch to fully page-specific tables
 
-- 优点：短期贴页面快
-- 缺点：破坏 ADR-0001 建立的语义边界，不利于 AI 工具调用、后续 MCP 与长期演进
+- Pros: faster short-term delivery for page-level work
+- Cons: breaks the semantic boundaries established by ADR-0001 and is unfavorable for AI tool usage, future MCP support, and long-term evolution
 
-## 决策
+## Decision
 
-采用**方案 B：在 FHIR 风格边界内采用简化版健康事实层**。
+Adopt **Option B: a simplified health fact layer within FHIR-style boundaries**.
 
-本决策保留 ADR-0001 关于“使用 FHIR 风格资源划分”的总体方向，但以 MVP-v1 为范围，调整资源集合、字段和枚举定义：
+This decision keeps ADR-0001's overall direction of using FHIR-style resource boundaries, but adjusts the resource set, fields, and enum definitions for the MVP v1 scope:
 
-- `Observation.category` 改为 `chronic-vitals / lifestyle / body-vitals`
-- 新增 `SleepRecord` 与 `WorkoutRecord`，承载事件型健康数据
-- 新增 `HealthSummary`，承载 AI 每日生成的首页成员摘要
-- `MedicationStatement` 重命名并简化为 `Medication`
-- `FamilyMember` 移除 `allergies`、`medical_history`，统一由 `Condition` 承载
-- `Condition`、`Encounter`、`Medication`、`CarePlan` 的字段和枚举按 MVP 目标精简
-- 移除 `DocumentReference` 及各资源上的 `source_ref` 依赖，不再把独立文档管理作为 MVP 健康事实层的一部分
+- Change `Observation.category` to `chronic-vitals / lifestyle / body-vitals`
+- Add `SleepRecord` and `WorkoutRecord` to carry event-style health data
+- Add `HealthSummary` to carry AI-generated daily summaries for the home page
+- Rename and simplify `MedicationStatement` into `Medication`
+- Remove `allergies` and `medical_history` from `FamilyMember` and unify them under `Condition`
+- Simplify the fields and enums of `Condition`, `Encounter`, `Medication`, and `CarePlan` for MVP goals
+- Remove `DocumentReference` and all `source_ref` dependencies from resources, and stop treating standalone document management as part of the MVP health fact layer
 
-## 决策细节
+## Decision Details
 
-### 1. 继续保留资源化建模
+### 1. Keep resource-oriented modeling
 
-KinCare 仍然按 `FamilyMember` 为核心聚合根，围绕其组织 Observation、Condition、Medication、Encounter、CarePlan 等资源，避免退化为页面专用表。
+KinCare continues to use `FamilyMember` as the core aggregate root, organizing resources such as Observation, Condition, Medication, Encounter, and CarePlan around it, instead of degenerating into page-specific tables.
 
-### 2. 事件型数据独立建模
+### 2. Model event-shaped data independently
 
-睡眠和运动改为单独资源，而不是 `Observation` 的特例。这样更符合时段型数据本质，也让 UI、统计和 AI 读取更直接。
+Sleep and workout data become separate resources instead of special cases of `Observation`. This better matches the nature of time-bounded event data and makes UI rendering, analytics, and AI access more direct.
 
-### 3. 成员静态档案与动态健康事实分离
+### 3. Separate static member profiles from dynamic health facts
 
-`FamilyMember` 只保留稳定档案字段。过敏、慢病、既往病史等动态内容统一进入 `Condition`，避免一份信息在成员档案和健康事实层中双写。
+`FamilyMember` keeps only stable profile fields. Dynamic content such as allergies, chronic conditions, and medical history is unified under `Condition`, avoiding double-write across member profiles and the health fact layer.
 
-### 4. MVP 移除独立文档资源
+### 4. Remove standalone document resources from the MVP
 
-MVP-v1 不把独立的文档上传管理作为核心健康事实资源。AI 提取和录入链路以后续对话上下文和受控工具为主，而不是围绕 `DocumentReference` 建模。
+The MVP v1 does not treat standalone document-upload management as a core health fact resource. AI extraction and write-in flows should center on chat context and controlled tools, rather than on `DocumentReference` modeling.
 
-### 5. 数据模型优先服务当前 UI 与 AI
+### 5. Prioritize the current UI and AI when shaping the data model
 
-分类、命名和字段选择优先满足：
+Category choices, naming, and field selection should primarily satisfy:
 
-- 首页与成员页的直接查询和展示
-- AI 工具对成员健康上下文的按需读取
-- OpenWearables 到资源层的一次性映射
+- Direct query and rendering needs for the home page and member pages
+- On-demand AI tool access to member health context
+- One-pass mapping from OpenWearables into the resource layer
 
-## 后果
+## Consequences
 
-- **正面：** 数据模型与当前产品页面和 AI 交互路径更一致，前后端查询会明显简化
-- **正面：** 睡眠、运动、首页摘要等核心场景拥有更贴切的资源边界
-- **正面：** 减少冗余字段和跨资源引用，降低数据不一致风险
-- **负面：** 这是一次破坏性 schema 迁移，需要同步调整服务层、API、测试和已有样例数据
-- **负面：** MVP 将不再提供独立的文档资源管理能力，后续如需恢复，必须通过新 ADR 重新定义边界
-- **风险：** 旧数据向新枚举和新表结构迁移时，需要明确映射策略，尤其是 `Observation.category`、成员病史字段和文档相关来源字段
+- **Positive:** The data model aligns better with current product pages and AI interaction paths, making frontend and backend queries significantly simpler
+- **Positive:** Core scenarios such as sleep, workout, and home-page summaries get more appropriate resource boundaries
+- **Positive:** Redundant fields and cross-resource references are reduced, lowering inconsistency risk
+- **Positive:** The current stable resource set becomes `FamilyMember`, `Observation`, `SleepRecord`, `WorkoutRecord`, `Condition`, `Medication`, `Encounter`, `HealthSummary`, and `CarePlan`
+- **Negative:** This is a breaking schema migration and requires synchronized changes to the service layer, APIs, tests, and existing sample data
+- **Negative:** The MVP will no longer provide standalone document-resource management; if it is needed later, boundaries must be redefined through a new ADR
+- **Risk:** Migration from old data into the new enums and table structures requires explicit mapping strategies, especially for `Observation.category`, member history fields, and document-related source fields
+
+## Current Documentation Location
+
+- See [`../architecture/overview.md`](../architecture/overview.md) for the architecture overview
+- See [`../architecture/data-model.md`](../architecture/data-model.md) for current data model details

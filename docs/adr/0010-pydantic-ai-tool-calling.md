@@ -1,88 +1,93 @@
-# ADR-0010: 应用内 AI 编排采用 PydanticAI Tool-Calling 循环
+# ADR-0010: Use A PydanticAI Tool-Calling Loop For In-App AI Orchestration
 
-- **状态：** Accepted
-- **日期：** 2026-03-15
-- **关联提案：** [AI 功能架构设计：基于 PydanticAI 的 Tool-Calling 循环](../proposals/ai-architecture-pydantic-ai.md)
-- **Supersedes：** `docs/architecture/phase-4-ai-design.md` 中关于轻量自定义 orchestrator 与 provider 抽象的默认实现方向
+- **Status:** Accepted
+- **Date:** 2026-03-15
+- **Supersedes:** The old default direction based on a lightweight custom orchestrator and provider abstraction
 
-## 背景与问题
+## Context And Problem
 
-当前 Phase 4 的 AI 对话能力已经在应用内落地，但核心编排仍以规则驱动为主：工具选择依赖关键字和正则判断，每次请求最多触发有限的固定路径，难以支撑更自然的多步推理、读写组合和草稿审批流程。
+KinCare already has in-app AI chat capability, but its core orchestration is still largely rule-driven. Tool selection depends on keywords and regex checks, and each request can trigger only a limited set of fixed paths. This makes it difficult to support more natural multi-step reasoning, read-write combinations, and draft approval flows.
 
-这带来几个明显问题：
+This creates several obvious problems:
 
-- 工具选择依赖字符串匹配，难以稳定理解真实用户意图
-- 编排循环基本是“单次判断 + 单个工具 + 文本回复”，不适合多步读写组合
-- 高风险写入虽然已有草稿确认概念，但缺少统一的工具级审批机制
-- 流式输出、工具调用事件、测试替身模型等能力需要大量自定义胶水代码
+- Tool selection depends on string matching and cannot reliably understand real user intent
+- The orchestration loop is essentially "single decision + single tool + text reply", which is not suitable for multi-step read-write combinations
+- High-risk writes already have a draft-confirmation concept, but there is no unified tool-level approval mechanism
+- Streaming output, tool-call events, and test double models require a large amount of custom glue code
 
-问题：KinCare 在继续坚持“应用内受控工具调用”和“最小上下文 + 服务层鉴权”的前提下，应采用什么 AI 编排框架来替代当前规则驱动 orchestrator？
+Problem: while keeping the principles of "in-app controlled tool calling" and "minimal context + service-layer authorization," what AI orchestration framework should KinCare adopt to replace the current rule-driven orchestrator?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：继续维护自定义 orchestrator
+### Option A: Continue maintaining a custom orchestrator
 
-- 优点：依赖最少，可完全按项目需要定制
-- 缺点：工具 schema、流式事件、审批恢复、测试模型等基础设施都要自行维护，复杂度会持续上升
+- Pros: minimal dependencies and full customization for project needs
+- Cons: infrastructure such as tool schemas, streaming events, approval recovery, and test models all have to be maintained manually, so complexity will keep growing
 
-### 方案 B：直接使用原生 OpenAI SDK Tool Calling
+### Option B: Use native OpenAI SDK tool calling directly
 
-- 优点：底层能力直接，兼容 OpenAI-compatible 服务灵活
-- 缺点：需要手写更多 schema、循环控制、依赖注入和审批机制，项目层封装成本仍然较高
+- Pros: direct access to low-level capabilities and flexible compatibility with OpenAI-compatible services
+- Cons: requires hand-written schemas, loop control, dependency injection, and approval mechanisms, so project-level integration cost remains high
 
-### 方案 C：采用 PydanticAI 的 Tool-Calling 循环（选定）
+### Option C: Adopt PydanticAI's tool-calling loop (selected)
 
-- 优点：与 FastAPI/Pydantic 风格一致，提供 `RunContext` 依赖注入、`agent.iter()` 流式循环、`requires_approval` 审批、测试模型和 OpenAI-compatible provider 适配
-- 缺点：新增框架依赖，需要跟踪其 API 变化，并在接入前验证官方文档中的最新用法
+- Pros: aligned with the FastAPI and Pydantic style; provides `RunContext` dependency injection, `agent.iter()` streaming loops, `requires_approval`, test models, and OpenAI-compatible provider support
+- Cons: introduces a new framework dependency, requires tracking API changes, and requires validating current official documentation before integration
 
-## 决策
+## Decision
 
-采用**方案 C：PydanticAI Tool-Calling 循环**作为 KinCare 应用内 AI 编排的默认实现。
+Adopt **Option C: a PydanticAI tool-calling loop** as the default implementation for KinCare's in-app AI orchestration.
 
-具体原则如下：
+The specific principles are:
 
-- 继续坚持应用内编排，不把前端对话第一跳改为 MCP
-- 所有 AI 读写仍然只能通过现有业务服务层和成员级权限校验完成
-- system prompt 仅注入最小必要上下文，详细健康数据按需通过工具读取
-- 工具按风险分级设计，核心健康档案写入必须走用户确认
+- Continue to keep orchestration inside the app and do not move the frontend chat's first hop to MCP
+- All AI reads and writes must still go through the existing business service layer and member-level permission checks
+- The system prompt should inject only the minimal necessary context, while detailed health data is fetched on demand through tools
+- Tools should be designed by risk level, and core health-record writes must require user confirmation
 
-## 决策细节
+## Decision Details
 
-### 1. 用 `agent.iter()` 替代规则驱动主循环
+### 1. Replace the rule-driven main loop with `agent.iter()`
 
-对话主流程改为由 LLM 驱动的 tool-calling 循环，允许在一次请求中执行多轮“读取信息 → 推理 → 写入或建议 → 继续生成”。
+The chat flow becomes an LLM-driven tool-calling loop, allowing multiple rounds of "read information -> reason -> write or suggest -> continue generating" within a single request.
 
-### 2. 采用统一的依赖注入模型
+### 2. Use a unified dependency injection model
 
-所有工具通过 `RunContext[AIDeps]` 获取数据库、当前用户、焦点成员、调度器和会话上下文。工具不得绕过服务层直接操作数据库。
+All tools obtain the database, current user, focus member, scheduler, and session context through `RunContext[AIDeps]`. Tools must not bypass the service layer to operate on the database directly.
 
-### 3. 工具按风险分级
+### 3. Categorize tools by risk level
 
-工具分为四类：
+Tools are divided into four categories:
 
-- 读取类工具：无副作用，可由模型随时调用
-- 低风险写入：如创建提醒、标记完成，可直接执行
-- 高风险写入：如录入 Observation、Condition、Medication、Encounter，必须使用 `requires_approval=True`
-- 主动建议工具：只给出建议，不直接写入
+- Read tools: side-effect free and callable by the model at any time
+- Low-risk writes: such as creating reminders or marking completion, executable directly
+- High-risk writes: such as recording Observation, Condition, Medication, or Encounter, which must use `requires_approval=True`
+- Proactive suggestion tools: provide suggestions only and do not write directly
 
-### 4. 将审批流建模为框架能力
+### 4. Model approval as a framework capability
 
-高风险写入统一使用 `DeferredToolRequests` / `DeferredToolResults` 恢复流程，对前端暴露结构化草稿确认体验，而不是继续依赖自定义临时协议。
+High-risk writes uniformly use the `DeferredToolRequests` and `DeferredToolResults` recovery flow, exposing a structured draft confirmation experience to the frontend instead of continuing to rely on a temporary custom protocol.
 
-### 5. 保留现有架构边界，替换的是编排实现而不是权限模型
+### 5. Preserve the current architecture boundaries; replace orchestration, not the permission model
 
-本 ADR 替换的是 AI 编排框架和工具注册方式，不改变以下边界：
+This ADR replaces the AI orchestration framework and tool registration approach, but does not change the following boundaries:
 
-- 成员级权限校验仍由现有业务层负责
-- AI 不直接访问数据库表
-- `backend/app/ai/` 目录职责边界继续保留
-- MCP 仍然是后续对外协议层，而不是应用内对话主通路
+- Member-level permission checks remain the responsibility of the existing business layer
+- AI does not access database tables directly
+- The responsibility boundaries under `backend/app/ai/` remain in place
+- MCP remains a later external protocol layer rather than the main in-app chat path
 
-## 后果
+## Consequences
 
-- **正面：** 工具选择和多步调用由模型驱动，能更自然处理问答、隐式行动、明确提取和分析建议
-- **正面：** 流式输出、审批恢复、测试替身模型和 OpenAI-compatible 适配有了统一基础设施
-- **正面：** 能在不牺牲权限和服务层边界的情况下提升 AI 能力上限
-- **负面：** 引入新的框架依赖和学习成本，后续升级需要关注上游 API 变化
-- **负面：** 现有 orchestrator、provider 和测试代码需要一次重构
-- **风险：** 若不先验证 PydanticAI 最新 API，容易出现提案示例与真实版本不一致的问题，因此实现前必须核对官方文档
+- **Positive:** Tool selection and multi-step invocation are model-driven, enabling more natural handling of Q&A, implicit actions, explicit extraction, and analytical suggestions
+- **Positive:** Streaming output, approval recovery, test double models, and OpenAI-compatible adaptation now have shared infrastructure
+- **Positive:** AI capability ceilings can improve without sacrificing permission or service-layer boundaries
+- **Positive:** The four tool categories, read tools, low-risk writes, high-risk approvals, and proactive suggestions, can be expressed consistently in one runtime
+- **Negative:** A new framework dependency and learning cost are introduced, and future upgrades must track upstream API changes
+- **Negative:** Existing orchestrator, provider, and test code require a one-time refactor
+- **Risk:** If the latest PydanticAI API is not verified first, proposal examples may diverge from the real version, so official documentation must be checked before implementation
+
+## Current Documentation Location
+
+- See [`../architecture/overview.md`](../architecture/overview.md) for the architecture overview
+- See [`../architecture/ai-design.md`](../architecture/ai-design.md) for AI runtime details

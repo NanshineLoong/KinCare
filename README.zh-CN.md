@@ -33,8 +33,8 @@ KinCare 当前推荐使用 Docker Compose 安装。
 
 ```bash
 cp .env.example .env
-# 编辑 .env，至少设置 KINCARE_JWT_SECRET
-# 如需聊天、语音转写和 AI 生成能力，再补充 AI / STT 配置
+# 如果要用于真实部署，请先修改 KINCARE_JWT_SECRET
+# AI / STT 默认值也可以在首次登录后通过 设置 -> 管理员配置 再补充
 
 docker compose up -d --build
 ```
@@ -42,6 +42,14 @@ docker compose up -d --build
 启动后访问：
 
 - Web 应用：`http://localhost:8080`
+
+启动后建议按这个顺序完成初始化：
+
+1. 注册第一个用户，填写用户名、可选邮箱和密码。
+2. 点击右上角头像，进入 `设置 -> 管理员配置`。
+3. 如果需要 AI 能力，再配置对话模型、语音转写和每日刷新时间。
+
+如果你只是先体验界面和手动健康档案录入，不需要提前在 `.env` 中填写 AI 或 STT 参数。
 
 说明：
 
@@ -61,8 +69,8 @@ cp .env.example .env
 
 ```bash
 cd backend
-UV_CACHE_DIR=/tmp/kincare-uv-cache uv venv .venv
-UV_CACHE_DIR=/tmp/kincare-uv-cache uv pip install --python .venv/bin/python -r requirements.txt
+uv venv .venv
+uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/uvicorn app.main:app --reload
 ```
 
@@ -71,8 +79,10 @@ UV_CACHE_DIR=/tmp/kincare-uv-cache uv pip install --python .venv/bin/python -r r
 ```bash
 cd frontend
 npm ci
-VITE_API_BASE_URL=http://localhost:8000 npm run dev -- --host 0.0.0.0 --port 5173
+VITE_API_BASE_URL=http://localhost:8000 npm run dev
 ```
+
+这里保留 `VITE_API_BASE_URL`，是因为本地开发时前端运行在 `:5173`，后端 API 运行在 `:8000`。
 
 本地访问地址：
 
@@ -81,10 +91,13 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev -- --host 0.0.0.0 --port 517
 
 ## 家庭空间与权限
 
-- 一次部署对应一个家庭空间。
-- 第一个注册用户会自动成为家庭管理员。
-- 管理员可以添加成员并管理权限。
-- 成员访问遵循 `read / write / manage` 三级权限，并支持按范围授权。
+> [!NOTE]
+> 一次部署对应一个家庭空间。
+> 第一个注册用户会自动成为家庭管理员。
+> 后续注册用户会自动加入同一个家庭空间。
+> 管理员可以直接添加没有账号的成员档案，成员访问遵循 `read / write / manage` 三级权限，并支持按范围授权。
+>
+> 当前默认是开放注册。如果把实例暴露给不受信任的外部用户，后续注册者也会进入同一个家庭空间。
 
 ## 项目技术栈
 

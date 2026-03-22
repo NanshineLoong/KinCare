@@ -64,16 +64,15 @@ export function getLocalWhisperModelStatus(
   session: AuthSession,
   params: { model: string; downloadRoot: string },
 ): Promise<LocalWhisperModelStatus> {
-  const url = new URL(
-    buildApiUrl("/api/admin/settings/transcription/local-whisper-model-status"),
-  );
-  url.searchParams.set("model", params.model);
+  const path = buildApiUrl("/api/admin/settings/transcription/local-whisper-model-status");
+  const searchParams = new URLSearchParams();
+  searchParams.set("model", params.model);
   const root = params.downloadRoot.trim();
   if (root) {
-    url.searchParams.set("download_root", root);
+    searchParams.set("download_root", root);
   }
   return getAuthorized<LocalWhisperModelStatus>(
-    `${url.pathname}${url.search}`,
+    `${path}?${searchParams.toString()}`,
     session,
   );
 }

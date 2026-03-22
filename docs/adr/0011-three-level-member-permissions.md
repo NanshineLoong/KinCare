@@ -1,85 +1,84 @@
-# ADR-0011: 成员授权采用三级权限与范围化授权
+# ADR-0011: Adopt Three-Level Member Permissions With Scoped Grants
 
-- **状态：** Accepted
-- **日期：** 2026-03-16
-- **关联计划：** [KinCare v2 开发计划 Step 1](../../.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md)
-- **Supersedes：** 当前基于 `member_access_grant.can_write` 的布尔授权模型
+- **Status:** Accepted
+- **Date:** 2026-03-16
+- **Supersedes:** The current boolean authorization model based on `member_access_grant.can_write`
 
-## 背景与问题
+## Context And Problem
 
-KinCare 已经把成员级权限作为健康数据访问的核心边界，但现有授权模型只有一个 `can_write` 布尔值，语义已经不够用：
+KinCare already treats member-level permissions as the core boundary for health-data access, but the current authorization model has only a single `can_write` boolean, and its semantics are no longer sufficient:
 
-- 无法区分“可读但不可写”和“可管理授权关系”的差异
-- 无法表达“对所有成员生效”的授权范围
-- 前端权限界面、AI 读取权限和服务层写入权限缺少统一判定规则
-- 会导致后续建议写回、手动编辑、会话恢复等能力在权限判断上继续分叉
+- It cannot distinguish between "readable but not writable" and "able to manage permission relationships"
+- It cannot express authorization that applies to all members
+- The frontend permission UI, AI read permissions, and service-layer write permissions lack one unified decision rule
+- It would cause later features such as suggestion write-back, manual editing, and session recovery to continue diverging in permission handling
 
-问题：KinCare 应采用什么样的授权模型，才能同时支撑成员档案访问、档案写入、AI 工具调用和授权管理界面？
+Problem: what authorization model should KinCare adopt so it can support member profile access, record writing, AI tool usage, and the authorization management UI at the same time?
 
-## 考虑的方案
+## Considered Options
 
-### 方案 A：继续使用 `can_write` 布尔授权
+### Option A: Continue using the `can_write` boolean authorization
 
-- 优点：实现最简单，迁移成本最低
-- 缺点：表达能力不足，读 / 写 / 管理的能力边界继续混在一起
+- Pros: simplest implementation with the lowest migration cost
+- Cons: insufficient expressive power, and the boundaries between read, write, and manage remain mixed together
 
-### 方案 B：为每条授权增加多个布尔字段
+### Option B: Add multiple boolean fields to each grant
 
-- 优点：比单个布尔更灵活
-- 缺点：字段组合容易失控，包含关系和 UI 展示都不够直观
+- Pros: more flexible than a single boolean
+- Cons: field combinations become hard to control, and inclusion relationships plus UI presentation become unintuitive
 
-### 方案 C：采用三级权限 + 范围化授权（选定）
+### Option C: Three permission levels plus scoped grants (selected)
 
-- 优点：能力边界清晰，可直接映射前端 UI、服务层校验和 AI 工具访问
-- 缺点：需要同步调整 schema、服务层、API 和现有权限判断逻辑
+- Pros: capability boundaries are clear and map directly to the frontend UI, service-layer checks, and AI tool access
+- Cons: requires coordinated changes to the schema, service layer, APIs, and existing permission logic
 
-## 决策
+## Decision
 
-采用**三级权限 + 范围化授权**模型。
+Adopt a **three-level permission model with scoped grants**.
 
-### 1. 权限等级
+### 1. Permission levels
 
-`member_access_grant.permission_level` 采用以下枚举：
+`member_access_grant.permission_level` uses the following enums:
 
-- `read`：可读取成员健康数据，可打开成员档案，可供 AI 在授权范围内读取
-- `write`：可修改成员健康数据，且天然包含 `read`
-- `manage`：可管理授权关系，且天然包含 `write` 和 `read`
+- `read`: can read member health data, open member profiles, and allow AI to read within the authorized scope
+- `write`: can modify member health data and implicitly includes `read`
+- `manage`: can manage authorization relationships and implicitly includes both `write` and `read`
 
-包含关系为：
+The inclusion relationship is:
 
 ```text
 manage > write > read
 ```
 
-### 2. 授权范围
+### 2. Grant scope
 
-`member_access_grant.target_scope` 采用以下枚举：
+`member_access_grant.target_scope` uses the following enums:
 
-- `specific`：授权只针对单个成员
-- `all`：授权针对当前家庭空间内的所有成员
+- `specific`: the grant applies only to one member
+- `all`: the grant applies to all members in the current family space
 
-当 `target_scope = 'specific'` 时，`member_id` 必须指向目标成员。  
-当 `target_scope = 'all'` 时，`member_id` 为空，由家庭空间范围隐式覆盖全部成员。
+When `target_scope = 'specific'`, `member_id` must point to the target member.  
+When `target_scope = 'all'`, `member_id` is empty and the family-space scope implicitly covers all members.
 
-### 3. 权限判定规则
+### 3. Permission decision rules
 
-- `admin` 仍然拥有全量能力
-- AI 读取成员数据至少需要 `read`
-- 手动编辑、草稿确认、建议写回至少需要 `write`
-- 查看、授予、撤销授权至少需要 `manage`
-- `all` 范围授权优先于 `specific` 单成员授权参与判定
+- `admin` still has full capabilities
+- AI reads of member data require at least `read`
+- Manual editing, draft confirmation, and suggestion write-back require at least `write`
+- Viewing, granting, and revoking authorizations require at least `manage`
+- `all`-scope grants participate in evaluation before `specific` single-member grants
 
-### 4. 对前后端边界的要求
+### 4. Requirements for frontend-backend boundaries
 
-- 服务层是唯一权限真相源
-- API 和 AI 工具不得绕过服务层自行判断或直连数据库
-- 前端只负责能力展示和禁用态，不以 UI 结果替代后端校验
+- The service layer is the only source of truth for permissions
+- APIs and AI tools must not bypass the service layer for their own permission decisions or direct database access
+- The frontend is responsible only for capability presentation and disabled states; UI results must not replace backend validation
 
-## 后果
+## Consequences
 
-- **正面：** 权限语义可直接覆盖首页、成员档案、AI 对话、授权管理和建议写回
-- **正面：** `specific / all` 让常见家庭授权场景不再依赖重复 grant 记录
-- **正面：** `manage` 能把“能编辑档案”和“能管理别人的权限”明确拆开
-- **负面：** 需要一次性迁移数据库字段与现有权限判断逻辑
-- **负面：** 前后端展示和测试样例都需要同步改造
-- **风险：** 如果服务层没有统一处理包含关系和范围优先级，容易出现前端和 AI 工具判定不一致
+- **Positive:** Permission semantics directly cover the home page, member profiles, AI chat, authorization management, and suggestion write-back
+- **Positive:** `specific / all` removes the need for duplicated grant records in common family authorization scenarios
+- **Positive:** `manage` clearly separates "can edit records" from "can manage others' permissions"
+- **Negative:** A one-time migration of database fields and existing permission logic is required
+- **Negative:** Frontend presentation and test fixtures both need coordinated updates
+- **Risk:** If the service layer does not handle inclusion relationships and scope precedence uniformly, frontend and AI tool decisions can diverge
