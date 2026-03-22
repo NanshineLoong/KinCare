@@ -83,6 +83,8 @@ class DailyGenerationService:
         model = _build_model(settings)
         self.summary_agent: Agent[None, DailyHealthSummaryBundle] | None = None
         self.care_plan_agent: Agent[None, DailyCarePlanDecision] | None = None
+        self.summary_fallback_agent: Agent[None, str] | None = None
+        self.care_plan_fallback_agent: Agent[None, str] | None = None
 
         if model is not None:
             self.summary_agent = Agent(
@@ -95,6 +97,16 @@ class DailyGenerationService:
                 output_type=DailyCarePlanDecision,
                 instructions=CARE_PLAN_AGENT_INSTRUCTIONS,
             )
+            self.summary_fallback_agent = Agent(
+                model,
+                output_type=str,
+                instructions=SUMMARY_FALLBACK_AGENT_INSTRUCTIONS,
+            )
+            self.care_plan_fallback_agent = Agent(
+                model,
+                output_type=str,
+                instructions=CARE_PLAN_FALLBACK_AGENT_INSTRUCTIONS,
+            )
 
     async def generate_health_summaries(
         self,
@@ -105,14 +117,21 @@ class DailyGenerationService:
         if self.summary_agent is None:
             raise RuntimeError("AI daily generation is not configured.")
         validated_snapshot = _validated_snapshot(snapshot)
-        result = await self.summary_agent.run(
-            _snapshot_prompt(
-                validated_snapshot,
-                output_language=output_language,
-                task="health_summary",
-            )
+        prompt = _snapshot_prompt(
+            validated_snapshot,
+            output_language=output_language,
+            task="health_summary",
         )
-        return _normalized_summary_bundle(result.output)
+        try:
+            result = await self.summary_agent.run(prompt)
+            return _normalized_summary_bundle(result.output)
+        except Exception as error:
+            if self.summary_fallback_agent is None or not _should_retry_with_text_fallback(error):
+                raise
+            fallback_result = await self.summary_fallback_agent.run(prompt)
+            return _normalized_summary_bundle(
+                _parse_json_output(fallback_result.output, DailyHealthSummaryBundle)
+            )
 
     async def generate_care_plan(
         self,
@@ -123,14 +142,19 @@ class DailyGenerationService:
         if self.care_plan_agent is None:
             raise RuntimeError("AI daily generation is not configured.")
         validated_snapshot = _validated_snapshot(snapshot)
-        result = await self.care_plan_agent.run(
-            _snapshot_prompt(
-                validated_snapshot,
-                output_language=output_language,
-                task="care_plan",
-            )
+        prompt = _snapshot_prompt(
+            validated_snapshot,
+            output_language=output_language,
+            task="care_plan",
         )
-        return result.output
+        try:
+            result = await self.care_plan_agent.run(prompt)
+            return result.output
+        except Exception as error:
+            if self.care_plan_fallback_agent is None or not _should_retry_with_text_fallback(error):
+                raise
+            fallback_result = await self.care_plan_fallback_agent.run(prompt)
+            return _parse_json_output(fallback_result.output, DailyCarePlanDecision)
 
 
 def _snapshot_prompt(
@@ -189,6 +213,28 @@ CARE_PLAN_AGENT_INSTRUCTIONS = "\n".join(
 )
 
 
+SUMMARY_FALLBACK_AGENT_INSTRUCTIONS = "\n".join(
+    [
+        "You generate daily health summaries for the KinCare home dashboard.",
+        "Use only facts from the provided snapshot. Do not add unsupported data.",
+        "Return only valid JSON matching this exact shape: {\"summaries\": [{\"category\": str, \"label\": str, \"value\": str, \"status\": \"good\" | \"warning\" | \"alert\"}]}",
+        "Return 0-4 summaries ordered from most important to least important.",
+        "Do not output Markdown, code fences, bullet lists, or free-form explanations.",
+    ]
+)
+
+
+CARE_PLAN_FALLBACK_AGENT_INSTRUCTIONS = "\n".join(
+    [
+        "You generate 0-3 AI care-plan reminders for the current day.",
+        "Use only facts from the provided snapshot. Do not add unsupported data.",
+        "Return only valid JSON matching this exact shape: {\"care_plans\": [{\"category\": str, \"icon_key\": str | null, \"time_slot\": str, \"assignee_member_id\": str | null, \"title\": str, \"description\": str, \"notes\": str | null}]}",
+        "time_slot must use one of: 清晨, 上午, 午后, 晚间, 睡前.",
+        "Do not output Markdown, code fences, bullet lists, or free-form explanations.",
+    ]
+)
+
+
 def _build_model(settings: Settings) -> OpenAIChatModel | None:
     if not settings.ai_base_url or not settings.ai_api_key:
         return None
@@ -209,3 +255,19 @@ def _validated_snapshot(snapshot: DailyHealthSnapshot | dict[str, Any]) -> Daily
 
 def _normalized_summary_bundle(bundle: DailyHealthSummaryBundle) -> DailyHealthSummaryBundle:
     return DailyHealthSummaryBundle(summaries=bundle.summaries[:4])
+
+
+def _should_retry_with_text_fallback(error: Exception) -> bool:
+    return "invalid response from openai chat completions endpoint" in str(error).lower()
+
+
+def _parse_json_output(raw_output: str, model_type: type[BaseModel]) -> BaseModel:
+    cleaned_output = raw_output.strip()
+    if cleaned_output.startswith("```"):
+        lines = cleaned_output.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned_output = "\n".join(lines).strip()
+    return model_type.model_validate_json(cleaned_output)

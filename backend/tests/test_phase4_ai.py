@@ -338,6 +338,106 @@ def shanghai_today(hour: int, minute: int = 0) -> str:
     return now.replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
 
 
+def test_daily_generation_falls_back_to_text_json_for_health_summaries_when_structured_output_fails(
+    client: TestClient,
+) -> None:
+    daily_generation_module = importlib.import_module("app.ai.daily_generation")
+    service = daily_generation_module.DailyGenerationService(client.app.state.settings)
+    snapshot = daily_generation_module.DailyHealthSnapshot(
+        member={"id": "member-1", "name": "奶奶"},
+        timezone="Asia/Shanghai",
+        generated_for_date="2026-03-22",
+    )
+
+    class StubAgent:
+        def __init__(self, *, output: Any = None, error: Exception | None = None) -> None:
+            self._output = output
+            self._error = error
+
+        async def run(self, prompt: str) -> Any:
+            del prompt
+            if self._error is not None:
+                raise self._error
+            return SimpleNamespace(output=self._output)
+
+    service.summary_agent = StubAgent(
+        error=RuntimeError(
+            "Invalid response from openai chat completions endpoint: "
+            "4 validation errors for ChatCompletion"
+        )
+    )
+    service.summary_fallback_agent = StubAgent(
+        output=json.dumps(
+            {
+                "summaries": [
+                    {
+                        "category": "血压趋势",
+                        "label": "血压控制",
+                        "value": "今天收缩压更稳定，继续保持监测。",
+                        "status": "good",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    bundle = asyncio.run(service.generate_health_summaries(snapshot, output_language="zh"))
+
+    assert [item.label for item in bundle.summaries] == ["血压控制"]
+    assert bundle.summaries[0].value == "今天收缩压更稳定，继续保持监测。"
+
+
+def test_daily_generation_falls_back_to_text_json_for_care_plans_when_structured_output_fails(
+    client: TestClient,
+) -> None:
+    daily_generation_module = importlib.import_module("app.ai.daily_generation")
+    service = daily_generation_module.DailyGenerationService(client.app.state.settings)
+    snapshot = daily_generation_module.DailyHealthSnapshot(
+        member={"id": "member-1", "name": "奶奶"},
+        timezone="Asia/Shanghai",
+        generated_for_date="2026-03-22",
+    )
+
+    class StubAgent:
+        def __init__(self, *, output: Any = None, error: Exception | None = None) -> None:
+            self._output = output
+            self._error = error
+
+        async def run(self, prompt: str) -> Any:
+            del prompt
+            if self._error is not None:
+                raise self._error
+            return SimpleNamespace(output=self._output)
+
+    service.care_plan_agent = StubAgent(
+        error=RuntimeError(
+            "Invalid response from openai chat completions endpoint: "
+            "4 validation errors for ChatCompletion"
+        )
+    )
+    service.care_plan_fallback_agent = StubAgent(
+        output=json.dumps(
+            {
+                "care_plans": [
+                    {
+                        "category": "activity-reminder",
+                        "time_slot": "午后",
+                        "title": "午后散步 20 分钟",
+                        "description": "午饭后安排一段轻量散步。",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        )
+    )
+
+    decision = asyncio.run(service.generate_care_plan(snapshot, output_language="zh"))
+
+    assert [item.title for item in decision.care_plans] == ["午后散步 20 分钟"]
+    assert decision.care_plans[0].description == "午饭后安排一段轻量散步。"
+
+
 def test_chat_stream_text_extractor_reads_part_start_and_part_delta(client: TestClient) -> None:
     del client
     messages_module = importlib.import_module("pydantic_ai.messages")
@@ -449,7 +549,6 @@ def test_chat_prompt_uses_english_internal_instructions_and_requested_output_lan
     assert "Respond to the user in English." in prompt_dump
     assert "Use English for all internal instructions." in prompt_dump
     assert "For condition records, category must be exactly one of: diagnosis, chronic, allergy, family-history." in prompt_dump
-    assert "Do not emit unsupported condition categories such as acute" in prompt_dump
     assert "用中文回答" not in prompt_dump
 
 
@@ -515,7 +614,8 @@ def test_build_system_prompt_restricts_condition_categories_to_supported_values(
     )
 
     assert "diagnosis, chronic, allergy, family-history" in prompt
-    assert "Do not emit unsupported condition categories such as acute" in prompt
+    assert "Do not emit unsupported condition categories." in prompt
+    assert "Map short-term illnesses into diagnosis" in prompt
 
 
 def test_chat_cannot_read_unauthorized_member_data(client: TestClient) -> None:
