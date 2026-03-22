@@ -14,6 +14,7 @@ from app.schemas.health import (
     ConditionRead,
     ConditionUpdate,
     DashboardRead,
+    DailyGenerationRefreshRequest,
     DailyGenerationRefreshResult,
     EncounterCreate,
     EncounterRead,
@@ -70,6 +71,7 @@ def read_dashboard(
 @dashboard_router.post("/api/dashboard/today-reminders/refresh", response_model=DailyGenerationRefreshResult)
 def refresh_dashboard_today_reminders(
     request: Request,
+    payload: DailyGenerationRefreshRequest | None = None,
     database: Database = Depends(get_database),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -79,7 +81,10 @@ def refresh_dashboard_today_reminders(
         required_permission="write",
     )
     scheduler = request.app.state.scheduler
-    return scheduler.refresh_daily_care_plans_for_member_ids([member["id"] for member in members])
+    return scheduler.refresh_daily_care_plans_for_member_ids(
+        [member["id"] for member in members],
+        output_language=(payload.language if payload is not None else None),
+    )
 
 
 @observations_router.get("", response_model=list[ObservationRead])
@@ -462,12 +467,16 @@ def read_health_summaries(
 def refresh_health_summaries_for_member(
     member_id: str,
     request: Request,
+    payload: DailyGenerationRefreshRequest | None = None,
     database: Database = Depends(get_database),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     ensure_member_access(database, current_user, member_id, required_permission="write")
     scheduler = request.app.state.scheduler
-    return scheduler.refresh_health_summaries_for_member_ids([member_id])
+    return scheduler.refresh_health_summaries_for_member_ids(
+        [member_id],
+        output_language=(payload.language if payload is not None else None),
+    )
 
 
 @health_summaries_router.post("", response_model=HealthSummaryRead, status_code=status.HTTP_201_CREATED)

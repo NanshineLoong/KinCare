@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from contextlib import ExitStack
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -263,6 +262,7 @@ def stream_chat_message(
     content: str,
     attachments: list[dict[str, Any]] | None = None,
     member_selection_mode: str = "explicit",
+    language: str = "en",
 ) -> list[dict[str, Any]]:
     with client.stream(
         "POST",
@@ -274,6 +274,7 @@ def stream_chat_message(
             "member_selection_mode": member_selection_mode,
             "page_context": page_context,
             "attachments": attachments or [],
+            "language": language,
         },
     ) as response:
         assert response.status_code == 200, response.text
@@ -405,6 +406,47 @@ def test_chat_session_message_stream_reads_authorized_data_and_returns_tool_even
     assert events[2]["data"]["tool_name"] == "get_member_summary"
     assert "收缩压" in events[2]["data"]["content"]
     assert "早餐后服药" in events[4]["data"]["content"]
+
+
+def test_chat_prompt_uses_english_internal_instructions_and_requested_output_language(
+    client: TestClient,
+) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    captured_messages: list[str] = []
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del info
+        captured_messages.extend(str(message) for message in messages)
+        return ModelResponse(parts=[TextPart("Blood pressure looks stable today.")])
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="Summarize today's status",
+            language="en",
+        )
+
+    prompt_dump = "\n".join(captured_messages)
+    assert events[-1]["event"] == "message.completed"
+    assert "You are the KinCare family health assistant" in prompt_dump
+    assert "Respond to the user in English." in prompt_dump
+    assert "Use English for all internal instructions." in prompt_dump
+    assert "用中文回答" not in prompt_dump
 
 
 def test_chat_returns_tool_error_when_ai_is_not_configured(unconfigured_client: TestClient) -> None:
@@ -1948,6 +1990,227 @@ def test_scheduler_refreshes_ai_generated_content_and_preserves_manual_care_plan
     assert generated_by_title["晚间按时服药"]["time_slot"] == "晚间"
     assert generated_by_title["晚间按时服药"]["icon_key"] == "medication"
     assert generated_by_title["晚间按时服药"]["notes"] == "服药后记录体感。"
+
+
+def test_scheduler_daily_generation_uses_requested_output_language_in_model_prompt(
+    client: TestClient,
+) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+    scheduler = client.app.state.scheduler
+    summary_messages: list[str] = []
+    care_plan_messages: list[str] = []
+
+    async def summary_model(messages: list[Any], info: Any) -> Any:
+        summary_messages.extend(str(message) for message in messages)
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "summaries": [
+                            {
+                                "category": "blood-pressure",
+                                "label": "Blood pressure",
+                                "value": "Blood pressure is stable today.",
+                                "status": "good",
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+    async def care_plan_model(messages: list[Any], info: Any) -> Any:
+        care_plan_messages.extend(str(message) for message in messages)
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "care_plans": [
+                            {
+                                "category": "activity-reminder",
+                                "icon_key": "exercise",
+                                "time_slot": "午后",
+                                "assignee_member_id": managed_member["id"],
+                                "title": "Take a short walk",
+                                "description": "Add a light afternoon walk today.",
+                                "notes": "Keep the pace easy.",
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(
+        client,
+        summary_function=summary_model,
+        care_plan_function=care_plan_model,
+    ):
+        summary_result = scheduler.refresh_health_summaries_for_member_ids(
+            [managed_member["id"]],
+            output_language="en",
+        )
+        care_plan_result = scheduler.refresh_daily_care_plans_for_member_ids(
+            [managed_member["id"]],
+            output_language="en",
+        )
+
+    assert summary_result["member_ids"] == [managed_member["id"]]
+    assert care_plan_result["member_ids"] == [managed_member["id"]]
+    assert "Return all user-facing text in English." in "\n".join(summary_messages)
+    assert "Use English for all internal instructions." in "\n".join(summary_messages)
+    assert "Return all user-facing text in English." in "\n".join(care_plan_messages)
+    assert "time_slot must use one of: 清晨, 上午, 午后, 晚间, 睡前." in "\n".join(care_plan_messages)
+
+
+def test_scheduler_daily_generation_defaults_to_english_without_explicit_language(
+    client: TestClient,
+) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+    scheduler = client.app.state.scheduler
+    summary_messages: list[str] = []
+
+    async def summary_model(messages: list[Any], info: Any) -> Any:
+        summary_messages.extend(str(message) for message in messages)
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "summaries": [
+                            {
+                                "category": "blood-pressure",
+                                "label": "Blood pressure",
+                                "value": "Blood pressure is stable today.",
+                                "status": "good",
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(client, summary_function=summary_model):
+        result = scheduler.refresh_health_summaries_for_member_ids([managed_member["id"]])
+
+    assert result["member_ids"] == [managed_member["id"]]
+    assert "Return all user-facing text in English." in "\n".join(summary_messages)
+
+
+def test_scheduler_daily_generation_prefers_bound_user_language_over_family_default(
+    client: TestClient,
+) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    member_user = register_user(client, email="member@example.com", password="Secret123!", name="张妈妈")
+    headers = auth_headers(admin["tokens"]["access_token"])
+    client.put(
+        "/api/auth/preferences",
+        headers=auth_headers(member_user["tokens"]["access_token"]),
+        json={"preferred_language": "zh"},
+    )
+    client.put(
+        "/api/admin/settings",
+        headers=headers,
+        json={"ai_default_language": "en"},
+    )
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=member_user["member"]["id"])
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+    scheduler = client.app.state.scheduler
+    summary_messages: list[str] = []
+
+    async def summary_model(messages: list[Any], info: Any) -> Any:
+        summary_messages.extend(str(message) for message in messages)
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "summaries": [
+                            {
+                                "category": "血压趋势",
+                                "label": "血压",
+                                "value": "今天整体稳定。",
+                                "status": "good",
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(client, summary_function=summary_model):
+        result = scheduler.refresh_health_summaries_for_member_ids([member_user["member"]["id"]])
+
+    assert result["member_ids"] == [member_user["member"]["id"]]
+    assert "Return all user-facing text in Simplified Chinese." in "\n".join(summary_messages)
+
+
+def test_scheduler_daily_generation_uses_family_default_for_unbound_member(
+    client: TestClient,
+) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    headers = auth_headers(admin["tokens"]["access_token"])
+    client.put(
+        "/api/admin/settings",
+        headers=headers,
+        json={"ai_default_language": "zh"},
+    )
+    create_observation(client, token=admin["tokens"]["access_token"], member_id=managed_member["id"])
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    ToolCallPart = messages_module.ToolCallPart
+    scheduler = client.app.state.scheduler
+    summary_messages: list[str] = []
+
+    async def summary_model(messages: list[Any], info: Any) -> Any:
+        summary_messages.extend(str(message) for message in messages)
+        output_tool = info.output_tools[0]
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    output_tool.name,
+                    {
+                        "summaries": [
+                            {
+                                "category": "血压趋势",
+                                "label": "血压",
+                                "value": "今天整体稳定。",
+                                "status": "good",
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+    with override_daily_generation_models(client, summary_function=summary_model):
+        result = scheduler.refresh_health_summaries_for_member_ids([managed_member["id"]])
+
+    assert result["member_ids"] == [managed_member["id"]]
+    assert "Return all user-facing text in Simplified Chinese." in "\n".join(summary_messages)
 
 
 def test_scheduler_skips_unconfigured_ai_and_keeps_existing_daily_content(unconfigured_client: TestClient) -> None:

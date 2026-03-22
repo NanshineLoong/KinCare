@@ -27,10 +27,13 @@ LOCAL_WHISPER_MODEL_KEY = "local_whisper_model"
 LOCAL_WHISPER_DEVICE_KEY = "local_whisper_device"
 LOCAL_WHISPER_COMPUTE_TYPE_KEY = "local_whisper_compute_type"
 LOCAL_WHISPER_DOWNLOAD_ROOT_KEY = "local_whisper_download_root"
+AI_DEFAULT_LANGUAGE_KEY = "ai_default_language"
+DEFAULT_AI_OUTPUT_LANGUAGE = "en"
 AI_SETTING_KEYS = (
     AI_BASE_URL_KEY,
     AI_API_KEY_KEY,
     AI_MODEL_KEY,
+    AI_DEFAULT_LANGUAGE_KEY,
     STT_PROVIDER_KEY,
     STT_API_KEY_KEY,
     STT_MODEL_KEY,
@@ -183,6 +186,7 @@ def _serialize_admin_settings(
     time_settings = _load_time_settings(connection, settings=settings, values=values)
     return {
         **time_settings,
+        "ai_default_language": values.get(AI_DEFAULT_LANGUAGE_KEY, DEFAULT_AI_OUTPUT_LANGUAGE),
         "transcription": {
             "provider": effective_settings.stt_provider,
             "api_key": effective_settings.stt_api_key,
@@ -205,6 +209,11 @@ def _serialize_admin_settings(
 def get_admin_settings(database: Database, settings: Settings) -> dict[str, Any]:
     with database.connection() as connection:
         return _serialize_admin_settings(connection, settings=settings)
+
+
+def get_ai_default_language(connection: sqlite3.Connection) -> str:
+    values = _load_setting_values(connection)
+    return values.get(AI_DEFAULT_LANGUAGE_KEY, DEFAULT_AI_OUTPUT_LANGUAGE)
 
 
 def _upsert_config_values(
@@ -251,6 +260,12 @@ def update_admin_settings(
         to_upsert[HEALTH_SUMMARY_REFRESH_TIME_KEY] = str(payload["health_summary_refresh_time"])
     if "care_plan_refresh_time" in payload and payload["care_plan_refresh_time"] is not None:
         to_upsert[CARE_PLAN_REFRESH_TIME_KEY] = str(payload["care_plan_refresh_time"])
+    if "ai_default_language" in payload:
+        value = payload["ai_default_language"]
+        if value is None:
+            to_delete.append(AI_DEFAULT_LANGUAGE_KEY)
+        else:
+            to_upsert[AI_DEFAULT_LANGUAGE_KEY] = str(value)
 
     transcription_updates = payload.get("transcription") or {}
     transcription_key_map = {

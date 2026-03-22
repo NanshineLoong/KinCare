@@ -157,15 +157,22 @@ export type DailyGenerationRefreshResponse = {
   errors: Record<string, string>;
 };
 
+type DailyGenerationRefreshPayload = {
+  language: "zh" | "en";
+};
+
 export function getDashboard(session: AuthSession) {
   return getAuthorized<DashboardResponse>("/api/dashboard", session);
 }
 
-export function refreshDashboardTodayReminders(session: AuthSession) {
-  return sendAuthorized<DailyGenerationRefreshResponse, Record<string, never>>(
+export function refreshDashboardTodayReminders(
+  session: AuthSession,
+  language: "zh" | "en",
+) {
+  return sendAuthorized<DailyGenerationRefreshResponse, DailyGenerationRefreshPayload>(
     "/api/dashboard/today-reminders/refresh",
     session,
-    { method: "POST", payload: {} },
+    { method: "POST", payload: { language } },
   );
 }
 
@@ -201,11 +208,15 @@ export function listHealthSummaries(session: AuthSession, memberId: string) {
   return getAuthorized<HealthSummaryRecord[]>(`/api/members/${memberId}/health-summaries`, session);
 }
 
-export function refreshMemberHealthSummaries(session: AuthSession, memberId: string) {
-  return sendAuthorized<DailyGenerationRefreshResponse, Record<string, never>>(
+export function refreshMemberHealthSummaries(
+  session: AuthSession,
+  memberId: string,
+  language: "zh" | "en",
+) {
+  return sendAuthorized<DailyGenerationRefreshResponse, DailyGenerationRefreshPayload>(
     `/api/members/${memberId}/health-summaries/refresh`,
     session,
-    { method: "POST", payload: {} },
+    { method: "POST", payload: { language } },
   );
 }
 

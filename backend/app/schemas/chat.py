@@ -37,6 +37,7 @@ class ChatMessageCreate(BaseModel):
     member_id: str | None = None
     member_selection_mode: Literal["explicit", "auto"] = "explicit"
     page_context: str | None = None
+    language: Literal["zh", "en"] = "en"
     attachments: list["ChatAttachmentContext"] = Field(default_factory=list)
 
     @field_validator("content")

@@ -60,7 +60,7 @@ function loadStoredSession(): AuthSession | null {
 }
 
 export default function App() {
-  const { t } = usePreferences();
+  const { t, language, setLanguage } = usePreferences();
   const activeChatRunIdRef = useRef(0);
   const chatSessionRef = useRef<ChatSession | null>(null);
   const forceFreshHomeSessionRef = useRef(false);
@@ -109,6 +109,9 @@ export default function App() {
   }
 
   function handleAuthenticated(nextSession: AuthSession) {
+    if (nextSession.user.preferred_language) {
+      setLanguage(nextSession.user.preferred_language);
+    }
     writeSession(nextSession);
     setSignedOutPath("/login");
     setSession(nextSession);
@@ -498,6 +501,7 @@ export default function App() {
 
       await streamChatMessage(session, currentChatSession.id, {
         content,
+        language,
         attachments: pendingAttachments,
         member_id: selectedChatMemberId || null,
         member_selection_mode: selectedChatMemberId ? "explicit" : "auto",

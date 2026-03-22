@@ -120,6 +120,7 @@ class ChatOrchestrator:
         member_id: str | None,
         member_selection_mode: str,
         page_context: str | None,
+        language: str,
         attachments: tuple[Any, ...] = (),
     ) -> AsyncIterator[StreamEvent]:
         session = self.get_session(
@@ -169,6 +170,7 @@ class ChatOrchestrator:
             scheduler=self._scheduler,
             session_id=session_id,
             page_context=effective_page_context,
+            output_language=language,
             attachments=attachments,
         )
         usage_limits = UsageLimits(request_limit=self._request_limit)

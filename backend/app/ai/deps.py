@@ -23,4 +23,5 @@ class AIDeps:
     scheduler: KinCareScheduler
     session_id: str
     page_context: str | None
+    output_language: str = "en"
     attachments: tuple[ChatAttachmentContext, ...] = ()

@@ -20,6 +20,7 @@ class CurrentUser:
     family_space_id: str
     username: str
     email: str | None
+    preferred_language: str | None
     role: str
     member_id: str | None
 
@@ -59,6 +60,7 @@ def get_current_user(
         family_space_id=user["family_space_id"],
         username=user["username"],
         email=user["email"],
+        preferred_language=user["preferred_language"],
         role=user["role"],
         member_id=user["member_id"],
     )

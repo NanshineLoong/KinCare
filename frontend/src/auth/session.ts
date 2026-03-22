@@ -9,6 +9,7 @@ export type AuthUser = {
   family_space_id: string;
   username: string;
   email: string | null;
+  preferred_language: "zh" | "en" | null;
   role: string;
   created_at: string;
 };

@@ -6,6 +6,7 @@ import { getAuthorized, sendAuthorized } from "./http";
 export type AdminSettings = {
   health_summary_refresh_time: string;
   care_plan_refresh_time: string;
+  ai_default_language: "zh" | "en";
   transcription: {
     provider: "openai" | "local_whisper";
     api_key: string | null;
@@ -29,7 +30,7 @@ type NullablePatch<T> = {
 };
 
 export type AdminSettingsUpdate = Partial<
-  Pick<AdminSettings, "health_summary_refresh_time" | "care_plan_refresh_time">
+  Pick<AdminSettings, "health_summary_refresh_time" | "care_plan_refresh_time" | "ai_default_language">
 > & {
   transcription?: NullablePatch<AdminSettings["transcription"]>;
   chat_model?: NullablePatch<AdminSettings["chat_model"]>;

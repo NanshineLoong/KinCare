@@ -96,25 +96,69 @@ class DailyGenerationService:
                 instructions=CARE_PLAN_AGENT_INSTRUCTIONS,
             )
 
-    async def generate_health_summaries(self, snapshot: DailyHealthSnapshot) -> DailyHealthSummaryBundle:
+    async def generate_health_summaries(
+        self,
+        snapshot: DailyHealthSnapshot,
+        *,
+        output_language: str = "en",
+    ) -> DailyHealthSummaryBundle:
         if self.summary_agent is None:
             raise RuntimeError("AI daily generation is not configured.")
         validated_snapshot = _validated_snapshot(snapshot)
-        result = await self.summary_agent.run(_snapshot_prompt(validated_snapshot))
+        result = await self.summary_agent.run(
+            _snapshot_prompt(
+                validated_snapshot,
+                output_language=output_language,
+                task="health_summary",
+            )
+        )
         return _normalized_summary_bundle(result.output)
 
-    async def generate_care_plan(self, snapshot: DailyHealthSnapshot) -> DailyCarePlanDecision:
+    async def generate_care_plan(
+        self,
+        snapshot: DailyHealthSnapshot,
+        *,
+        output_language: str = "en",
+    ) -> DailyCarePlanDecision:
         if self.care_plan_agent is None:
             raise RuntimeError("AI daily generation is not configured.")
         validated_snapshot = _validated_snapshot(snapshot)
-        result = await self.care_plan_agent.run(_snapshot_prompt(validated_snapshot))
+        result = await self.care_plan_agent.run(
+            _snapshot_prompt(
+                validated_snapshot,
+                output_language=output_language,
+                task="care_plan",
+            )
+        )
         return result.output
 
 
-def _snapshot_prompt(snapshot: DailyHealthSnapshot) -> str:
+def _snapshot_prompt(
+    snapshot: DailyHealthSnapshot,
+    *,
+    output_language: str,
+    task: str,
+) -> str:
+    normalized_language = "en" if output_language == "en" else "zh"
+    output_language_label = (
+        "Return all user-facing text in English."
+        if normalized_language == "en"
+        else "Return all user-facing text in Simplified Chinese."
+    )
+    task_rules = [
+        "For health summaries, category, label, and value must follow the requested output language."
+    ]
+    if task == "care_plan":
+        task_rules = [
+            "For care plans, title, description, and notes must follow the requested output language.",
+            "time_slot must use one of: 清晨, 上午, 午后, 晚间, 睡前.",
+        ]
     return "\n".join(
         [
-            "请严格基于以下家庭成员健康快照生成结构化结果，不要编造不存在的数据。",
+            "Use English for all internal instructions.",
+            output_language_label,
+            *task_rules,
+            "Generate structured results strictly from the following family member health snapshot. Do not invent missing facts.",
             json.dumps(snapshot.model_dump(mode="json"), ensure_ascii=False, indent=2),
         ]
     )
@@ -122,26 +166,25 @@ def _snapshot_prompt(snapshot: DailyHealthSnapshot) -> str:
 
 SUMMARY_AGENT_INSTRUCTIONS = "\n".join(
     [
-        "你负责为 KinCare 首页生成每日健康摘要。",
-        "只能使用输入快照中的事实，不要补充未提供的数据。",
-        "按重要程度从高到低输出 0-4 条结构化摘要；如果没有值得提示的状态，返回 summaries = []。",
-        "category 与 label 使用中文动态主题，不要复用固定分类，也不要为了凑数补标题。",
-        "label 使用中文短标题，value 用一句简短中文说明，status 只能是 good、warning、alert。",
-        "不要输出 Markdown、列表或自由文本解释。",
+        "You generate daily health summaries for the KinCare home dashboard.",
+        "Use only facts from the provided snapshot. Do not add unsupported data.",
+        "Return 0-4 structured summaries ordered from most important to least important.",
+        "If there is nothing valuable to highlight, return summaries = [].",
+        "status must be one of: good, warning, alert.",
+        "Do not output Markdown, bullet lists, or free-form explanations.",
     ]
 )
 
 
 CARE_PLAN_AGENT_INSTRUCTIONS = "\n".join(
     [
-        "你负责为 KinCare 生成当天 0-3 条 AI 提醒。",
-        "只能使用输入快照中的事实，不要编造不存在的数据。",
-        "如果今天没有明确且有价值的提醒，就返回 care_plans = []。",
-        "每条提醒都必须包含 category、title、description、time_slot；可选返回 icon_key、assignee_member_id、notes。",
-        "category 只能使用现有 CarePlan 枚举。",
-        "icon_key 只能使用 medication、exercise、checkup、meal、rest、social、general。",
-        "time_slot 只能使用 清晨、上午、午后、晚间、睡前。",
-        "不要输出 Markdown、列表或自由文本解释。",
+        "You generate 0-3 AI care-plan reminders for the current day.",
+        "Use only facts from the provided snapshot. Do not add unsupported data.",
+        "If there is no clear and valuable reminder for today, return care_plans = [].",
+        "Each reminder must include category, title, description, and time_slot. icon_key, assignee_member_id, and notes are optional.",
+        "category must use an existing CarePlan enum value.",
+        "icon_key must be one of: medication, exercise, checkup, meal, rest, social, general.",
+        "Do not output Markdown, bullet lists, or free-form explanations.",
     ]
 )
 

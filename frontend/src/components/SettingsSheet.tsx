@@ -8,6 +8,7 @@ import {
   type AdminSettings,
   type LocalWhisperModelStatus,
 } from "../api/adminSettings";
+import { updateUserPreferences } from "../api/auth";
 import { deleteFamilySpace } from "../api/familySpace";
 import {
   createMember,
@@ -19,7 +20,7 @@ import {
   type MemberPermissionGrant,
   type PermissionScope,
 } from "../api/members";
-import type { AuthMember, AuthSession } from "../auth/session";
+import { writeSession, type AuthMember, type AuthSession } from "../auth/session";
 import {
   usePreferences,
   type AppLanguage,
@@ -580,6 +581,7 @@ function PreferenceChoiceButton({
 }) {
   return (
     <button
+      aria-label={label}
       aria-pressed={active}
       className={`flex items-center justify-between rounded-xl border-2 px-6 py-7 text-left transition ${
         active
@@ -1033,6 +1035,7 @@ export function SettingsSheet({
   const [addError, setAddError] = useState<string | null>(null);
   const [healthSummaryRefreshTime, setHealthSummaryRefreshTime] = useState("05:00");
   const [carePlanRefreshTime, setCarePlanRefreshTime] = useState("06:00");
+  const [aiDefaultLanguage, setAiDefaultLanguage] = useState<AppLanguage>("en");
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [isLoadingAdminSettings, setIsLoadingAdminSettings] = useState(false);
   const [isSavingAdminSettings, setIsSavingAdminSettings] = useState(false);
@@ -1079,6 +1082,7 @@ export function SettingsSheet({
   const latestRefreshTimesRef = useRef({
     health: healthSummaryRefreshTime,
     care: carePlanRefreshTime,
+    aiDefaultLanguage,
   });
   const refreshPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiFormRef = useRef({
@@ -1099,6 +1103,7 @@ export function SettingsSheet({
 
   latestRefreshTimesRef.current.health = healthSummaryRefreshTime;
   latestRefreshTimesRef.current.care = carePlanRefreshTime;
+  latestRefreshTimesRef.current.aiDefaultLanguage = aiDefaultLanguage;
   aiFormRef.current = {
     sttProvider,
     sttApiKey,
@@ -1167,6 +1172,7 @@ export function SettingsSheet({
   function applyAdminSettings(nextSettings: AdminSettings) {
     setHealthSummaryRefreshTime(nextSettings.health_summary_refresh_time);
     setCarePlanRefreshTime(nextSettings.care_plan_refresh_time);
+    setAiDefaultLanguage(nextSettings.ai_default_language);
     setSttProvider(nextSettings.transcription.provider);
     setSttApiKey(nextSettings.transcription.api_key ?? "");
     setSttModel(nextSettings.transcription.model);
@@ -1341,21 +1347,27 @@ export function SettingsSheet({
     }
     refreshPersistTimerRef.current = setTimeout(() => {
       refreshPersistTimerRef.current = null;
-      const { health, care } = latestRefreshTimesRef.current;
-      void persistRefreshTimes(health, care);
+      const { health, care, aiDefaultLanguage: nextLanguage } = latestRefreshTimesRef.current;
+      void persistRefreshTimes(health, care, nextLanguage);
     }, 450);
   }
 
-  async function persistRefreshTimes(health: string, care: string) {
+  async function persistRefreshTimes(
+    health: string,
+    care: string,
+    nextLanguage: AppLanguage,
+  ) {
     setIsSavingAdminSettings(true);
     setSettingsError(null);
     try {
       const nextSettings = await updateAdminSettings(session, {
         health_summary_refresh_time: health,
         care_plan_refresh_time: care,
+        ai_default_language: nextLanguage,
       });
       setHealthSummaryRefreshTime(nextSettings.health_summary_refresh_time);
       setCarePlanRefreshTime(nextSettings.care_plan_refresh_time);
+      setAiDefaultLanguage(nextSettings.ai_default_language);
     } catch (error) {
       setSettingsError(
         error instanceof Error ? error.message : t("settingsTimeSaveError"),
@@ -1436,6 +1448,30 @@ export function SettingsSheet({
       );
     } finally {
       setIsPersistingSttProvider(false);
+    }
+  }
+
+  async function handleLanguageChange(nextLanguage: AppLanguage) {
+    if (nextLanguage === language) {
+      return;
+    }
+
+    const previousLanguage = language;
+    setLanguage(nextLanguage);
+    try {
+      const updatedPreferences = await updateUserPreferences(session, {
+        preferred_language: nextLanguage,
+      });
+      writeSession({
+        ...session,
+        user: {
+          ...session.user,
+          preferred_language: updatedPreferences.preferred_language,
+        },
+      });
+    } catch (error) {
+      setLanguage(previousLanguage);
+      console.error(error instanceof Error ? error.message : t("settingsTimeSaveError"));
     }
   }
 
@@ -1822,7 +1858,7 @@ export function SettingsSheet({
                             }
                             key={option.value}
                             label={option.label}
-                            onClick={() => setLanguage(option.value)}
+                            onClick={() => void handleLanguageChange(option.value)}
                           />
                         ))}
                       </div>
@@ -1871,6 +1907,7 @@ export function SettingsSheet({
                         latestRefreshTimesRef.current = {
                           health: healthSummaryRefreshTime,
                           care: value,
+                          aiDefaultLanguage,
                         };
                         schedulePersistRefreshTimes();
                       }}
@@ -1911,12 +1948,59 @@ export function SettingsSheet({
                         latestRefreshTimesRef.current = {
                           health: value,
                           care: carePlanRefreshTime,
+                          aiDefaultLanguage,
                         };
                         schedulePersistRefreshTimes();
                       }}
                       type="time"
                       value={healthSummaryRefreshTime}
                     />
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-xl bg-[#F6F3EE]">
+                <div className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAE8E1] text-[#615E57] shadow-sm">
+                      <span className="material-symbols-outlined text-[20px]">
+                        translate
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-base font-semibold text-[#32332D]">
+                        {t("settingsAiDefaultLanguage")}
+                      </h4>
+                      <p className="text-sm text-[#5F5F59]">
+                        {t("settingsAiDefaultLanguageDescription")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="block md:w-auto">
+                    <span className="sr-only">{t("settingsAiDefaultLanguage")}</span>
+                    <select
+                      aria-label={t("settingsAiDefaultLanguage")}
+                      className={adminInlineInputClass}
+                      disabled={isLoadingAdminSettings || isSavingAdminSettings}
+                      onChange={(event) => {
+                        const value = event.target.value as AppLanguage;
+                        setAiDefaultLanguage(value);
+                        latestRefreshTimesRef.current = {
+                          health: healthSummaryRefreshTime,
+                          care: carePlanRefreshTime,
+                          aiDefaultLanguage: value,
+                        };
+                        schedulePersistRefreshTimes();
+                      }}
+                      value={aiDefaultLanguage}
+                    >
+                      {languageOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
               </section>

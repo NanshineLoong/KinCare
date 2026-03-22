@@ -1,65 +1,64 @@
-# <img src="assets/KinCare.svg" alt="KinCare logo" width="44" valign="middle"> KinCare
+<div align="center">
 
-**面向单个家庭空间的自托管 AI 家庭健康助手**
+<img src="assets/KinCare.svg" alt="KinCare logo" width="70%" valign="middle">
 
-中文 | [English](./README.md)
+<h2 align="center">自托管、由 AI 驱动的家庭健康空间</h2>
 
-<p>
-  <img src="assets/screenshot.png" alt="KinCare 截图" width="100%">
-</p>
+<img src="assets/screenshot.png" alt="KinCare 截图" width="90%">
+
+<p>中文 | <a href="./README.md">English</a></p>
+
+</div>
+
+<p align="center"><strong>Connection · Insight · Care</strong></p>
+
+- **Connection** — 把家人与健康放进同一个共享空间。
+- **Insight** — 让 AI 发现你容易忽略的信息。
+- **Care** — 把理解转化为及时、有意义的行动。
 
 ## KinCare 是什么？
 
-KinCare 是一个可以部署在你自己的电脑或服务器上的私有家庭健康空间。它把家庭成员、健康档案与 AI 助手放到同一个系统里，帮助家人协同了解健康状态，同时尽可能把敏感数据保留在自己手中。
-
-**Connection · Insight · Care**
-
-- **Connection**：把一个家庭空间、成员档案和各类健康记录连接到同一块家庭仪表盘中。
-- **Insight**：通过 AI 对话、健康摘要和提醒，发现仅靠人工翻看记录不容易看出的规律与重点。
-- **Care**：帮助家人彼此关注、提醒和协作，在权限控制下提供更及时的支持。
+KinCare 是一个部署在你自己的电脑或服务器上的私有家庭健康空间。  
+它把家庭成员、健康档案与 AI 助手集中在一处，让家人保持同步，同时不交出对敏感数据的掌控。
 
 ## 核心能力
 
 - 面向整个家庭的健康仪表盘
-- 将多种健康信息汇总为每个成员的统一健康档案
-- 支持聊天、语音输入和健康档案草稿操作的 AI Agent
+- 为每位家庭成员提供跨多种记录类型的统一健康档案
+- 具备聊天、语音输入与健康档案草稿操作的 AI Agent
 - AI 驱动的每日洞察与提醒
-- 家庭空间与成员级权限管理
-- 自托管、隐私优先
+- 带成员级权限的家庭空间
+- 自托管、隐私优先的部署方式
 
 ## 快速开始
 
-KinCare 当前推荐使用 Docker Compose 安装。
-
 ```bash
 cp .env.example .env
-# 如果要用于真实部署，请先修改 KINCARE_JWT_SECRET
-# AI / STT 默认值也可以在首次登录后通过 设置 -> 管理员配置 再补充
+# 若用于真实部署，在对外暴露应用前请修改 KINCARE_JWT_SECRET。
 
 docker compose up -d --build
 ```
 
-启动后访问：
+然后打开：
 
 - Web 应用：`http://localhost:8080`
 
-启动后建议按这个顺序完成初始化：
+应用启动后：
 
-1. 注册第一个用户，填写用户名、可选邮箱和密码。
-2. 点击右上角头像，进入 `设置 -> 管理员配置`。
-3. 如果需要 AI 能力，再配置对话模型、语音转写和每日刷新时间。
+1. 使用用户名、可选邮箱和密码注册第一个用户。
+2. 打开头像菜单，进入 `设置 -> 管理员配置`。
+3. 如需使用 AI 功能，请配置 AI 提供商、语音转写与每日刷新时间。
 
-如果你只是先体验界面和手动健康档案录入，不需要提前在 `.env` 中填写 AI 或 STT 参数。
+> [!NOTE]
+> - 一次部署对应一个家庭空间。
+> - 第一个注册用户会自动成为家庭管理员。
+> - 后续注册用户会自动加入同一个家庭空间。
+> - 管理员可以在不创建用户账号的情况下添加成员档案，成员访问遵循 `read / write / manage` 级别与范围授权。
 
-说明：
-
-- 默认启动栈为 `web + api`
-- SQLite 是唯一必需的持久化数据存储
-- 可选的 `mcp` 服务不在默认启动路径中
 
 ## 本地开发
 
-先准备本地环境变量：
+先复制本地环境文件：
 
 ```bash
 cp .env.example .env
@@ -82,51 +81,16 @@ npm ci
 VITE_API_BASE_URL=http://localhost:8000 npm run dev
 ```
 
-这里保留 `VITE_API_BASE_URL`，是因为本地开发时前端运行在 `:5173`，后端 API 运行在 `:8000`。
+## 待办
 
-本地访问地址：
-
-- 前端：`http://localhost:5173`
-- 后端健康检查：`http://localhost:8000/health`
-
-## 家庭空间与权限
-
-> [!NOTE]
-> 一次部署对应一个家庭空间。
-> 第一个注册用户会自动成为家庭管理员。
-> 后续注册用户会自动加入同一个家庭空间。
-> 管理员可以直接添加没有账号的成员档案，成员访问遵循 `read / write / manage` 三级权限，并支持按范围授权。
->
-> 当前默认是开放注册。如果把实例暴露给不受信任的外部用户，后续注册者也会进入同一个家庭空间。
-
-## 项目技术栈
-
-- 前端：React + Vite
-- 后端：FastAPI
-- 数据库：SQLite
-- AI 运行时：PydanticAI tool-calling 工作流
-- 部署方式：Docker Compose
-
-## Roadmap
-
-- 接入 OpenWearables 仓库，将穿戴设备数据引入 KinCare
-- 提供本地 MCP 服务，让 Claude Code 等外部 AI Agent 可以安全访问家庭健康上下文
-- 通过 skills-based integrations 支持 OpenClaw
+- [ ] 接入 OpenWearables 仓库，将穿戴设备数据引入 KinCare
+- [ ] 提供本地 MCP 服务，使外部 AI Agent 能够安全访问家庭健康上下文
 
 ## 致谢
 
-- [PydanticAI](https://ai.pydantic.dev/)：Agent Framework
-- [Docling](https://github.com/docling-project/docling)：文档处理
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper)：语音转写
-
-## 主真相文档
-
-- [当前开发计划](./.cursor/plans/kincare_v2_开发计划_a24f52a8.plan.md)
-- [架构总览](./docs/architecture/overview.md)
-- [数据模型](./docs/architecture/data-model.md)
-- [AI 架构](./docs/architecture/phase-4-ai-design.md)
-- [ADR 索引](./docs/adr/README.md)
+- [PydanticAI](https://ai.pydantic.dev/) — Agent 框架
+- [Docling](https://github.com/docling-project/docling) — 文档处理
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — 语音转写
 
 ## License
-
-TBD
+根据 [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) 授权。完整文本见 [`LICENSE.txt`](./LICENSE.txt)。

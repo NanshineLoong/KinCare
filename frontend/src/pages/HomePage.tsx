@@ -457,7 +457,7 @@ export function HomePage({
     setRefreshingMemberId(member.id);
     setDashboardError(null);
     try {
-      const result = await refreshMemberHealthSummaries(session, member.id);
+      const result = await refreshMemberHealthSummaries(session, member.id, language);
       const errorMessage = buildRefreshError(
         result,
         t("homeAiSummaryRefreshError"),
@@ -481,7 +481,7 @@ export function HomePage({
     setIsRefreshingCarePlans(true);
     setDashboardError(null);
     try {
-      const result = await refreshDashboardTodayReminders(session);
+      const result = await refreshDashboardTodayReminders(session, language);
       const errorMessage = buildRefreshError(
         result,
         t("homeRemindersRefreshError"),

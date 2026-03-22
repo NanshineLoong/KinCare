@@ -25,6 +25,7 @@ def user_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "username": row["username"],
         "email": row["email"],
         "password_hash": row["password_hash"],
+        "preferred_language": row["preferred_language"],
         "role": row["role"],
         "created_at": row["created_at"],
         "member_id": row["member_id"],
@@ -84,6 +85,7 @@ def get_user_by_username(connection: sqlite3.Connection, username: str) -> dict[
             ua.username,
             ua.email,
             ua.password_hash,
+            ua.preferred_language,
             ua.role,
             ua.created_at,
             fm.id AS member_id
@@ -105,6 +107,7 @@ def get_user_by_id(connection: sqlite3.Connection, user_id: str) -> dict[str, An
             ua.username,
             ua.email,
             ua.password_hash,
+            ua.preferred_language,
             ua.role,
             ua.created_at,
             fm.id AS member_id
@@ -126,6 +129,7 @@ def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, A
             ua.username,
             ua.email,
             ua.password_hash,
+            ua.preferred_language,
             ua.role,
             ua.created_at,
             fm.id AS member_id
@@ -153,13 +157,32 @@ def create_user(
         "username": username,
         "email": email,
         "password_hash": password_hash,
+        "preferred_language": None,
         "role": role,
         "created_at": now_iso(),
     }
     connection.execute(
         """
-        INSERT INTO user_account (id, family_space_id, username, email, password_hash, role, created_at)
-        VALUES (:id, :family_space_id, :username, :email, :password_hash, :role, :created_at)
+        INSERT INTO user_account (
+            id,
+            family_space_id,
+            username,
+            email,
+            password_hash,
+            preferred_language,
+            role,
+            created_at
+        )
+        VALUES (
+            :id,
+            :family_space_id,
+            :username,
+            :email,
+            :password_hash,
+            :preferred_language,
+            :role,
+            :created_at
+        )
         """,
         record,
     )
@@ -279,6 +302,22 @@ def delete_member(connection: sqlite3.Connection, member_id: str) -> None:
 
 def delete_user(connection: sqlite3.Connection, user_id: str) -> None:
     connection.execute("DELETE FROM user_account WHERE id = ?", (user_id,))
+
+
+def update_user_preferred_language(
+    connection: sqlite3.Connection,
+    user_id: str,
+    *,
+    preferred_language: str | None,
+) -> dict[str, Any]:
+    connection.execute(
+        "UPDATE user_account SET preferred_language = ? WHERE id = ?",
+        (preferred_language, user_id),
+    )
+    user = get_user_by_id(connection, user_id)
+    if user is None:
+        raise KeyError(user_id)
+    return user
 
 
 def delete_family_space(connection: sqlite3.Connection, family_space_id: str) -> None:

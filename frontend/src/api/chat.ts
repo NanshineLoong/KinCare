@@ -206,6 +206,7 @@ export async function streamChatMessage(
   chatSessionId: string,
   payload: {
     content: string;
+    language: "zh" | "en";
     member_id?: string | null;
     member_selection_mode?: "explicit" | "auto";
     page_context?: string | null;

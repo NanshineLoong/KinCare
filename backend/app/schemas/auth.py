@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -77,8 +78,17 @@ class UserRead(BaseModel):
     family_space_id: str
     username: str
     email: str | None
+    preferred_language: Literal["zh", "en"] | None
     role: str
     created_at: str
+
+
+class UserPreferencesUpdate(BaseModel):
+    preferred_language: Literal["zh", "en"] | None = None
+
+
+class UserPreferencesRead(BaseModel):
+    preferred_language: Literal["zh", "en"] | None
 
 
 class AuthResponse(BaseModel):

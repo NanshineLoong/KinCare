@@ -10,7 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { sessionStorageKey } from "./auth/session";
-import { PreferencesProvider } from "./preferences";
+import {
+  PreferencesProvider,
+  appPreferencesStorageKey,
+} from "./preferences";
 
 function renderApp(initialPath = "/") {
   return render(
@@ -25,11 +28,11 @@ function renderApp(initialPath = "/") {
 /** Home composer is disabled while the dashboard loads; wait before opening the overlay. */
 async function openHomeChatOverlay() {
   await waitFor(() => {
-    const sendButton = screen.getByRole("button", { name: /发送文本/ });
+    const sendButton = screen.getByRole("button", { name: /发送文本|Send text/ });
     expect(sendButton).not.toBeDisabled();
   });
-  fireEvent.click(screen.getByRole("button", { name: /发送文本/ }));
-  return screen.findByRole("dialog", { name: "AI 健康助手" });
+  fireEvent.click(screen.getByRole("button", { name: /发送文本|Send text/ }));
+  return screen.findByRole("dialog", { name: /AI 健康助手|AI Health Assistant/ });
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -110,7 +113,11 @@ function createJwt(expOffsetSeconds: number) {
 }
 
 function createSessionPayload(
-  overrides?: Partial<{ accessToken: string; refreshToken: string }>,
+  overrides?: Partial<{
+    accessToken: string;
+    refreshToken: string;
+    preferredLanguage: "zh" | "en" | null;
+  }>,
 ) {
   return {
     user: {
@@ -118,6 +125,7 @@ function createSessionPayload(
       family_space_id: "family-1",
       username: "管理员",
       email: "owner@example.com",
+      preferred_language: overrides?.preferredLanguage ?? null,
       role: "admin",
       created_at: "2026-03-15T08:00:00Z",
     },
@@ -496,10 +504,14 @@ describe("App", () => {
       if (pathname === "/api/dashboard") {
         return jsonResponse(createDashboard());
       }
+      if (pathname === "/api/auth/preferences" && init?.method === "PUT") {
+        return jsonResponse({ preferred_language: "en" });
+      }
       if (pathname === "/api/admin/settings" && (!init?.method || init.method === "GET")) {
         return jsonResponse({
           health_summary_refresh_time: "05:00",
           care_plan_refresh_time: "06:00",
+          ai_default_language: "en",
         });
       }
       throw new Error(`Unhandled request: ${pathname}`);
@@ -566,7 +578,7 @@ describe("App", () => {
     renderApp("/app");
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /查看 张妈妈 档案/ }),
+      (await screen.findAllByRole("button", { name: /查看 张妈妈 档案/ }))[0],
     );
 
     const dialog = await screen.findByRole("dialog", { name: "成员档案" });
@@ -628,6 +640,8 @@ describe("App", () => {
         return jsonResponse(detail.carePlans);
       }
       if (method === "POST" && pathname === "/api/members/member-2/health-summaries/refresh") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.language).toBe("zh");
         const refreshedSummary = {
           id: "summary-refresh-1",
           member_id: "member-2",
@@ -653,6 +667,8 @@ describe("App", () => {
         });
       }
       if (method === "POST" && pathname === "/api/dashboard/today-reminders/refresh") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.language).toBe("zh");
         const today = new Date();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, "0");
@@ -701,7 +717,7 @@ describe("App", () => {
     renderApp("/app");
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /查看 张妈妈 档案/ }),
+      (await screen.findAllByRole("button", { name: /查看 张妈妈 档案/ }))[0],
     );
 
     const dialog = await screen.findByRole("dialog", { name: "成员档案" });
@@ -841,6 +857,72 @@ describe("App", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+  });
+
+  it("sends the current preferences language with chat requests", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+    window.localStorage.setItem(
+      appPreferencesStorageKey,
+      JSON.stringify({ language: "en", theme: "system" }),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions") {
+        return jsonResponse(
+          {
+            id: "chat-1",
+            user_id: "user-1",
+            family_space_id: "family-1",
+            member_id: null,
+            title: null,
+            summary: null,
+            page_context: "home",
+            created_at: "2026-03-15T08:00:00+08:00",
+            updated_at: "2026-03-15T08:00:00+08:00",
+          },
+          201,
+        );
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.language).toBe("en");
+        return sseResponse([
+          {
+            event: "session.started",
+            data: { session_id: "chat-1", member_id: null },
+          },
+          {
+            event: "message.completed",
+            data: { content: "English reply." },
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    const dialog = await openHomeChatOverlay();
+
+    fireEvent.change(within(dialog).getByLabelText("Chat input"), {
+      target: { value: "Summarize today's status" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /send/i }));
+
+    expect(await within(dialog).findByText("English reply.")).toBeInTheDocument();
   });
 
   it("renders assistant text before the SSE stream completes", async () => {
@@ -1697,6 +1779,39 @@ describe("App", () => {
     expect(await screen.findByText("家人状态")).toBeInTheDocument();
   });
 
+  it("applies the persisted server language preference after login", async () => {
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "POST" && pathname === "/api/auth/login") {
+        return jsonResponse(
+          createSessionPayload({ preferredLanguage: "en" }),
+        );
+      }
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/login");
+
+    fireEvent.change(screen.getByLabelText("用户名"), {
+      target: { value: "管理员" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "Secret123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "立即登录" }));
+
+    expect(await screen.findByText("Family Status")).toBeInTheDocument();
+  });
+
   it("refreshes an expired stored session before loading protected data", async () => {
     window.localStorage.setItem(
       sessionStorageKey,
@@ -1872,7 +1987,7 @@ describe("App", () => {
     renderApp("/app");
 
     // Click member card to open Profile
-    const openProfileBtn = await screen.findByRole("button", { name: "查看 张妈妈 档案" });
+    const openProfileBtn = (await screen.findAllByRole("button", { name: "查看 张妈妈 档案" }))[0];
     fireEvent.click(openProfileBtn);
     
     // Await for dialog to open

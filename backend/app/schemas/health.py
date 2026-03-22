@@ -504,6 +504,10 @@ class DailyGenerationRefreshResult(BaseModel):
     errors: dict[str, str] = Field(default_factory=dict)
 
 
+class DailyGenerationRefreshRequest(BaseModel):
+    language: Literal["zh", "en"] | None = None
+
+
 _HEALTH_RECORD_CREATE_PAYLOAD_MODELS = {
     "observations": HealthRecordObservationDraft,
     "conditions": HealthRecordConditionDraft,

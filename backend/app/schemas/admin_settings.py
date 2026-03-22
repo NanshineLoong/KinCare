@@ -117,6 +117,7 @@ class TranscriptionSettingsUpdate(BaseModel):
 class AdminSettingsRead(BaseModel):
     health_summary_refresh_time: str
     care_plan_refresh_time: str
+    ai_default_language: Literal["zh", "en"]
     transcription: TranscriptionSettingsRead
     chat_model: ChatModelSettingsRead
 
@@ -151,6 +152,7 @@ class LocalWhisperModelDownloadRequest(BaseModel):
 class AdminSettingsUpdate(BaseModel):
     health_summary_refresh_time: str | None = None
     care_plan_refresh_time: str | None = None
+    ai_default_language: Literal["zh", "en"] | None = None
     transcription: TranscriptionSettingsUpdate | None = None
     chat_model: ChatModelSettingsUpdate | None = None
 

@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="assets/KinCare.svg" alt="KinCare logo" width="60%" valign="middle">
+<img src="assets/KinCare.svg" alt="KinCare logo" width="70%" valign="middle">
 
-<p><strong>Self-hosted family health space powered by AI</strong></p>
+<h2 align="center">Self-hosted family health space powered by AI</h2>
 
-<img src="assets/screenshot.png" alt="KinCare screenshot" width="60%">
+<img src="assets/screenshot.png" alt="KinCare screenshot" width="90%">
 
-<p><a href="./README.zh-CN.md">中文</a> | English</p>
+<p>English | <a href="./README.zh-CN.md">中文</a></p>
 
 </div>
 
@@ -49,15 +49,12 @@ After the app starts:
 2. Open the avatar menu, then go to `Settings -> Admin Config`.
 3. Configure AI providers, transcription, and daily refresh times if you want AI features.
 
-If you only want to explore the UI and manual health records first, no AI or STT environment variables are required.
-
 > [!NOTE]
-> One deployment equals one family space.
-> The first registered user becomes the family admin automatically.
-> Later registered users join the same family space automatically.
-> Admins can add member profiles without creating user accounts, and member access follows `read / write / manage` levels with scoped grants.
->
-> Registration is open by default. If the instance is reachable by untrusted users, later sign-ups will join the same family space.
+> - One deployment equals one family space.
+> - The first registered user becomes the family admin automatically.
+> - Later registered users join the same family space automatically.
+> - Admins can add member profiles without creating user accounts, and member access follows `read / write / manage` levels with scoped grants.
+
 
 ## Local Development
 
@@ -86,9 +83,8 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev
 
 ## Roadmap
 
-- Integrate the OpenWearables repository to bring wearable-device data into KinCare
-- Expose a local MCP service so external AI agents such as Claude Code can access family health context safely
-- Support OpenClaw through skills-based integrations
+- [ ] Integrate the OpenWearables repository to bring wearable-device data into KinCare
+- [ ] Expose a local MCP service so external AI agents can access family health context safely
 
 ## Acknowledgements
 

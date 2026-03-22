@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS user_account (
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
     email TEXT UNIQUE,
     password_hash TEXT NOT NULL,
+    preferred_language TEXT CHECK (preferred_language IN ('zh', 'en')),
     role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
     created_at TEXT NOT NULL
 );
@@ -311,6 +312,17 @@ def _ensure_user_account_schema_is_compatible(connection: sqlite3.Connection, da
     )
 
 
+def _ensure_user_account_preferred_language_column(connection: sqlite3.Connection) -> None:
+    columns = _table_columns(connection, "user_account")
+    if columns and "preferred_language" not in columns:
+        connection.execute(
+            """
+            ALTER TABLE user_account
+            ADD COLUMN preferred_language TEXT CHECK (preferred_language IN ('zh', 'en'))
+            """
+        )
+
+
 def _migrate_member_access_grant(connection: sqlite3.Connection) -> None:
     columns = _table_columns(connection, "member_access_grant")
     if not columns or "can_write" not in columns:
@@ -512,6 +524,7 @@ class Database:
             _migrate_care_plan_schema(connection)
             _ensure_chat_session_summary_column(connection)
             connection.executescript(SCHEMA_SQL)
+            _ensure_user_account_preferred_language_column(connection)
             connection.commit()
 
     @contextmanager

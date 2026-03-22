@@ -186,6 +186,7 @@ async def create_message(
             member_id=request.member_id,
             member_selection_mode=request.member_selection_mode,
             page_context=request.page_context,
+            language=request.language,
             attachments=tuple(request.attachments),
         ):
             yield format_sse_event(event)

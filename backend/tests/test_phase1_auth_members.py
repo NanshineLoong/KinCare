@@ -116,6 +116,7 @@ def test_first_registration_creates_admin_family_space_and_member(client: TestCl
     assert payload["user"]["username"] == "王医生"
     assert payload["user"]["email"] is None
     assert payload["user"]["role"] == "admin"
+    assert payload["user"]["preferred_language"] is None
     assert payload["member"]["name"] == "王医生"
     assert payload["member"]["user_account_id"] == payload["user"]["id"]
     assert payload["member"]["permission_level"] == "manage"
@@ -174,6 +175,30 @@ def test_login_and_refresh_support_expired_access_tokens(client: TestClient) -> 
     )
 
     assert members_response.status_code == 200
+
+
+def test_user_can_update_preferred_language_and_login_returns_it(client: TestClient) -> None:
+    registered = register_user(
+        client,
+        username="张小满",
+        password="Secret123!",
+    )
+
+    update_response = client.put(
+        "/api/auth/preferences",
+        headers=auth_headers(registered["tokens"]["access_token"]),
+        json={"preferred_language": "zh"},
+    )
+
+    assert update_response.status_code == 200, update_response.text
+    assert update_response.json()["preferred_language"] == "zh"
+
+    logged_in = login_user(
+        client,
+        username="张小满",
+        password="Secret123!",
+    )
+    assert logged_in["user"]["preferred_language"] == "zh"
 
 
 def test_login_with_remember_me_extends_refresh_session_to_30_days(client: TestClient) -> None:
@@ -589,6 +614,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
     assert read_response.json() == {
         "health_summary_refresh_time": "05:00",
         "care_plan_refresh_time": "06:00",
+        "ai_default_language": "en",
         "transcription": {
             "provider": "openai",
             "api_key": "test-key",
@@ -618,6 +644,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         json={
             "health_summary_refresh_time": "07:30",
             "care_plan_refresh_time": "08:45",
+            "ai_default_language": "zh",
             "transcription": {
                 "provider": "local_whisper",
                 "language": "en",
@@ -639,6 +666,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
     assert update_response.json() == {
         "health_summary_refresh_time": "07:30",
         "care_plan_refresh_time": "08:45",
+        "ai_default_language": "zh",
         "transcription": {
             "provider": "local_whisper",
             "api_key": "new-ai-key",
@@ -685,6 +713,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
     assert saved_response.json() == {
         "health_summary_refresh_time": "07:30",
         "care_plan_refresh_time": "08:45",
+        "ai_default_language": "zh",
         "transcription": {
             "provider": "local_whisper",
             "api_key": "new-ai-key",

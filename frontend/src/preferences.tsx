@@ -113,6 +113,8 @@ const translations = {
     settingsThemeSystem: "跟随系统",
     settingsTimeHealthSummary: "每日健康状态更新时间",
     settingsTimeCarePlan: "每日计划更新时间",
+    settingsAiDefaultLanguage: "AI 默认输出语言",
+    settingsAiDefaultLanguageDescription: "无请求上下文时，AI 生成功能默认使用的语言。",
     settingsTimeSave: "保存时间设置",
     settingsTimeSaving: "保存中...",
     settingsTimeSaved: "刷新时间已更新。",
@@ -568,6 +570,9 @@ const translations = {
     settingsThemeSystem: "System",
     settingsTimeHealthSummary: "Daily health status refresh time",
     settingsTimeCarePlan: "Daily plan refresh time",
+    settingsAiDefaultLanguage: "Default AI output language",
+    settingsAiDefaultLanguageDescription:
+      "Used by AI generation tasks when there is no active request language.",
     settingsTimeSave: "Save refresh times",
     settingsTimeSaving: "Saving...",
     settingsTimeSaved: "Refresh times updated.",

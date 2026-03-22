@@ -10,6 +10,7 @@ const session: AuthSession = {
     family_space_id: "family-1",
     username: "admin",
     email: "owner@example.com",
+    preferred_language: null,
     role: "admin",
     created_at: "2026-03-15T08:00:00Z",
   },

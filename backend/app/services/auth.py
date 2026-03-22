@@ -5,7 +5,8 @@ from fastapi import HTTPException, status
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.security import TokenError, create_token, decode_token, hash_password, verify_password
-from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest
+from app.core.dependencies import CurrentUser
+from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, UserPreferencesUpdate
 from app.services import repository
 
 
@@ -45,6 +46,7 @@ def _public_user(user: dict[str, str]) -> dict[str, str]:
         "family_space_id": user["family_space_id"],
         "username": user["username"],
         "email": user["email"],
+        "preferred_language": user["preferred_language"],
         "role": user["role"],
         "created_at": user["created_at"],
     }
@@ -131,3 +133,19 @@ def refresh_tokens(request: RefreshRequest, database: Database, settings: Settin
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
 
     return _token_pair(user, settings, remember_session=bool(payload.get("remember_session", False)))
+
+
+def update_user_preferences(
+    current_user: CurrentUser,
+    request: UserPreferencesUpdate,
+    database: Database,
+) -> dict[str, str | None]:
+    with database.connection() as connection:
+        user = repository.update_user_preferred_language(
+            connection,
+            current_user.id,
+            preferred_language=request.preferred_language,
+        )
+    return {
+        "preferred_language": user["preferred_language"],
+    }

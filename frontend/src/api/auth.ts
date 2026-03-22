@@ -1,6 +1,7 @@
 import type { AuthSession } from "../auth/session";
 
 import { apiBaseUrl } from "./client";
+import { sendAuthorized } from "./http";
 
 
 export type LoginPayload = {
@@ -13,6 +14,14 @@ export type RegisterPayload = {
   username: string;
   password: string;
   email?: string;
+};
+
+export type UserPreferences = {
+  preferred_language: "zh" | "en" | null;
+};
+
+export type UpdateUserPreferencesPayload = {
+  preferred_language?: "zh" | "en" | null;
 };
 
 async function parseResponse(response: Response) {
@@ -43,4 +52,18 @@ export function login(payload: LoginPayload) {
 
 export function register(payload: RegisterPayload) {
   return postAuth("/api/auth/register", payload);
+}
+
+export function updateUserPreferences(
+  session: AuthSession,
+  payload: UpdateUserPreferencesPayload,
+) {
+  return sendAuthorized<UserPreferences, UpdateUserPreferencesPayload>(
+    "/api/auth/preferences",
+    session,
+    {
+      method: "PUT",
+      payload,
+    },
+  );
 }

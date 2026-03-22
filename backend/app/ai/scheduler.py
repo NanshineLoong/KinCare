@@ -15,7 +15,7 @@ from app.ai.daily_generation import DailyGenerationService
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.dependencies import CurrentUser
-from app.services import health_repository, repository, scheduled_tasks
+from app.services import health_repository, repository, scheduled_tasks, system_config
 from app.services.health_records import (
     build_member_daily_generation_snapshot,
     ensure_member_access,
@@ -164,7 +164,12 @@ class KinCareScheduler:
             members = list_all_members_for_scheduler(connection)
         return self.refresh_health_summaries_for_member_ids([member["id"] for member in members])
 
-    def refresh_health_summaries_for_member_ids(self, member_ids: list[str]) -> dict[str, Any]:
+    def refresh_health_summaries_for_member_ids(
+        self,
+        member_ids: list[str],
+        *,
+        output_language: str | None = None,
+    ) -> dict[str, Any]:
         refreshed_member_ids: list[str] = []
         failed_member_ids: list[str] = []
         errors: dict[str, str] = {}
@@ -173,15 +178,31 @@ class KinCareScheduler:
 
         with self.database.connection() as connection:
             members = _resolve_members_for_refresh(connection, member_ids)
+            family_default_language = (
+                None
+                if output_language is not None
+                else system_config.get_ai_default_language(connection)
+            )
             for member in members:
                 try:
+                    resolved_output_language = _resolve_output_language(
+                        connection,
+                        member,
+                        requested_language=output_language,
+                        family_default_language=family_default_language,
+                    )
                     snapshot = build_member_daily_generation_snapshot(
                         connection,
                         member_id=member["id"],
                         now=now,
                         timezone=str(self._timezone),
                     )
-                    bundle = asyncio.run(self._daily_generator.generate_health_summaries(snapshot))
+                    bundle = asyncio.run(
+                        self._daily_generator.generate_health_summaries(
+                            snapshot,
+                            output_language=resolved_output_language,
+                        )
+                    )
                     summaries = bundle.model_dump()["summaries"] if hasattr(bundle, "model_dump") else bundle["summaries"]
                     replace_generated_health_summaries(
                         connection,
@@ -206,7 +227,12 @@ class KinCareScheduler:
             members = list_all_members_for_scheduler(connection)
         return self.refresh_daily_care_plans_for_member_ids([member["id"] for member in members])
 
-    def refresh_daily_care_plans_for_member_ids(self, member_ids: list[str]) -> dict[str, Any]:
+    def refresh_daily_care_plans_for_member_ids(
+        self,
+        member_ids: list[str],
+        *,
+        output_language: str | None = None,
+    ) -> dict[str, Any]:
         refreshed_member_ids: list[str] = []
         failed_member_ids: list[str] = []
         errors: dict[str, str] = {}
@@ -214,15 +240,31 @@ class KinCareScheduler:
 
         with self.database.connection() as connection:
             members = _resolve_members_for_refresh(connection, member_ids)
+            family_default_language = (
+                None
+                if output_language is not None
+                else system_config.get_ai_default_language(connection)
+            )
             for member in members:
                 try:
+                    resolved_output_language = _resolve_output_language(
+                        connection,
+                        member,
+                        requested_language=output_language,
+                        family_default_language=family_default_language,
+                    )
                     snapshot = build_member_daily_generation_snapshot(
                         connection,
                         member_id=member["id"],
                         now=now,
                         timezone=str(self._timezone),
                     )
-                    decision = asyncio.run(self._daily_generator.generate_care_plan(snapshot))
+                    decision = asyncio.run(
+                        self._daily_generator.generate_care_plan(
+                            snapshot,
+                            output_language=resolved_output_language,
+                        )
+                    )
                     decision_payload = decision.model_dump() if hasattr(decision, "model_dump") else decision
                     care_plans: list[dict[str, Any]] = []
                     for draft in decision_payload.get("care_plans", []):
@@ -342,6 +384,28 @@ def _resolve_members_for_refresh(connection: Any, member_ids: list[str]) -> list
             members.append(member)
 
     return members
+
+
+def _resolve_output_language(
+    connection: Any,
+    member: dict[str, Any],
+    *,
+    requested_language: str | None,
+    family_default_language: str | None,
+) -> str:
+    if requested_language in {"zh", "en"}:
+        return requested_language
+
+    user_account_id = member.get("user_account_id")
+    if user_account_id:
+        user = repository.get_user_by_id(connection, str(user_account_id))
+        if user is not None and user.get("preferred_language") in {"zh", "en"}:
+            return str(user["preferred_language"])
+
+    if family_default_language in {"zh", "en"}:
+        return family_default_language
+
+    return system_config.DEFAULT_AI_OUTPUT_LANGUAGE
 
 
 def _now_in_timezone(timezone: ZoneInfo) -> datetime:

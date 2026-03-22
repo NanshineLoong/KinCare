@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { appPreferencesStorageKey } from "../preferences";
 import { PreferencesProvider } from "../preferences";
 import type { MemberPermissionGrant } from "../api/members";
 import type { AuthMember, AuthSession } from "../auth/session";
@@ -14,6 +15,7 @@ const getAdminSettingsMock = vi.fn();
 const updateAdminSettingsMock = vi.fn();
 const getLocalWhisperModelStatusMock = vi.fn();
 const downloadLocalWhisperModelMock = vi.fn();
+const updateUserPreferencesMock = vi.fn();
 
 vi.mock("../api/members", () => ({
   createMember: (...args: unknown[]) => createMemberMock(...args),
@@ -32,6 +34,10 @@ vi.mock("../api/adminSettings", () => ({
     downloadLocalWhisperModelMock(...args),
 }));
 
+vi.mock("../api/auth", () => ({
+  updateUserPreferences: (...args: unknown[]) => updateUserPreferencesMock(...args),
+}));
+
 const deleteFamilySpaceMock = vi.fn();
 
 vi.mock("../api/familySpace", () => ({
@@ -44,6 +50,7 @@ const adminSession: AuthSession = {
     family_space_id: "family-1",
     username: "管理员",
     email: "owner@example.com",
+    preferred_language: null,
     role: "admin",
     created_at: "2026-03-15T08:00:00Z",
   },
@@ -75,6 +82,7 @@ const memberSession: AuthSession = {
     id: "user-2",
     username: "张妈妈",
     email: "member@example.com",
+    preferred_language: null,
     role: "member",
   },
   member: {
@@ -121,6 +129,7 @@ const members: AuthMember[] = [
 const defaultAdminSettings = {
   health_summary_refresh_time: "05:00",
   care_plan_refresh_time: "06:00",
+  ai_default_language: "en",
   transcription: {
     provider: "openai",
     api_key: "stt-key",
@@ -260,6 +269,7 @@ describe("SettingsSheet", () => {
     revokeMemberPermissionMock.mockReset();
     getAdminSettingsMock.mockReset();
     updateAdminSettingsMock.mockReset();
+    updateUserPreferencesMock.mockReset();
     getLocalWhisperModelStatusMock.mockReset();
     downloadLocalWhisperModelMock.mockReset();
     deleteFamilySpaceMock.mockReset();
@@ -281,6 +291,12 @@ describe("SettingsSheet", () => {
         ...defaultAdminSettings.chat_model,
         ...(payload.chat_model ?? {}),
       },
+    }));
+    updateUserPreferencesMock.mockImplementation(async (_session, payload) => ({
+      ...adminSession.user,
+      ...(payload.preferred_language === undefined
+        ? {}
+        : { preferred_language: payload.preferred_language }),
     }));
   });
 
@@ -318,6 +334,23 @@ describe("SettingsSheet", () => {
     expect(
       screen.queryByRole("button", { name: /管理员配置/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("persists the user language preference when switching languages", async () => {
+    window.localStorage.setItem(
+      appPreferencesStorageKey,
+      JSON.stringify({ language: "zh", theme: "system" }),
+    );
+
+    renderSheet(memberSession);
+
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+
+    await waitFor(() => {
+      expect(updateUserPreferencesMock).toHaveBeenCalledWith(memberSession, {
+        preferred_language: "en",
+      });
+    });
   });
 
   it("expands member rows inline, supports multiple open rows, and collapses on second click", async () => {
@@ -437,6 +470,7 @@ describe("SettingsSheet", () => {
     const carePlanTimeInput = screen.getByLabelText("每日计划更新时间");
     expect(summaryTimeInput).toHaveValue("05:00");
     expect(carePlanTimeInput).toHaveValue("06:00");
+    expect(screen.getByLabelText("AI 默认输出语言")).toHaveValue("en");
     expect(screen.getByRole("heading", { name: "语音转录" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "对话模型" })).toBeInTheDocument();
 
@@ -456,10 +490,14 @@ describe("SettingsSheet", () => {
 
     fireEvent.change(summaryTimeInput, { target: { value: "07:30" } });
     fireEvent.change(carePlanTimeInput, { target: { value: "08:45" } });
+    fireEvent.change(screen.getByLabelText("AI 默认输出语言"), {
+      target: { value: "zh" },
+    });
 
     await waitFor(
       () => {
         expect(updateAdminSettingsMock).toHaveBeenCalledWith(adminSession, {
+          ai_default_language: "zh",
           health_summary_refresh_time: "07:30",
           care_plan_refresh_time: "08:45",
         });
