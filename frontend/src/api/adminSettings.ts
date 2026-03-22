@@ -1,6 +1,6 @@
 import type { AuthSession } from "../auth/session";
 
-import { buildApiUrl, getAuthorized, sendAuthorized } from "./http";
+import { getAuthorized, sendAuthorized } from "./http";
 
 
 export type AdminSettings = {
@@ -64,7 +64,6 @@ export function getLocalWhisperModelStatus(
   session: AuthSession,
   params: { model: string; downloadRoot: string },
 ): Promise<LocalWhisperModelStatus> {
-  const path = buildApiUrl("/api/admin/settings/transcription/local-whisper-model-status");
   const searchParams = new URLSearchParams();
   searchParams.set("model", params.model);
   const root = params.downloadRoot.trim();
@@ -72,7 +71,7 @@ export function getLocalWhisperModelStatus(
     searchParams.set("download_root", root);
   }
   return getAuthorized<LocalWhisperModelStatus>(
-    `${path}?${searchParams.toString()}`,
+    `/api/admin/settings/transcription/local-whisper-model-status?${searchParams.toString()}`,
     session,
   );
 }

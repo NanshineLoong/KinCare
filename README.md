@@ -1,16 +1,20 @@
- <img src="assets/KinCare.svg" alt="KinCare logo" width="80%" valign="middle">
+<div align="center">
 
-**Self-hosted family health space powered by AI**
+<img src="assets/KinCare.svg" alt="KinCare logo" width="60%" valign="middle">
+
+<p><strong>Self-hosted family health space powered by AI</strong></p>
+
+<img src="assets/screenshot.png" alt="KinCare screenshot" width="60%">
+
+<p><a href="./README.zh-CN.md">中文</a> | English</p>
+
+</div>
+
 <p align="center"><strong>Connection · Insight · Care</strong></p>
+
 - **Connection** — Bring your family and their health into one shared space.
 - **Insight** — Let AI uncover what you might miss.
 - **Care** — Turn understanding into timely, meaningful action.
-
-<p>
-  <img src="assets/screenshot.png" alt="KinCare screenshot" width="80%">
-</p>
-
-[中文](./README.zh-CN.md) | English
 
 ## What Is KinCare?
 
@@ -79,8 +83,6 @@ cd frontend
 npm ci
 VITE_API_BASE_URL=http://localhost:8000 npm run dev
 ```
-
-`VITE_API_BASE_URL` is needed for split local development because the Vite dev server runs on `:5173` while the API runs on `:8000`.
 
 ## Roadmap
 
