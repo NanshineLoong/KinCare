@@ -33,6 +33,7 @@ function createSession(): AuthSession {
       family_space_id: "family-1",
       username: "张三丰",
       email: null,
+      preferred_language: null,
       role: "admin",
       created_at: "2026-03-21T09:00:00Z",
     },

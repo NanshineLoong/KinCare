@@ -459,7 +459,8 @@ describe("App", () => {
     expect(await screen.findByText("家人状态")).toBeInTheDocument();
     expect(screen.getByText("最新收缩压 126mmHg。")).toBeInTheDocument();
     expect(screen.getByText("早餐后服药")).toBeInTheDocument();
-    expect(screen.getByText(/10:05 已刷新/)).toBeInTheDocument();
+    // today_reminders_refreshed_at is ISO with offset; displayed time follows host TZ (UTC in CI vs +8 locally).
+    expect(screen.getByText(/\d{1,2}:\d{2} 已刷新/)).toBeInTheDocument();
     expect(screen.queryByText("等待活动记录")).not.toBeInTheDocument();
   });
 
