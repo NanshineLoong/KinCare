@@ -1,0 +1,8 @@
+services:
+  api:
+    build: null
+    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner}/kincare-api:${IMAGE_TAG:-main}
+
+  web:
+    build: null
+    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner}/kincare-web:${IMAGE_TAG:-main}

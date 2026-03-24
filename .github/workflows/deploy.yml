@@ -1,0 +1,130 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Existing image tag to deploy. Leave empty to build and deploy the current ref.
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+  DEPLOY_PATH: /opt/kincare
+
+jobs:
+  prepare:
+    name: Prepare Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_tag: ${{ steps.vars.outputs.deploy_tag }}
+      should_build: ${{ steps.vars.outputs.should_build }}
+
+    steps:
+      - id: vars
+        shell: bash
+        run: |
+          input_tag="${{ github.event.inputs.image_tag }}"
+          short_sha="${GITHUB_SHA::7}"
+
+          if [ -n "$input_tag" ]; then
+            echo "deploy_tag=$input_tag" >> "$GITHUB_OUTPUT"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy_tag=sha-$short_sha" >> "$GITHUB_OUTPUT"
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build_images:
+    name: Build And Push Images
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/kincare-api:${{ needs.prepare.outputs.deploy_tag }}
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/kincare-web:${{ needs.prepare.outputs.deploy_tag }}
+
+  deploy:
+    name: Deploy To Server
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build_images
+    if: needs.prepare.result == 'success' && (needs.build_images.result == 'success' || needs.build_images.result == 'skipped')
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload Compose files
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "mkdir -p '${{ env.DEPLOY_PATH }}'"
+          scp docker-compose.yml docker-compose.prod.yml "$SSH_USER@$SSH_HOST:${{ env.DEPLOY_PATH }}/"
+
+      - name: Deploy services
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          DEPLOY_TAG: ${{ needs.prepare.outputs.deploy_tag }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "
+            set -e
+            cd '${{ env.DEPLOY_PATH }}'
+            test -f .env
+            printf '%s\n' '$GHCR_TOKEN' | docker login '${{ env.REGISTRY }}' -u '$GHCR_USERNAME' --password-stdin
+            IMAGE_PREFIX='${{ env.IMAGE_PREFIX }}' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api web
+            IMAGE_PREFIX='${{ env.IMAGE_PREFIX }}' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api web
+          "
