@@ -21,7 +21,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
   DEPLOY_PATH: /opt/kincare
 
 jobs:
@@ -30,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy_tag: ${{ steps.vars.outputs.deploy_tag }}
+      image_prefix: ${{ steps.vars.outputs.image_prefix }}
       should_build: ${{ steps.vars.outputs.should_build }}
 
     steps:
@@ -38,6 +38,9 @@ jobs:
         run: |
           input_tag="${{ github.event.inputs.image_tag }}"
           short_sha="${GITHUB_SHA::7}"
+          owner_lower="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+
+          echo "image_prefix=${{ env.REGISTRY }}/$owner_lower" >> "$GITHUB_OUTPUT"
 
           if [ -n "$input_tag" ]; then
             echo "deploy_tag=$input_tag" >> "$GITHUB_OUTPUT"
@@ -69,14 +72,14 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/kincare-api:${{ needs.prepare.outputs.deploy_tag }}
+          tags: ${{ needs.prepare.outputs.image_prefix }}/kincare-api:${{ needs.prepare.outputs.deploy_tag }}
 
       - name: Build and push Web image
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/kincare-web:${{ needs.prepare.outputs.deploy_tag }}
+          tags: ${{ needs.prepare.outputs.image_prefix }}/kincare-web:${{ needs.prepare.outputs.deploy_tag }}
 
   deploy:
     name: Deploy To Server
@@ -119,12 +122,13 @@ jobs:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DEPLOY_TAG: ${{ needs.prepare.outputs.deploy_tag }}
+          IMAGE_PREFIX: ${{ needs.prepare.outputs.image_prefix }}
         run: |
           ssh "$SSH_USER@$SSH_HOST" "
             set -e
             cd '${{ env.DEPLOY_PATH }}'
             test -f .env
             printf '%s\n' '$GHCR_TOKEN' | docker login '${{ env.REGISTRY }}' -u '$GHCR_USERNAME' --password-stdin
-            IMAGE_PREFIX='${{ env.IMAGE_PREFIX }}' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api web
-            IMAGE_PREFIX='${{ env.IMAGE_PREFIX }}' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api web
+            IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api web
+            IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api web
           "
