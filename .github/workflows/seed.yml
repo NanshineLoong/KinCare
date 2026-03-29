@@ -1,0 +1,44 @@
+name: Seed Demo Data
+
+on:
+  schedule:
+    - cron: '0 19 * * *'   # daily 03:00 CST = 19:00 UTC
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  DEPLOY_PATH: /opt/kincare
+
+jobs:
+  seed:
+    name: Seed Demo Data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SSH key
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Run seed script in container
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "
+            set -e
+            cd '${{ env.DEPLOY_PATH }}'
+            for i in \$(seq 1 12); do
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+                exec -T api echo ok && break || sleep 5
+            done
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              exec -T api python scripts/seed_demo_data.py
+          "

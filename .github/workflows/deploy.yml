@@ -132,3 +132,10 @@ jobs:
             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api web
             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api web
           "
+
+  seed:
+    name: Seed Demo Data After Deploy
+    needs: deploy
+    if: needs.deploy.result == 'success'
+    uses: ./.github/workflows/seed.yml
+    secrets: inherit
