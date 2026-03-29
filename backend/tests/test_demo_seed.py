@@ -8,7 +8,7 @@ from app.services import repository
 from app.services.demo_seed import DEMO_PASSWORD, seed_demo_family
 
 
-def test_seed_demo_family_replaces_existing_family_data_and_preserves_system_config(tmp_path) -> None:
+def test_seed_demo_family_replaces_existing_family_data_and_clears_system_config(tmp_path) -> None:
     database_path = tmp_path / "kincare.db"
     database = Database(str(database_path))
     database.initialize()
@@ -87,7 +87,7 @@ def test_seed_demo_family_replaces_existing_family_data_and_preserves_system_con
             "care_plan": 9,
             "chat_session": 3,
             "chat_message": 12,
-            "system_config": 1,
+            "system_config": 0,
         }
 
         family_space = connection.execute("SELECT * FROM family_space").fetchone()
@@ -148,9 +148,5 @@ def test_seed_demo_family_replaces_existing_family_data_and_preserves_system_con
             "Weekly family check-in",
         }
 
-        system_config = connection.execute("SELECT * FROM system_config").fetchone()
-        assert dict(system_config) == {
-            "key": "ui.language",
-            "value": "en",
-            "updated_at": "2026-03-20T09:00:00+08:00",
-        }
+        system_config_count = connection.execute("SELECT COUNT(*) FROM system_config").fetchone()[0]
+        assert system_config_count == 0

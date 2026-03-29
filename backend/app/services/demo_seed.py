@@ -27,6 +27,7 @@ RESET_TABLES: Sequence[str] = (
     "member_access_grant",
     "family_member",
     "user_account",
+    "system_config",
     "family_space",
 )
 
