@@ -129,10 +129,11 @@ const members: AuthMember[] = [
 const defaultAdminSettings = {
   health_summary_refresh_time: "05:00",
   care_plan_refresh_time: "06:00",
-  ai_default_language: "en",
+  ai_default_language: "en" as const,
   transcription: {
-    provider: "openai",
+    provider: "openai" as const,
     api_key: "stt-key",
+    api_key_source: "db" as const,
     model: "gpt-4o-mini-transcribe",
     language: "zh",
     timeout: 30,
@@ -143,8 +144,11 @@ const defaultAdminSettings = {
   },
   chat_model: {
     base_url: "https://example.invalid/v1",
+    base_url_source: "db" as const,
     api_key: "chat-key",
+    api_key_source: "db" as const,
     model: "gpt-4.1-mini",
+    model_source: "db" as const,
   },
 };
 
@@ -705,5 +709,40 @@ describe("SettingsSheet", () => {
     });
     expect(screen.queryByRole("button", { name: "下载" })).not.toBeInTheDocument();
     expect(await screen.findByLabelText("已找到本地模型")).toBeInTheDocument();
+  });
+
+  it("shows env badge for chat api key when source is env and value is null", async () => {
+    getAdminSettingsMock.mockResolvedValue({
+      ...defaultAdminSettings,
+      chat_model: {
+        ...defaultAdminSettings.chat_model,
+        api_key: null,
+        api_key_source: "env" as const,
+      },
+    });
+    renderSheet();
+    fireEvent.click(screen.getByRole("button", { name: "管理员配置" }));
+    await waitFor(() => {
+      expect(screen.getAllByText("来自环境变量").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows save-to-db warning when user types into an env-configured chat api key field", async () => {
+    getAdminSettingsMock.mockResolvedValue({
+      ...defaultAdminSettings,
+      chat_model: {
+        ...defaultAdminSettings.chat_model,
+        api_key: null,
+        api_key_source: "env" as const,
+      },
+    });
+    renderSheet();
+    fireEvent.click(screen.getByRole("button", { name: "管理员配置" }));
+    await waitFor(() => {
+      expect(screen.getAllByText("来自环境变量").length).toBeGreaterThan(0);
+    });
+    const apiKeyInputs = screen.getAllByLabelText(/对话 API Key/i);
+    fireEvent.change(apiKeyInputs[0], { target: { value: "sk-override" } });
+    expect(screen.getByText("填写后将保存至数据库")).toBeInTheDocument();
   });
 });
