@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import sqlite3
-from typing import Any
+from typing import Any, Literal
 
 from app.core.config import Settings
 from app.core.database import Database
@@ -130,6 +130,33 @@ def _effective_stt_base_url(values: dict[str, str], settings: Settings) -> str |
     return settings.stt_base_url
 
 
+def _field_source(
+    values: dict[str, str],
+    key: str,
+    env_value: str | None,
+) -> tuple[str | None, Literal["env", "db"] | None]:
+    """Returns (value_to_send, source). Never exposes env-sourced values."""
+    if key in values:
+        return values[key] or None, "db"
+    if env_value:
+        return None, "env"
+    return None, None
+
+
+def _stt_api_key_field_source(
+    values: dict[str, str],
+    settings: Settings,
+) -> tuple[str | None, Literal["env", "db"] | None]:
+    """Handles the STT api_key fallback chain through ai_api_key."""
+    if STT_API_KEY_KEY in values:
+        return values[STT_API_KEY_KEY] or None, "db"
+    if settings.stt_api_key_uses_ai_fallback:
+        return _field_source(values, AI_API_KEY_KEY, settings.ai_api_key)
+    if settings.stt_api_key:
+        return None, "env"
+    return None, None
+
+
 def load_runtime_settings(database: Database, settings: Settings) -> Settings:
     with database.connection() as connection:
         values = _load_setting_values(connection)
@@ -184,12 +211,19 @@ def _serialize_admin_settings(
     values = _load_setting_values(connection)
     effective_settings = _load_runtime_settings_from_values(values, settings=settings)
     time_settings = _load_time_settings(connection, settings=settings, values=values)
+
+    chat_api_key, chat_api_key_source = _field_source(values, AI_API_KEY_KEY, settings.ai_api_key)
+    chat_base_url, chat_base_url_source = _field_source(values, AI_BASE_URL_KEY, settings.ai_base_url)
+    chat_model_val, chat_model_source = _field_source(values, AI_MODEL_KEY, settings.ai_model)
+    stt_api_key_val, stt_api_key_source = _stt_api_key_field_source(values, settings)
+
     return {
         **time_settings,
         "ai_default_language": values.get(AI_DEFAULT_LANGUAGE_KEY, DEFAULT_AI_OUTPUT_LANGUAGE),
         "transcription": {
             "provider": effective_settings.stt_provider,
-            "api_key": effective_settings.stt_api_key,
+            "api_key": stt_api_key_val,
+            "api_key_source": stt_api_key_source,
             "model": effective_settings.stt_model,
             "language": effective_settings.stt_language,
             "timeout": effective_settings.stt_timeout_seconds,
@@ -199,9 +233,12 @@ def _serialize_admin_settings(
             "local_whisper_download_root": effective_settings.local_whisper_download_root,
         },
         "chat_model": {
-            "base_url": effective_settings.ai_base_url,
-            "api_key": effective_settings.ai_api_key,
-            "model": effective_settings.ai_model,
+            "base_url": chat_base_url,
+            "base_url_source": chat_base_url_source,
+            "api_key": chat_api_key,
+            "api_key_source": chat_api_key_source,
+            "model": chat_model_val or settings.ai_model,
+            "model_source": chat_model_source,
         },
     }
 

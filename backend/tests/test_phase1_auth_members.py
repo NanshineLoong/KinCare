@@ -650,7 +650,8 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         "ai_default_language": "en",
         "transcription": {
             "provider": "openai",
-            "api_key": "test-key",
+            "api_key": None,
+            "api_key_source": "env",
             "model": "gpt-4o-mini-transcribe",
             "language": "zh",
             "timeout": 30.0,
@@ -660,9 +661,12 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
             "local_whisper_download_root": None,
         },
         "chat_model": {
-            "base_url": "https://example.invalid/v1",
-            "api_key": "test-key",
+            "base_url": None,
+            "base_url_source": "env",
+            "api_key": None,
+            "api_key_source": "env",
             "model": "test-model",
+            "model_source": "env",
         },
     }
 
@@ -703,6 +707,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         "transcription": {
             "provider": "local_whisper",
             "api_key": "new-ai-key",
+            "api_key_source": "db",
             "model": "gpt-4o-mini-transcribe",
             "language": "en",
             "timeout": 12.5,
@@ -713,8 +718,11 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         },
         "chat_model": {
             "base_url": "https://llm.example/v1",
+            "base_url_source": "db",
             "api_key": "new-ai-key",
+            "api_key_source": "db",
             "model": "gpt-4.1-nano",
+            "model_source": "db",
         },
     }
 
@@ -750,6 +758,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         "transcription": {
             "provider": "local_whisper",
             "api_key": "new-ai-key",
+            "api_key_source": "db",
             "model": "gpt-4o-mini-transcribe",
             "language": "en",
             "timeout": 12.5,
@@ -760,8 +769,11 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         },
         "chat_model": {
             "base_url": "https://llm.example/v1",
+            "base_url_source": "db",
             "api_key": "new-ai-key",
+            "api_key_source": "db",
             "model": "gpt-4.1-nano",
+            "model_source": "db",
         },
     }
 
