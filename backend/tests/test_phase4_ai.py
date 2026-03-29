@@ -545,7 +545,7 @@ def test_chat_prompt_uses_english_internal_instructions_and_requested_output_lan
 
     prompt_dump = "\n".join(captured_messages)
     assert events[-1]["event"] == "message.completed"
-    assert "You are the KinCare family health assistant" in prompt_dump
+    assert "You are KinCare, a personal family health companion" in prompt_dump
     assert "Respond to the user in English." in prompt_dump
     assert "Use English for all internal instructions." in prompt_dump
     assert "For condition records, category must be exactly one of: diagnosis, chronic, allergy, family-history." in prompt_dump
