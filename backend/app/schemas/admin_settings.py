@@ -38,8 +38,11 @@ def _normalize_optional_text(value: str | None) -> str | None:
 
 class ChatModelSettingsRead(BaseModel):
     base_url: str | None
+    base_url_source: Literal["env", "db"] | None = None
     api_key: str | None
+    api_key_source: Literal["env", "db"] | None = None
     model: str
+    model_source: Literal["env", "db"] | None = None
 
     @field_validator("base_url", "api_key")
     @classmethod
@@ -66,6 +69,7 @@ class ChatModelSettingsUpdate(BaseModel):
 class TranscriptionSettingsRead(BaseModel):
     provider: Literal["openai", "local_whisper"]
     api_key: str | None
+    api_key_source: Literal["env", "db"] | None = None
     model: str
     language: str | None
     timeout: float = Field(gt=0)
