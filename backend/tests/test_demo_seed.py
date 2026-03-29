@@ -2,37 +2,14 @@ from __future__ import annotations
 
 import sqlite3
 
-from app.cli.seed_demo import main as seed_demo_main
-from app.core.config import get_settings
 from app.core.database import Database
 from app.core.security import verify_password
 from app.services import repository
 from app.services.demo_seed import DEMO_PASSWORD, seed_demo_family
 
 
-def test_seed_demo_family_replaces_existing_family_data_and_rebuilds_system_config_from_settings(
-    monkeypatch,
-    tmp_path,
-) -> None:
+def test_seed_demo_family_replaces_existing_family_data_and_preserves_system_config(tmp_path) -> None:
     database_path = tmp_path / "kincare.db"
-    monkeypatch.setenv("KINCARE_SKIP_DOTENV", "1")
-    monkeypatch.setenv("KINCARE_AI_BASE_URL", "https://demo.example/v1")
-    monkeypatch.setenv("KINCARE_AI_API_KEY", "demo-ai-key")
-    monkeypatch.setenv("KINCARE_AI_MODEL", "demo-chat-model")
-    monkeypatch.setenv("KINCARE_STT_PROVIDER", "openai")
-    monkeypatch.setenv("KINCARE_STT_API_KEY", "demo-stt-key")
-    monkeypatch.setenv("KINCARE_STT_MODEL", "demo-stt-model")
-    monkeypatch.setenv("KINCARE_STT_LANGUAGE", "zh")
-    monkeypatch.setenv("KINCARE_STT_TIMEOUT_SECONDS", "42")
-    monkeypatch.setenv("KINCARE_LOCAL_WHISPER_MODEL", "medium")
-    monkeypatch.setenv("KINCARE_LOCAL_WHISPER_DEVICE", "cpu")
-    monkeypatch.setenv("KINCARE_LOCAL_WHISPER_COMPUTE_TYPE", "int8")
-    monkeypatch.setenv("KINCARE_LOCAL_WHISPER_DOWNLOAD_ROOT", "/models/demo")
-    monkeypatch.setenv("KINCARE_HEALTH_SUMMARY_REFRESH_HOUR", "3")
-    monkeypatch.setenv("KINCARE_HEALTH_SUMMARY_REFRESH_MINUTE", "30")
-    monkeypatch.setenv("KINCARE_CARE_PLAN_REFRESH_HOUR", "4")
-    monkeypatch.setenv("KINCARE_CARE_PLAN_REFRESH_MINUTE", "15")
-
     database = Database(str(database_path))
     database.initialize()
 
@@ -60,7 +37,7 @@ def test_seed_demo_family_replaces_existing_family_data_and_rebuilds_system_conf
             name="Legacy Admin",
         )
 
-    result = seed_demo_family(database, settings=get_settings())
+    result = seed_demo_family(database)
 
     assert result["family_space"]["name"] == "Carter Family"
     assert result["password"] == DEMO_PASSWORD
@@ -110,7 +87,7 @@ def test_seed_demo_family_replaces_existing_family_data_and_rebuilds_system_conf
             "care_plan": 9,
             "chat_session": 3,
             "chat_message": 12,
-            "system_config": 15,
+            "system_config": 1,
         }
 
         family_space = connection.execute("SELECT * FROM family_space").fetchone()
@@ -171,52 +148,9 @@ def test_seed_demo_family_replaces_existing_family_data_and_rebuilds_system_conf
             "Weekly family check-in",
         }
 
-        system_config = {
-            row["key"]: row["value"]
-            for row in connection.execute("SELECT key, value FROM system_config").fetchall()
+        system_config = connection.execute("SELECT * FROM system_config").fetchone()
+        assert dict(system_config) == {
+            "key": "ui.language",
+            "value": "en",
+            "updated_at": "2026-03-20T09:00:00+08:00",
         }
-        assert system_config == {
-            "health_summary_refresh_time": "03:30",
-            "care_plan_refresh_time": "04:15",
-            "ai_default_language": "en",
-            "ai_base_url": "https://demo.example/v1",
-            "ai_api_key": "demo-ai-key",
-            "ai_model": "demo-chat-model",
-            "stt_provider": "openai",
-            "stt_api_key": "demo-stt-key",
-            "stt_model": "demo-stt-model",
-            "stt_language": "zh",
-            "stt_timeout_seconds": "42.0",
-            "local_whisper_model": "medium",
-            "local_whisper_device": "cpu",
-            "local_whisper_compute_type": "int8",
-            "local_whisper_download_root": "/models/demo",
-        }
-
-
-def test_seed_demo_cli_main_seeds_database_and_prints_summary(
-    monkeypatch,
-    tmp_path,
-    capsys,
-) -> None:
-    database_path = tmp_path / "kincare.db"
-    monkeypatch.setenv("KINCARE_DB_PATH", str(database_path))
-    monkeypatch.setenv("KINCARE_SKIP_DOTENV", "1")
-    monkeypatch.setenv("KINCARE_AI_MODEL", "cli-demo-chat-model")
-
-    result = seed_demo_main()
-
-    assert result == 0
-    captured = capsys.readouterr()
-    assert f"Seeded demo family into: {database_path}" in captured.out
-    assert "Family space: Carter Family" in captured.out
-    assert "daniel_demo (admin) -> Daniel Carter" in captured.out
-
-    with sqlite3.connect(database_path) as connection:
-        total = connection.execute("SELECT COUNT(*) FROM family_space").fetchone()[0]
-        seeded_model = connection.execute(
-            "SELECT value FROM system_config WHERE key = 'ai_model'"
-        ).fetchone()[0]
-
-    assert total == 1
-    assert seeded_model == "cli-demo-chat-model"

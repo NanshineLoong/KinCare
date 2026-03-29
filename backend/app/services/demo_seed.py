@@ -4,10 +4,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from app.core.config import Settings
 from app.core.database import Database
 from app.core.security import hash_password
-from app.services import chat_sessions, health_repository, repository, system_config
+from app.services import chat_sessions, health_repository, repository
 
 
 DEMO_FAMILY_NAME = "Carter Family"
@@ -1234,7 +1233,7 @@ def _seed_chat_sessions(
         )
 
 
-def seed_demo_family(database: Database, *, settings: Settings) -> dict[str, Any]:
+def seed_demo_family(database: Database) -> dict[str, Any]:
     database.initialize()
     with database.connection() as connection:
         _reset_family_data(connection)
@@ -1299,8 +1298,6 @@ def seed_demo_family(database: Database, *, settings: Settings) -> dict[str, Any
             members=members_by_name,
             family_space_id=family_space["id"],
         )
-
-    system_config.replace_with_runtime_defaults(database, settings=settings)
 
     return {
         "family_space": family_space,

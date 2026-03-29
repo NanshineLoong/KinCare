@@ -68,7 +68,6 @@ type PermissionPickerProps = {
 };
 
 type TranscriptionProvider = AdminSettings["transcription"]["provider"];
-type ConfigValueSource = "env" | "database" | "unset";
 
 const CUSTOM_LOCAL_WHISPER_MODEL_VALUE = "__custom__";
 
@@ -177,10 +176,6 @@ const LOCAL_WHISPER_COMPUTE_TYPE_OPTIONS = [
 
 function isPresetLocalWhisperModel(value: string): boolean {
   return LOCAL_WHISPER_MODEL_OPTIONS.some((option) => option.value === value);
-}
-
-function hasSource(sources: ConfigValueSource[], target: ConfigValueSource): boolean {
-  return sources.includes(target);
 }
 
 function getAvatarColor(name: string): string {
@@ -1048,9 +1043,6 @@ export function SettingsSheet({
   const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
   const [sttProvider, setSttProvider] = useState<TranscriptionProvider>("openai");
   const [sttApiKey, setSttApiKey] = useState("");
-  const [sttApiKeyDirty, setSttApiKeyDirty] = useState(false);
-  const [sttApiKeyConfigured, setSttApiKeyConfigured] = useState(false);
-  const [sttApiKeySource, setSttApiKeySource] = useState<ConfigValueSource>("unset");
   const [sttModel, setSttModel] = useState("gpt-4o-mini-transcribe");
   const [sttLanguage, setSttLanguage] = useState("zh");
   const [sttTimeout, setSttTimeout] = useState("30");
@@ -1070,13 +1062,7 @@ export function SettingsSheet({
     null,
   );
   const [chatBaseUrl, setChatBaseUrl] = useState("");
-  const [chatBaseUrlDirty, setChatBaseUrlDirty] = useState(false);
-  const [chatBaseUrlConfigured, setChatBaseUrlConfigured] = useState(false);
-  const [chatBaseUrlSource, setChatBaseUrlSource] = useState<ConfigValueSource>("unset");
   const [chatApiKey, setChatApiKey] = useState("");
-  const [chatApiKeyDirty, setChatApiKeyDirty] = useState(false);
-  const [chatApiKeyConfigured, setChatApiKeyConfigured] = useState(false);
-  const [chatApiKeySource, setChatApiKeySource] = useState<ConfigValueSource>("unset");
   const [chatModel, setChatModel] = useState("gpt-4.1-mini");
   const [preferencesSectionOpen, setPreferencesSectionOpen] = useState(true);
   const [adminChatSectionOpen, setAdminChatSectionOpen] = useState(true);
@@ -1189,9 +1175,6 @@ export function SettingsSheet({
     setAiDefaultLanguage(nextSettings.ai_default_language);
     setSttProvider(nextSettings.transcription.provider);
     setSttApiKey(nextSettings.transcription.api_key ?? "");
-    setSttApiKeyDirty(false);
-    setSttApiKeyConfigured(nextSettings.transcription.api_key_configured);
-    setSttApiKeySource(nextSettings.transcription.api_key_source);
     setSttModel(nextSettings.transcription.model);
     setSttLanguage(nextSettings.transcription.language ?? "");
     setSttTimeout(String(nextSettings.transcription.timeout));
@@ -1205,13 +1188,7 @@ export function SettingsSheet({
       nextSettings.transcription.local_whisper_download_root ?? "",
     );
     setChatBaseUrl(nextSettings.chat_model.base_url ?? "");
-    setChatBaseUrlDirty(false);
-    setChatBaseUrlConfigured(nextSettings.chat_model.base_url_configured);
-    setChatBaseUrlSource(nextSettings.chat_model.base_url_source);
     setChatApiKey(nextSettings.chat_model.api_key ?? "");
-    setChatApiKeyDirty(false);
-    setChatApiKeyConfigured(nextSettings.chat_model.api_key_configured);
-    setChatApiKeySource(nextSettings.chat_model.api_key_source);
     setChatModel(nextSettings.chat_model.model);
   }
 
@@ -1412,40 +1389,26 @@ export function SettingsSheet({
 
   async function persistAiSettings() {
     const snap = aiFormRef.current;
-    const transcriptionPayload: NonNullable<
-      Parameters<typeof updateAdminSettings>[1]["transcription"]
-    > = {
-      provider: snap.sttProvider,
-      model: snap.sttModel || null,
-      language: snap.sttLanguage || null,
-      timeout: Number(snap.sttTimeout),
-      local_whisper_model: snap.localWhisperModel || null,
-      local_whisper_device: snap.localWhisperDevice || null,
-      local_whisper_compute_type: snap.localWhisperComputeType || null,
-      local_whisper_download_root: snap.localWhisperDownloadRoot || null,
-    };
-    if (sttApiKeyDirty) {
-      transcriptionPayload.api_key = snap.sttApiKey || null;
-    }
-
-    const chatModelPayload: NonNullable<
-      Parameters<typeof updateAdminSettings>[1]["chat_model"]
-    > = {
-      model: snap.chatModel || null,
-    };
-    if (chatBaseUrlDirty) {
-      chatModelPayload.base_url = snap.chatBaseUrl || null;
-    }
-    if (chatApiKeyDirty) {
-      chatModelPayload.api_key = snap.chatApiKey || null;
-    }
-
     setIsSavingAiSettings(true);
     setAiError(null);
     try {
       const nextSettings = await updateAdminSettings(session, {
-        transcription: transcriptionPayload,
-        chat_model: chatModelPayload,
+        transcription: {
+          provider: snap.sttProvider,
+          api_key: snap.sttApiKey || null,
+          model: snap.sttModel || null,
+          language: snap.sttLanguage || null,
+          timeout: Number(snap.sttTimeout),
+          local_whisper_model: snap.localWhisperModel || null,
+          local_whisper_device: snap.localWhisperDevice || null,
+          local_whisper_compute_type: snap.localWhisperComputeType || null,
+          local_whisper_download_root: snap.localWhisperDownloadRoot || null,
+        },
+        chat_model: {
+          base_url: snap.chatBaseUrl || null,
+          api_key: snap.chatApiKey || null,
+          model: snap.chatModel || null,
+        },
       });
       applyAdminSettings(nextSettings);
     } catch (error) {
@@ -1563,23 +1526,6 @@ export function SettingsSheet({
     members: t("settingsTabMembers"),
     admin: t("settingsTabAdmin"),
   };
-  const chatConfigSources = [
-    chatBaseUrlConfigured ? chatBaseUrlSource : "unset",
-    chatApiKeyConfigured ? chatApiKeySource : "unset",
-  ].filter((source): source is ConfigValueSource => source !== "unset");
-  const transcriptionConfigSources = [
-    sttApiKeyConfigured ? sttApiKeySource : "unset",
-  ].filter((source): source is ConfigValueSource => source !== "unset");
-  const chatSensitiveConfigHint = t(
-    hasSource(chatConfigSources, "env")
-      ? "settingsAiSensitiveConfigHint"
-      : "settingsAiSensitiveConfigHintNoEnv",
-  );
-  const transcriptionSensitiveConfigHint = t(
-    hasSource(transcriptionConfigSources, "env")
-      ? "settingsAiSensitiveConfigHint"
-      : "settingsAiSensitiveConfigHintNoEnv",
-  );
   const languageOptions: Array<{ value: AppLanguage; label: string }> = [
     { value: "zh", label: t("settingsLanguageChinese") },
     { value: "en", label: t("settingsLanguageEnglish") },
@@ -2108,7 +2054,6 @@ export function SettingsSheet({
                           className={adminFieldClass}
                           disabled={isLoadingAdminSettings || isSavingAiSettings}
                           onChange={(event) => {
-                            setChatBaseUrlDirty(true);
                             setChatBaseUrl(event.target.value);
                             schedulePersistAiSettings();
                           }}
@@ -2123,7 +2068,6 @@ export function SettingsSheet({
                           className={adminFieldClass}
                           disabled={isLoadingAdminSettings || isSavingAiSettings}
                           onChange={(event) => {
-                            setChatApiKeyDirty(true);
                             setChatApiKey(event.target.value);
                             schedulePersistAiSettings();
                           }}
@@ -2131,21 +2075,6 @@ export function SettingsSheet({
                           value={chatApiKey}
                         />
                       </label>
-                    </div>
-                    <div className="mt-3 space-y-2 rounded-lg border border-[#D9D4CD] bg-[#FCF9F5]/90 px-4 py-3 text-xs leading-5 text-[#5F5F59]">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {hasSource(chatConfigSources, "env") ? (
-                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                            {t("settingsAiConfigDetectedFromEnv")}
-                          </span>
-                        ) : null}
-                        {hasSource(chatConfigSources, "database") ? (
-                          <span className="inline-flex items-center rounded-full border border-[#D9D4CD] bg-white px-2.5 py-1 text-[11px] font-medium text-[#615E57]">
-                            {t("settingsAiConfigSavedOverride")}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p>{chatSensitiveConfigHint}</p>
                     </div>
                     <label className="mt-4 block text-sm font-medium text-[#2D2926]">
                       {t("settingsAiChatModel")}
@@ -2277,7 +2206,6 @@ export function SettingsSheet({
                                   isLoadingAdminSettings || isSavingAiSettings
                                 }
                                 onChange={(event) => {
-                                  setSttApiKeyDirty(true);
                                   setSttApiKey(event.target.value);
                                   schedulePersistAiSettings();
                                 }}
@@ -2301,21 +2229,6 @@ export function SettingsSheet({
                                 value={sttModel}
                               />
                             </label>
-                          </div>
-                          <div className="rounded-lg border border-[#D9D4CD] bg-[#FCF9F5]/90 px-4 py-3 text-xs leading-5 text-[#5F5F59]">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {hasSource(transcriptionConfigSources, "env") ? (
-                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                                  {t("settingsAiConfigDetectedFromEnv")}
-                                </span>
-                              ) : null}
-                              {hasSource(transcriptionConfigSources, "database") ? (
-                                <span className="inline-flex items-center rounded-full border border-[#D9D4CD] bg-white px-2.5 py-1 text-[11px] font-medium text-[#615E57]">
-                                  {t("settingsAiConfigSavedOverride")}
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="mt-2">{transcriptionSensitiveConfigHint}</p>
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <label className="block text-sm font-medium text-[#2D2926]">

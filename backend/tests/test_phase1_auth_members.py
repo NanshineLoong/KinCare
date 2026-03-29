@@ -650,9 +650,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         "ai_default_language": "en",
         "transcription": {
             "provider": "openai",
-            "api_key": None,
-            "api_key_configured": True,
-            "api_key_source": "env",
+            "api_key": "test-key",
             "model": "gpt-4o-mini-transcribe",
             "language": "zh",
             "timeout": 30.0,
@@ -662,12 +660,8 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
             "local_whisper_download_root": None,
         },
         "chat_model": {
-            "base_url": None,
-            "base_url_configured": True,
-            "base_url_source": "env",
-            "api_key": None,
-            "api_key_configured": True,
-            "api_key_source": "env",
+            "base_url": "https://example.invalid/v1",
+            "api_key": "test-key",
             "model": "test-model",
         },
     }
@@ -708,9 +702,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         "ai_default_language": "zh",
         "transcription": {
             "provider": "local_whisper",
-            "api_key": None,
-            "api_key_configured": True,
-            "api_key_source": "database",
+            "api_key": "new-ai-key",
             "model": "gpt-4o-mini-transcribe",
             "language": "en",
             "timeout": 12.5,
@@ -720,12 +712,8 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
             "local_whisper_download_root": "/tmp/whisper-cache",
         },
         "chat_model": {
-            "base_url": None,
-            "base_url_configured": True,
-            "base_url_source": "database",
-            "api_key": None,
-            "api_key_configured": True,
-            "api_key_source": "database",
+            "base_url": "https://llm.example/v1",
+            "api_key": "new-ai-key",
             "model": "gpt-4.1-nano",
         },
     }
@@ -761,9 +749,7 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
         "ai_default_language": "zh",
         "transcription": {
             "provider": "local_whisper",
-            "api_key": None,
-            "api_key_configured": True,
-            "api_key_source": "database",
+            "api_key": "new-ai-key",
             "model": "gpt-4o-mini-transcribe",
             "language": "en",
             "timeout": 12.5,
@@ -773,12 +759,8 @@ def test_admin_can_manage_daily_refresh_settings_and_updates_scheduler(client: T
             "local_whisper_download_root": "/tmp/whisper-cache",
         },
         "chat_model": {
-            "base_url": None,
-            "base_url_configured": True,
-            "base_url_source": "database",
-            "api_key": None,
-            "api_key_configured": True,
-            "api_key_source": "database",
+            "base_url": "https://llm.example/v1",
+            "api_key": "new-ai-key",
             "model": "gpt-4.1-nano",
         },
     }

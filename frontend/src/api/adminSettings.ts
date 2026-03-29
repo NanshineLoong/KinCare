@@ -10,8 +10,6 @@ export type AdminSettings = {
   transcription: {
     provider: "openai" | "local_whisper";
     api_key: string | null;
-    api_key_configured: boolean;
-    api_key_source: "env" | "database" | "unset";
     model: string;
     language: string | null;
     timeout: number;
@@ -22,11 +20,7 @@ export type AdminSettings = {
   };
   chat_model: {
     base_url: string | null;
-    base_url_configured: boolean;
-    base_url_source: "env" | "database" | "unset";
     api_key: string | null;
-    api_key_configured: boolean;
-    api_key_source: "env" | "database" | "unset";
     model: string;
   };
 };

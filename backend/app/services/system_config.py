@@ -130,49 +130,6 @@ def _effective_stt_base_url(values: dict[str, str], settings: Settings) -> str |
     return settings.stt_base_url
 
 
-def _resolve_config_source(
-    values: dict[str, str],
-    *,
-    settings: Settings,
-    key: str,
-) -> str:
-    if key == AI_BASE_URL_KEY:
-        if AI_BASE_URL_KEY in values:
-            return "database"
-        if settings.ai_base_url:
-            return "env"
-        return "unset"
-    if key == AI_API_KEY_KEY:
-        if AI_API_KEY_KEY in values:
-            return "database"
-        if settings.ai_api_key:
-            return "env"
-        return "unset"
-    if key == STT_API_KEY_KEY:
-        if STT_API_KEY_KEY in values:
-            return "database"
-        if settings.stt_api_key_uses_ai_fallback:
-            return _resolve_config_source(values, settings=settings, key=AI_API_KEY_KEY)
-        if settings.stt_api_key:
-            return "env"
-        return "unset"
-    raise KeyError(key)
-
-
-def _masked_config_field(
-    values: dict[str, str],
-    *,
-    settings: Settings,
-    key: str,
-) -> dict[str, Any]:
-    source = _resolve_config_source(values, settings=settings, key=key)
-    return {
-        "value": None,
-        "configured": source != "unset",
-        "source": source,
-    }
-
-
 def load_runtime_settings(database: Database, settings: Settings) -> Settings:
     with database.connection() as connection:
         values = _load_setting_values(connection)
@@ -227,29 +184,12 @@ def _serialize_admin_settings(
     values = _load_setting_values(connection)
     effective_settings = _load_runtime_settings_from_values(values, settings=settings)
     time_settings = _load_time_settings(connection, settings=settings, values=values)
-    transcription_api_key = _masked_config_field(
-        values,
-        settings=settings,
-        key=STT_API_KEY_KEY,
-    )
-    chat_base_url = _masked_config_field(
-        values,
-        settings=settings,
-        key=AI_BASE_URL_KEY,
-    )
-    chat_api_key = _masked_config_field(
-        values,
-        settings=settings,
-        key=AI_API_KEY_KEY,
-    )
     return {
         **time_settings,
         "ai_default_language": values.get(AI_DEFAULT_LANGUAGE_KEY, DEFAULT_AI_OUTPUT_LANGUAGE),
         "transcription": {
             "provider": effective_settings.stt_provider,
-            "api_key": transcription_api_key["value"],
-            "api_key_configured": transcription_api_key["configured"],
-            "api_key_source": transcription_api_key["source"],
+            "api_key": effective_settings.stt_api_key,
             "model": effective_settings.stt_model,
             "language": effective_settings.stt_language,
             "timeout": effective_settings.stt_timeout_seconds,
@@ -259,12 +199,8 @@ def _serialize_admin_settings(
             "local_whisper_download_root": effective_settings.local_whisper_download_root,
         },
         "chat_model": {
-            "base_url": chat_base_url["value"],
-            "base_url_configured": chat_base_url["configured"],
-            "base_url_source": chat_base_url["source"],
-            "api_key": chat_api_key["value"],
-            "api_key_configured": chat_api_key["configured"],
-            "api_key_source": chat_api_key["source"],
+            "base_url": effective_settings.ai_base_url,
+            "api_key": effective_settings.ai_api_key,
             "model": effective_settings.ai_model,
         },
     }
@@ -272,44 +208,6 @@ def _serialize_admin_settings(
 
 def get_admin_settings(database: Database, settings: Settings) -> dict[str, Any]:
     with database.connection() as connection:
-        return _serialize_admin_settings(connection, settings=settings)
-
-
-def replace_with_runtime_defaults(database: Database, *, settings: Settings) -> dict[str, Any]:
-    values: dict[str, str] = {
-        HEALTH_SUMMARY_REFRESH_TIME_KEY: _default_time(
-            settings.health_summary_refresh_hour,
-            settings.health_summary_refresh_minute,
-        ),
-        CARE_PLAN_REFRESH_TIME_KEY: _default_time(
-            settings.care_plan_refresh_hour,
-            settings.care_plan_refresh_minute,
-        ),
-        AI_DEFAULT_LANGUAGE_KEY: DEFAULT_AI_OUTPUT_LANGUAGE,
-        AI_MODEL_KEY: settings.ai_model,
-        STT_PROVIDER_KEY: settings.stt_provider,
-        STT_MODEL_KEY: settings.stt_model,
-        STT_TIMEOUT_KEY: str(settings.stt_timeout_seconds),
-        LOCAL_WHISPER_MODEL_KEY: settings.local_whisper_model,
-        LOCAL_WHISPER_DEVICE_KEY: settings.local_whisper_device,
-        LOCAL_WHISPER_COMPUTE_TYPE_KEY: settings.local_whisper_compute_type,
-    }
-
-    if settings.ai_base_url is not None:
-        values[AI_BASE_URL_KEY] = settings.ai_base_url
-    if settings.ai_api_key is not None:
-        values[AI_API_KEY_KEY] = settings.ai_api_key
-    if not settings.stt_api_key_uses_ai_fallback and settings.stt_api_key is not None:
-        values[STT_API_KEY_KEY] = settings.stt_api_key
-    if settings.stt_language is not None:
-        values[STT_LANGUAGE_KEY] = settings.stt_language
-    if settings.local_whisper_download_root is not None:
-        values[LOCAL_WHISPER_DOWNLOAD_ROOT_KEY] = settings.local_whisper_download_root
-
-    updated_at = now_iso()
-    with database.connection() as connection:
-        connection.execute("DELETE FROM system_config")
-        _upsert_config_values(connection, values=values, updated_at=updated_at)
         return _serialize_admin_settings(connection, settings=settings)
 
 
