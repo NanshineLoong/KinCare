@@ -275,6 +275,44 @@ def get_admin_settings(database: Database, settings: Settings) -> dict[str, Any]
         return _serialize_admin_settings(connection, settings=settings)
 
 
+def replace_with_runtime_defaults(database: Database, *, settings: Settings) -> dict[str, Any]:
+    values: dict[str, str] = {
+        HEALTH_SUMMARY_REFRESH_TIME_KEY: _default_time(
+            settings.health_summary_refresh_hour,
+            settings.health_summary_refresh_minute,
+        ),
+        CARE_PLAN_REFRESH_TIME_KEY: _default_time(
+            settings.care_plan_refresh_hour,
+            settings.care_plan_refresh_minute,
+        ),
+        AI_DEFAULT_LANGUAGE_KEY: DEFAULT_AI_OUTPUT_LANGUAGE,
+        AI_MODEL_KEY: settings.ai_model,
+        STT_PROVIDER_KEY: settings.stt_provider,
+        STT_MODEL_KEY: settings.stt_model,
+        STT_TIMEOUT_KEY: str(settings.stt_timeout_seconds),
+        LOCAL_WHISPER_MODEL_KEY: settings.local_whisper_model,
+        LOCAL_WHISPER_DEVICE_KEY: settings.local_whisper_device,
+        LOCAL_WHISPER_COMPUTE_TYPE_KEY: settings.local_whisper_compute_type,
+    }
+
+    if settings.ai_base_url is not None:
+        values[AI_BASE_URL_KEY] = settings.ai_base_url
+    if settings.ai_api_key is not None:
+        values[AI_API_KEY_KEY] = settings.ai_api_key
+    if not settings.stt_api_key_uses_ai_fallback and settings.stt_api_key is not None:
+        values[STT_API_KEY_KEY] = settings.stt_api_key
+    if settings.stt_language is not None:
+        values[STT_LANGUAGE_KEY] = settings.stt_language
+    if settings.local_whisper_download_root is not None:
+        values[LOCAL_WHISPER_DOWNLOAD_ROOT_KEY] = settings.local_whisper_download_root
+
+    updated_at = now_iso()
+    with database.connection() as connection:
+        connection.execute("DELETE FROM system_config")
+        _upsert_config_values(connection, values=values, updated_at=updated_at)
+        return _serialize_admin_settings(connection, settings=settings)
+
+
 def get_ai_default_language(connection: sqlite3.Connection) -> str:
     values = _load_setting_values(connection)
     return values.get(AI_DEFAULT_LANGUAGE_KEY, DEFAULT_AI_OUTPUT_LANGUAGE)

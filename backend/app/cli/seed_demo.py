@@ -8,7 +8,7 @@ from app.services.demo_seed import seed_demo_family
 def main() -> int:
     settings = get_settings()
     database = Database(settings.database_path)
-    result = seed_demo_family(database)
+    result = seed_demo_family(database, settings=settings)
 
     print(f"Seeded demo family into: {settings.database_path}")
     print(f"Family space: {result['family_space']['name']}")
