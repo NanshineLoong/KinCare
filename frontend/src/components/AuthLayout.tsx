@@ -2,10 +2,9 @@ import { Link } from "react-router-dom";
 import type { FormEvent, ReactNode, SVGProps } from "react";
 
 import { usePreferences } from "../preferences";
+import { MaterialIcon } from "./MaterialIcon";
 
-/** Hero image aligned with `stitch_/login/code.html` */
-const AUTH_CARD_HERO_IMAGE =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDi8CTXj8_tmtlfvnHbJ35Oz-IeW2ipB_2r_mDwL-E3VOBXLVUKTy76LGFs-tPRmugoOuRqU7WcKMorcp4InY25CGY3RfSHcfzeLKa4BsSewIQh2XV-9_HXiEKQQgQdlnDqnQxuH0NiceijADpzpZIYTOV-rgqPAPyATupM7aLmnhl7CE4XxjbgvfiChdfkA1ee19VxC2uXg81wh1Ave3aKyx5E8DDhYKOtYgxFa48XvrIu84291qpLQW0TX6zyY4-00rLI_xwlhFY";
+const AUTH_CARD_HERO_IMAGE = "/auth-card-hero.png";
 
 type AuthLayoutProps = {
   title: string;
@@ -73,9 +72,7 @@ function AuthField({ id, label, icon: Icon, iconName, input, aside, trailing }: 
       <div className="relative group">
         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[20px] text-warm-gray opacity-50 transition-colors group-focus-within:text-apple-blue group-focus-within:opacity-100">
           {iconName ? (
-            <span aria-hidden className="material-symbols-outlined text-[20px]">
-              {iconName}
-            </span>
+            <MaterialIcon className="text-[20px]" name={iconName} />
           ) : Icon ? (
             <Icon aria-hidden className="h-5 w-5" />
           ) : null}
@@ -106,13 +103,13 @@ export function AuthLayout({
 }: AuthLayoutProps) {
   const { t } = usePreferences();
   return (
-    <div className="relative min-h-screen overflow-hidden bg-warm-cream text-warm-gray">
-      <div className="absolute inset-0 opacity-40">
+    <div className="relative flex h-svh max-h-svh min-h-0 w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-warm-cream text-warm-gray">
+      <div className="pointer-events-none absolute inset-0 opacity-40">
         <div className="absolute -left-8 top-0 h-72 w-72 rounded-full bg-soft-sage blur-[120px]" />
         <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-gentle-blue blur-[140px]" />
       </div>
 
-      <header className="relative z-10 border-b border-gentle-blue/80 bg-white/80 backdrop-blur-md">
+      <header className="relative z-10 shrink-0 border-b border-gentle-blue/80 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1400px] items-center px-6 py-4 sm:px-8">
           <div className="flex min-w-0 shrink-0 items-center">
             <img
@@ -124,20 +121,24 @@ export function AuthLayout({
         </div>
       </header>
 
-      <main className="relative z-10 flex min-h-[calc(100vh-79px)] items-center justify-center px-6 py-10">
-        <div className="w-full max-w-[480px] overflow-hidden rounded-xl border border-gentle-blue bg-white shadow-apple transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-[1.01] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
+      <main className="relative z-10 flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-hidden px-4 py-4 sm:px-6 sm:py-6">
+        <div className="w-full max-w-[480px] min-w-0 overflow-hidden rounded-xl border border-gentle-blue bg-white shadow-apple">
           <div
-            aria-label={t("authCardHeroAlt")}
-            className="relative h-48 w-full bg-cover bg-center bg-no-repeat"
-            role="img"
-            style={{ backgroundImage: `url("${AUTH_CARD_HERO_IMAGE}")` }}
+            className="relative h-36 w-full shrink-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(232,240,230,0.95),_rgba(252,249,245,0.9)_60%,_rgba(255,255,255,1)_100%)] sm:h-44 md:h-48"
           >
+            <img
+              alt={t("authCardHeroAlt")}
+              className="h-full w-full object-cover"
+              decoding="sync"
+              loading="eager"
+              src={AUTH_CARD_HERO_IMAGE}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
           </div>
 
-          <div className="px-8 pb-10 pt-4">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold tracking-tight text-warm-gray">{title}</h1>
+          <div className="px-6 pb-6 pt-3 sm:px-8 sm:pb-8 sm:pt-4">
+            <div className="mb-6 sm:mb-8">
+              <h1 className="text-2xl font-bold tracking-tight text-warm-gray sm:text-3xl">{title}</h1>
               <p className="mt-2 text-sm text-warm-gray/80">{description}</p>
             </div>
 
@@ -158,11 +159,11 @@ export function AuthLayout({
                 type="submit"
               >
                 <span>{isSubmitting ? t("authSubmitting") : submitLabel}</span>
-                <span aria-hidden className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                <MaterialIcon className="text-[20px]" name="arrow_forward" />
               </button>
             </form>
 
-            <div className="mt-8 text-center text-sm text-warm-gray/80">
+            <div className="mt-6 text-center text-sm text-warm-gray/80 sm:mt-8">
               <span>{alternateLabel}</span>
               <Link className="ml-2 font-bold text-apple-blue hover:underline" to={alternateHref}>
                 {alternateAction}
@@ -172,7 +173,7 @@ export function AuthLayout({
         </div>
       </main>
 
-      <footer className="relative z-10 px-4 pb-6 text-center text-xs text-warm-gray/60">
+      <footer className="relative z-10 shrink-0 px-4 pb-3 pt-1 text-center text-xs text-warm-gray/60 sm:pb-4">
         {t("authFooter")}
       </footer>
     </div>

@@ -732,7 +732,7 @@ describe("App", () => {
     expect(await screen.findByText("今天血压稳定，晚间继续按时测量。")).toBeInTheDocument();
     expect(await within(dialog).findByText("今天血压稳定，晚间继续按时测量。")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "event_repeat 刷新" }));
+    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
 
     expect(await screen.findByText("午后散步 20 分钟")).toBeInTheDocument();
     expect(await within(dialog).findByText("午后散步 20 分钟")).toBeInTheDocument();

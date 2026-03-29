@@ -11,6 +11,7 @@ import { useVoiceVisualizer, VoiceVisualizer } from "react-voice-visualizer";
 
 import type { ComposerAttachment } from "../attachments";
 import { usePreferences } from "../preferences";
+import { MaterialIcon } from "./MaterialIcon";
 
 type MemberOption = {
   id: string;
@@ -262,12 +263,10 @@ export function ChatInput({
                   />
                 </span>
               ) : (
-                <span
-                  aria-hidden
-                  className="material-symbols-outlined text-[16px] text-[#4A8C68]"
-                >
-                  check_circle
-                </span>
+                <MaterialIcon
+                  className="text-[16px] text-[#4A8C68]"
+                  name="check_circle"
+                />
               )}
               <span className="max-w-[12rem] truncate">{attachment.filename}</span>
               {attachment.status === "uploading" ? (
@@ -286,7 +285,7 @@ export function ChatInput({
                   onClick={() => onAttachmentRemove(attachment.id)}
                   type="button"
                 >
-                  <span aria-hidden className="material-symbols-outlined text-[14px]">close</span>
+                  <MaterialIcon className="text-[14px]" name="close" />
                 </button>
               ) : null}
             </div>
@@ -355,7 +354,7 @@ export function ChatInput({
             onClick={() => document.getElementById(attachmentInputId)?.click()}
             type="button"
           >
-            <span aria-hidden className="material-symbols-outlined text-[20px]">add</span>
+            <MaterialIcon className="text-[20px]" name="add" />
           </button>
           <input
             accept="audio/*,image/*,.pdf,.doc,.docx"
@@ -372,7 +371,7 @@ export function ChatInput({
 
           {/* Member Selector */}
           <div className="relative flex items-center">
-             <span aria-hidden className="material-symbols-outlined absolute left-2 text-[16px] text-warm-gray pointer-events-none">person</span>
+             <MaterialIcon className="pointer-events-none absolute left-2 text-[16px] text-warm-gray" name="person" />
             <select
               className="appearance-none rounded-full border border-[#F2EDE7] bg-[#F8F6F3] py-1.5 pl-8 pr-8 text-xs font-medium text-[#4A443F] outline-none transition hover:bg-[#F2EDE7] focus:border-[#4A443F]/50"
               onChange={(e) => onMemberChange(e.target.value)}
@@ -386,7 +385,7 @@ export function ChatInput({
                 </option>
               ))}
             </select>
-            <span aria-hidden className="material-symbols-outlined absolute right-2 text-[16px] text-warm-gray pointer-events-none">expand_more</span>
+            <MaterialIcon className="pointer-events-none absolute right-2 text-[16px] text-warm-gray" name="expand_more" />
           </div>
         </div>
 
@@ -399,7 +398,7 @@ export function ChatInput({
                 onClick={handleCancelVoice}
                 type="button"
               >
-                <span aria-hidden className="material-symbols-outlined text-[18px]">close</span>
+                <MaterialIcon className="text-[18px]" name="close" />
               </button>
               <button
                 aria-label={t("chatInputFinishVoice")}
@@ -414,7 +413,7 @@ export function ChatInput({
                     className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
                   />
                 ) : (
-                  <span aria-hidden className="material-symbols-outlined text-[18px]">check</span>
+                  <MaterialIcon className="text-[18px]" name="check" />
                 )}
               </button>
             </>
@@ -426,7 +425,7 @@ export function ChatInput({
                 onClick={handleStartVoiceRecording}
                 type="button"
               >
-                <span aria-hidden className="material-symbols-outlined text-[18px]">mic</span>
+                <MaterialIcon className="text-[18px]" name="mic" />
               </button>
               <button
                 aria-label={t("chatInputSend")}
@@ -435,7 +434,7 @@ export function ChatInput({
                 disabled={!canSend}
                 type="button"
               >
-                <span aria-hidden className="material-symbols-outlined text-[18px]">arrow_upward</span>
+                <MaterialIcon className="text-[18px]" name="arrow_upward" />
               </button>
             </>
           )}

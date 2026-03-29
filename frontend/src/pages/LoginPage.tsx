@@ -5,6 +5,7 @@ import { login } from "../api/auth";
 import type { AuthSession } from "../auth/session";
 import { isValidUsername, normalizeUsername } from "../auth/username";
 import { AuthField, AuthLayout } from "../components/AuthLayout";
+import { MaterialIcon } from "../components/MaterialIcon";
 import { usePreferences } from "../preferences";
 
 
@@ -133,9 +134,10 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
             onClick={() => setShowPassword((v) => !v)}
             type="button"
           >
-            <span className="material-symbols-outlined text-[20px]">
-              {showPassword ? "visibility_off" : "visibility"}
-            </span>
+            <MaterialIcon
+              className="text-[20px]"
+              name={showPassword ? "visibility_off" : "visibility"}
+            />
           </button>
         }
       />

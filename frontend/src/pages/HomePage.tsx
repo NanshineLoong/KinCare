@@ -12,6 +12,7 @@ import {
 import type { ComposerAttachment } from "../attachments";
 import { readyAttachmentContexts } from "../attachments";
 import type { AuthMember, AuthSession } from "../auth/session";
+import { MaterialIcon } from "../components/MaterialIcon";
 import { buildHealthSummaryCards } from "../healthSummaryCards";
 import { useComposerAttachments } from "../hooks/useComposerAttachments";
 import {
@@ -19,22 +20,6 @@ import {
   type AppLanguage,
   type TranslationKey,
 } from "../preferences";
-
-// ─── Tiny helpers ──────────────────────────────────────────────────────────────
-
-function MaterialIcon({
-  name,
-  className,
-}: {
-  name: string;
-  className?: string;
-}) {
-  return (
-    <span className={`material-symbols-outlined ${className ?? ""}`}>
-      {name}
-    </span>
-  );
-}
 
 function getAvatarColor(name: string): string {
   const palette = [

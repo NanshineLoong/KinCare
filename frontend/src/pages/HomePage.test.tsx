@@ -174,4 +174,28 @@ describe("HomePage", () => {
     expect(screen.queryByText("生活习惯")).not.toBeInTheDocument();
     expect(screen.queryByText("生理指标")).not.toBeInTheDocument();
   });
+
+  it("renders key dashboard icons without leaving ligature names in the DOM", async () => {
+    getDashboardMock.mockResolvedValue({
+      members: [],
+      today_reminders: [],
+      reminder_groups: [],
+    });
+
+    const { container } = render(
+      <PreferencesProvider>
+        <HomePage
+          isLoadingMembers={false}
+          members={[]}
+          membersError={null}
+          session={session}
+        />
+      </PreferencesProvider>,
+    );
+
+    await screen.findByText("家人状态");
+    expect(screen.queryByText("group")).not.toBeInTheDocument();
+    expect(screen.queryByText("event_available")).not.toBeInTheDocument();
+    expect(container.querySelector(".material-symbols-outlined")).toBeNull();
+  });
 });

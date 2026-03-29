@@ -1,4 +1,5 @@
 import { type ButtonHTMLAttributes, type ReactNode } from "react";
+import { MaterialIcon } from "./MaterialIcon";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -58,9 +59,7 @@ export function Button({
       {...props}
     >
       {loading ? (
-        <span className="material-symbols-outlined animate-spin text-[1em]">
-          progress_activity
-        </span>
+        <MaterialIcon className="animate-spin text-[1em]" name="progress_activity" />
       ) : (
         iconPosition === "left" && icon
       )}
@@ -114,7 +113,7 @@ export function IconButton({
       disabled={disabled}
       {...props}
     >
-      <span className="material-symbols-outlined leading-none">{icon}</span>
+      <MaterialIcon className="leading-none" name={icon} />
     </button>
   );
 }

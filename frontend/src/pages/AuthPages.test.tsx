@@ -142,4 +142,15 @@ describe("auth pages", () => {
     await screen.findByText("用户名只能包含中文、字母、数字、下划线或连字符，长度为 3-24。");
     expect(registerMock).not.toHaveBeenCalled();
   });
+
+  it("renders login hero from a local eager-loaded image and avoids ligature icon spans", () => {
+    const onAuthenticated = vi.fn();
+    const { container } = renderWithProviders(<LoginPage onAuthenticated={onAuthenticated} />);
+
+    const hero = screen.getByAltText("一家人快乐运动的场景插画");
+    expect(hero.tagName).toBe("IMG");
+    expect(hero).toHaveAttribute("src", "/auth-card-hero.png");
+    expect(hero).toHaveAttribute("loading", "eager");
+    expect(container.querySelector(".material-symbols-outlined")).toBeNull();
+  });
 });

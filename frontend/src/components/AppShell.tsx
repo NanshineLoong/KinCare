@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 
 import { listChatSessions, type ChatSessionListItem } from "../api/chat";
 import type { AuthSession } from "../auth/session";
+import { MaterialIcon } from "./MaterialIcon";
 import { usePreferences, type TranslationKey } from "../preferences";
 
 type AppShellProps = {
@@ -172,9 +173,7 @@ export function AppShell({
                 onClick={handleToggleHistory}
                 type="button"
               >
-                <span className="material-symbols-outlined text-[22px]">
-                  history
-                </span>
+                <MaterialIcon className="text-[22px]" name="history" />
               </button>
 
               {historyOpen && (
@@ -251,9 +250,7 @@ export function AppShell({
                 >
                   {avatarChar}
                 </div>
-                <span className="material-symbols-outlined text-[20px] text-warm-gray">
-                  expand_more
-                </span>
+                <MaterialIcon className="text-[20px] text-warm-gray" name="expand_more" />
               </button>
 
               {userMenuOpen && (
@@ -294,9 +291,7 @@ export function AppShell({
                     type="button"
                   >
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F5F0EA] text-[#7D746D]">
-                      <span className="material-symbols-outlined text-[18px]">
-                        settings
-                      </span>
+                      <MaterialIcon className="text-[18px]" name="settings" />
                     </span>
                     {t("appShellSettings")}
                   </button>
@@ -314,9 +309,7 @@ export function AppShell({
                     type="button"
                   >
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500">
-                      <span className="material-symbols-outlined text-[18px]">
-                        logout
-                      </span>
+                      <MaterialIcon className="text-[18px]" name="logout" />
                     </span>
                     {t("appShellSignOut")}
                   </button>
