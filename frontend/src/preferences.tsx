@@ -201,6 +201,12 @@ const translations = {
     settingsAiLocalWhisperCheckFailed: "模型检查失败",
     settingsAiLocalWhisperModelNotFound: "未找到本地模型",
     settingsAiLocalWhisperModelFound: "已找到本地模型",
+    settingsAiConfigDetectedFromEnv: "已检测到环境变量配置",
+    settingsAiConfigSavedOverride: "已保存覆盖配置",
+    settingsAiSensitiveConfigHint:
+      "当前服务端已检测到环境变量配置，在此填写会保存到服务器配置中，并覆盖当前的环境变量默认值，如果这是公网 Demo，请保持这里留空。",
+    settingsAiSensitiveConfigHintNoEnv:
+      "在此填写会保存到服务器配置中，并覆盖当前的环境变量默认值，如果这是公网 Demo，请保持这里留空。",
     settingsAiLocalWhisperPathHint:
       "留空时使用 Hugging Face 默认缓存目录。浏览器无法获取服务器绝对路径，请手动填写后端主机或容器内看到的路径。",
     settingsAiChatBaseUrl: "对话 Base URL",
@@ -675,6 +681,12 @@ const translations = {
     settingsAiLocalWhisperCheckFailed: "Model check failed",
     settingsAiLocalWhisperModelNotFound: "Model Not Found",
     settingsAiLocalWhisperModelFound: "Local model ready",
+    settingsAiConfigDetectedFromEnv: "Environment config detected",
+    settingsAiConfigSavedOverride: "Saved override detected",
+    settingsAiSensitiveConfigHint:
+      "The server detected environment-variable configuration. Filling this here will save it to server-side config and override the current environment defaults. If this is a public demo, leave this blank.",
+    settingsAiSensitiveConfigHintNoEnv:
+      "Filling this here will save it to server-side config and override the current environment defaults. If this is a public demo, leave this blank.",
     settingsAiLocalWhisperPathHint:
       "Leave this empty to use the default Hugging Face cache. Browsers cannot read server-side absolute paths, so enter the path as seen by the backend host or container.",
     settingsAiChatBaseUrl: "Chat Base URL",

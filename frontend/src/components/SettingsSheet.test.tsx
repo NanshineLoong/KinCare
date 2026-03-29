@@ -132,7 +132,9 @@ const defaultAdminSettings = {
   ai_default_language: "en",
   transcription: {
     provider: "openai",
-    api_key: "stt-key",
+    api_key: null,
+    api_key_configured: true,
+    api_key_source: "env",
     model: "gpt-4o-mini-transcribe",
     language: "zh",
     timeout: 30,
@@ -142,8 +144,12 @@ const defaultAdminSettings = {
     local_whisper_download_root: null,
   },
   chat_model: {
-    base_url: "https://example.invalid/v1",
-    api_key: "chat-key",
+    base_url: null,
+    base_url_configured: true,
+    base_url_source: "env",
+    api_key: null,
+    api_key_configured: true,
+    api_key_source: "env",
     model: "gpt-4.1-mini",
   },
 };
@@ -280,18 +286,42 @@ describe("SettingsSheet", () => {
       huggingface_repo_id: null,
       message: null,
     });
-    updateAdminSettingsMock.mockImplementation(async (_session, payload) => ({
-      ...defaultAdminSettings,
-      ...payload,
-      transcription: {
-        ...defaultAdminSettings.transcription,
-        ...(payload.transcription ?? {}),
-      },
-      chat_model: {
-        ...defaultAdminSettings.chat_model,
-        ...(payload.chat_model ?? {}),
-      },
-    }));
+    updateAdminSettingsMock.mockImplementation(async (_session, payload) => {
+      const nextSettings = {
+        ...defaultAdminSettings,
+        ...payload,
+        transcription: {
+          ...defaultAdminSettings.transcription,
+          ...(payload.transcription ?? {}),
+        },
+        chat_model: {
+          ...defaultAdminSettings.chat_model,
+          ...(payload.chat_model ?? {}),
+        },
+      };
+      if (payload.transcription && "api_key" in payload.transcription) {
+        nextSettings.transcription.api_key = null;
+        nextSettings.transcription.api_key_configured =
+          payload.transcription.api_key !== null;
+        nextSettings.transcription.api_key_source =
+          payload.transcription.api_key !== null ? "database" : "unset";
+      }
+      if (payload.chat_model && "base_url" in payload.chat_model) {
+        nextSettings.chat_model.base_url = null;
+        nextSettings.chat_model.base_url_configured =
+          payload.chat_model.base_url !== null;
+        nextSettings.chat_model.base_url_source =
+          payload.chat_model.base_url !== null ? "database" : "unset";
+      }
+      if (payload.chat_model && "api_key" in payload.chat_model) {
+        nextSettings.chat_model.api_key = null;
+        nextSettings.chat_model.api_key_configured =
+          payload.chat_model.api_key !== null;
+        nextSettings.chat_model.api_key_source =
+          payload.chat_model.api_key !== null ? "database" : "unset";
+      }
+      return nextSettings;
+    });
     updateUserPreferencesMock.mockImplementation(async (_session, payload) => ({
       ...adminSession.user,
       ...(payload.preferred_language === undefined
@@ -484,9 +514,15 @@ describe("SettingsSheet", () => {
     expect(localSttRadio).toHaveAttribute("aria-checked", "false");
     expect(screen.getByLabelText("转录模型")).toHaveValue("gpt-4o-mini-transcribe");
     expect(screen.getByLabelText("转录超时时间（秒）")).toHaveValue(30);
-    expect(chatBaseUrlInput).toHaveValue("https://example.invalid/v1");
-    expect(chatApiKeyInput).toHaveValue("chat-key");
+    expect(chatBaseUrlInput).toHaveValue("");
+    expect(chatApiKeyInput).toHaveValue("");
     expect(chatModelInput).toHaveValue("gpt-4.1-mini");
+    expect(screen.getAllByText("已检测到环境变量配置").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "当前服务端已检测到环境变量配置，在此填写会保存到服务器配置中，并覆盖当前的环境变量默认值，如果这是公网 Demo，请保持这里留空。",
+      ).length,
+    ).toBeGreaterThan(0);
 
     fireEvent.change(summaryTimeInput, { target: { value: "07:30" } });
     fireEvent.change(carePlanTimeInput, { target: { value: "08:45" } });
@@ -564,7 +600,6 @@ describe("SettingsSheet", () => {
             model: "gpt-4o-mini-transcribe",
             language: "zh",
             timeout: 9.5,
-            api_key: "stt-key",
             local_whisper_model: "turbo",
             local_whisper_device: "cpu",
             local_whisper_compute_type: "int8",
@@ -596,15 +631,12 @@ describe("SettingsSheet", () => {
             model: "gpt-4o-mini-transcribe",
             language: "zh",
             timeout: 9.5,
-            api_key: "stt-key",
             local_whisper_model: "my-org/custom-whisper",
             local_whisper_device: "cpu",
             local_whisper_compute_type: "int8",
             local_whisper_download_root: null,
           },
           chat_model: {
-            base_url: "https://override.invalid/v1",
-            api_key: "override-key",
             model: "gpt-4.1-nano",
           },
         });
@@ -705,5 +737,31 @@ describe("SettingsSheet", () => {
     });
     expect(screen.queryByRole("button", { name: "下载" })).not.toBeInTheDocument();
     expect(await screen.findByLabelText("已找到本地模型")).toBeInTheDocument();
+  });
+
+  it("shows saved-secret state without revealing persisted values", async () => {
+    getAdminSettingsMock.mockResolvedValue({
+      ...defaultAdminSettings,
+      transcription: {
+        ...defaultAdminSettings.transcription,
+        api_key: null,
+        api_key_source: "database",
+      },
+      chat_model: {
+        ...defaultAdminSettings.chat_model,
+        base_url: null,
+        base_url_source: "database",
+        api_key: null,
+        api_key_source: "database",
+      },
+    });
+
+    renderSheet();
+
+    fireEvent.click(screen.getByRole("button", { name: "管理员配置" }));
+
+    expect(await screen.findByLabelText("对话 API Key")).toHaveValue("");
+    expect(screen.getByLabelText("转录 API Key")).toHaveValue("");
+    expect(screen.getAllByText("已保存覆盖配置").length).toBeGreaterThan(0);
   });
 });
