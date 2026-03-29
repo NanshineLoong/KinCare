@@ -1018,6 +1018,14 @@ function MemberPermissionRow({
   );
 }
 
+function EnvConfiguredBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
+      来自环境变量
+    </span>
+  );
+}
+
 export function SettingsSheet({
   open,
   onClose,
@@ -1062,8 +1070,12 @@ export function SettingsSheet({
     null,
   );
   const [chatBaseUrl, setChatBaseUrl] = useState("");
+  const [chatBaseUrlSource, setChatBaseUrlSource] = useState<"env" | "db" | null>(null);
   const [chatApiKey, setChatApiKey] = useState("");
+  const [chatApiKeySource, setChatApiKeySource] = useState<"env" | "db" | null>(null);
   const [chatModel, setChatModel] = useState("gpt-4.1-mini");
+  const [chatModelSource, setChatModelSource] = useState<"env" | "db" | null>(null);
+  const [sttApiKeySource, setSttApiKeySource] = useState<"env" | "db" | null>(null);
   const [preferencesSectionOpen, setPreferencesSectionOpen] = useState(true);
   const [adminChatSectionOpen, setAdminChatSectionOpen] = useState(true);
   const [adminTranscriptionSectionOpen, setAdminTranscriptionSectionOpen] =
@@ -1175,6 +1187,7 @@ export function SettingsSheet({
     setAiDefaultLanguage(nextSettings.ai_default_language);
     setSttProvider(nextSettings.transcription.provider);
     setSttApiKey(nextSettings.transcription.api_key ?? "");
+    setSttApiKeySource(nextSettings.transcription.api_key_source ?? null);
     setSttModel(nextSettings.transcription.model);
     setSttLanguage(nextSettings.transcription.language ?? "");
     setSttTimeout(String(nextSettings.transcription.timeout));
@@ -1188,8 +1201,11 @@ export function SettingsSheet({
       nextSettings.transcription.local_whisper_download_root ?? "",
     );
     setChatBaseUrl(nextSettings.chat_model.base_url ?? "");
+    setChatBaseUrlSource(nextSettings.chat_model.base_url_source ?? null);
     setChatApiKey(nextSettings.chat_model.api_key ?? "");
+    setChatApiKeySource(nextSettings.chat_model.api_key_source ?? null);
     setChatModel(nextSettings.chat_model.model);
+    setChatModelSource(nextSettings.chat_model.model_source ?? null);
   }
 
   useEffect(() => {
@@ -2048,7 +2064,13 @@ export function SettingsSheet({
                   <div className="border-t border-[#32332D]/5 px-8 pb-8 pt-6">
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="block text-sm font-medium text-[#2D2926]">
-                        {t("settingsAiChatBaseUrl")}
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                          {t("settingsAiChatBaseUrl")}
+                          {chatBaseUrlSource === "env" && !chatBaseUrl && <EnvConfiguredBadge />}
+                        </div>
+                        {chatBaseUrlSource === "env" && chatBaseUrl && (
+                          <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                        )}
                         <input
                           aria-label={t("settingsAiChatBaseUrl")}
                           className={adminFieldClass}
@@ -2062,7 +2084,13 @@ export function SettingsSheet({
                         />
                       </label>
                       <label className="block text-sm font-medium text-[#2D2926]">
-                        {t("settingsAiChatApiKey")}
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                          {t("settingsAiChatApiKey")}
+                          {chatApiKeySource === "env" && !chatApiKey && <EnvConfiguredBadge />}
+                        </div>
+                        {chatApiKeySource === "env" && chatApiKey && (
+                          <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                        )}
                         <input
                           aria-label={t("settingsAiChatApiKey")}
                           className={adminFieldClass}
@@ -2077,7 +2105,13 @@ export function SettingsSheet({
                       </label>
                     </div>
                     <label className="mt-4 block text-sm font-medium text-[#2D2926]">
-                      {t("settingsAiChatModel")}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        {t("settingsAiChatModel")}
+                        {chatModelSource === "env" && !chatModel && <EnvConfiguredBadge />}
+                      </div>
+                      {chatModelSource === "env" && chatModel && (
+                        <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                      )}
                       <input
                         aria-label={t("settingsAiChatModel")}
                         className={adminFieldClass}
@@ -2198,7 +2232,13 @@ export function SettingsSheet({
                         <>
                           <div className="grid gap-4 md:grid-cols-2">
                             <label className="block text-sm font-medium text-[#2D2926]">
-                              {t("settingsAiTranscriptionApiKey")}
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                {t("settingsAiTranscriptionApiKey")}
+                                {sttApiKeySource === "env" && !sttApiKey && <EnvConfiguredBadge />}
+                              </div>
+                              {sttApiKeySource === "env" && sttApiKey && (
+                                <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                              )}
                               <input
                                 aria-label={t("settingsAiTranscriptionApiKey")}
                                 className={adminFieldClass}
