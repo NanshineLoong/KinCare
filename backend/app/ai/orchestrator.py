@@ -15,6 +15,8 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartStartEvent,
     TextPart,
+    ThinkingPart,
+    ThinkingPartDelta,
     ToolCallPart,
 )
 from pydantic_ai.usage import UsageLimits
@@ -215,6 +217,10 @@ class ChatOrchestrator:
                         try:
                             async with node.stream(run.ctx) as request_stream:
                                 async for event in request_stream:
+                                    thinking_delta = _stream_thinking_from_model_event(event)
+                                    if thinking_delta:
+                                        yield StreamEvent("message.thinking", {"content": thinking_delta})
+                                        continue
                                     delta = _stream_text_from_model_event(event)
                                     if delta:
                                         yielded_delta = True
@@ -498,7 +504,10 @@ class ChatOrchestrator:
         if isinstance(content, dict):
             payload.update(content)
         else:
-            payload["content"] = str(content)
+            content_str = str(content)
+            if isinstance(content, list) or content_str.lstrip().startswith("[{") or content_str.lstrip().startswith("{'"):
+                content_str = "Unable to process the request. The model output was invalid. Please try again."
+            payload["content"] = content_str
 
         if tool_name == "suggest_record_update":
             return StreamEvent("tool.suggest", payload)
@@ -533,10 +542,16 @@ class ChatOrchestrator:
 
     def _draft_from_tool_call(self, call: ToolCallPart) -> dict[str, Any]:
         args = call.args_as_dict()
+        actions = args.get("actions", [])
+        if isinstance(actions, str):
+            try:
+                actions = json.loads(actions)
+            except (ValueError, TypeError):
+                actions = []
         return HealthRecordDraft.model_validate(
             {
                 "summary": args.get("summary", ""),
-                "actions": args.get("actions", []),
+                "actions": actions,
             }
         ).model_dump()
 
@@ -625,6 +640,14 @@ def format_sse_event(event: StreamEvent) -> str:
 def _stream_text_from_model_event(event: Any) -> str:
     if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart):
         return str(event.part.content or "")
-    if isinstance(event, PartDeltaEvent) and hasattr(event.delta, "content_delta"):
+    if isinstance(event, PartDeltaEvent) and not isinstance(event.delta, ThinkingPartDelta) and hasattr(event.delta, "content_delta"):
+        return str(event.delta.content_delta or "")
+    return ""
+
+
+def _stream_thinking_from_model_event(event: Any) -> str:
+    if isinstance(event, PartStartEvent) and isinstance(event.part, ThinkingPart):
+        return str(event.part.content or "")
+    if isinstance(event, PartDeltaEvent) and isinstance(event.delta, ThinkingPartDelta):
         return str(event.delta.content_delta or "")
     return ""

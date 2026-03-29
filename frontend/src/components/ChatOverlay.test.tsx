@@ -8,26 +8,33 @@ vi.mock("./ChatInput", () => ({
   ChatInput: () => <div data-testid="chat-input" />,
 }));
 
+const defaultOverlayProps = {
+  attachments: [] as never[],
+  confirmedToolIds: new Set<string>(),
+  dismissedToolIds: new Set<string>(),
+  draft: "",
+  error: null,
+  isBusy: false,
+  isUploading: false,
+  memberOptions: [] as never[],
+  onAttachmentRemove: () => {},
+  onAttachmentUpload: () => {},
+  onClose: () => {},
+  onConfirmToolDraft: () => {},
+  onDismissToolCard: () => {},
+  onDraftChange: () => {},
+  onMemberChange: () => {},
+  onSend: () => {},
+  selectedMemberId: "",
+  toolCards: [] as never[],
+};
+
 function renderOverlay(messages: ChatMessage[]) {
   return render(
     <PreferencesProvider>
       <ChatOverlay
-        attachments={[]}
-        draft=""
-        error={null}
-        isBusy={false}
-        isUploading={false}
-        memberOptions={[]}
+        {...defaultOverlayProps}
         messages={messages}
-        onAttachmentRemove={() => {}}
-        onAttachmentUpload={() => {}}
-        onClose={() => {}}
-        onConfirmToolDraft={() => {}}
-        onDraftChange={() => {}}
-        onMemberChange={() => {}}
-        onSend={() => {}}
-        selectedMemberId=""
-        toolCards={[]}
       />
     </PreferencesProvider>,
   );
@@ -89,22 +96,9 @@ describe("ChatOverlay", () => {
     render(
       <PreferencesProvider>
         <ChatOverlay
-          attachments={[]}
-          draft=""
-          error={null}
-          isBusy={false}
-          isUploading={false}
-          memberOptions={[]}
+          {...defaultOverlayProps}
           messages={[]}
-          onAttachmentRemove={() => {}}
-          onAttachmentUpload={() => {}}
           onClose={onClose}
-          onConfirmToolDraft={() => {}}
-          onDraftChange={() => {}}
-          onMemberChange={() => {}}
-          onSend={() => {}}
-          selectedMemberId=""
-          toolCards={[]}
         />
       </PreferencesProvider>,
     );
@@ -177,12 +171,7 @@ describe("ChatOverlay", () => {
     view.rerender(
       <PreferencesProvider>
         <ChatOverlay
-          attachments={[]}
-          draft=""
-          error={null}
-          isBusy={false}
-          isUploading={false}
-          memberOptions={[]}
+          {...defaultOverlayProps}
           messages={[
             {
               id: "assistant-1",
@@ -191,15 +180,6 @@ describe("ChatOverlay", () => {
               sortKey: 1,
             },
           ]}
-          onAttachmentRemove={() => {}}
-          onAttachmentUpload={() => {}}
-          onClose={() => {}}
-          onConfirmToolDraft={() => {}}
-          onDraftChange={() => {}}
-          onMemberChange={() => {}}
-          onSend={() => {}}
-          selectedMemberId=""
-          toolCards={[]}
         />
       </PreferencesProvider>,
     );
@@ -229,12 +209,7 @@ describe("ChatOverlay", () => {
     view.rerender(
       <PreferencesProvider>
         <ChatOverlay
-          attachments={[]}
-          draft=""
-          error={null}
-          isBusy={false}
-          isUploading={false}
-          memberOptions={[]}
+          {...defaultOverlayProps}
           messages={[
             {
               id: "assistant-1",
@@ -243,15 +218,6 @@ describe("ChatOverlay", () => {
               sortKey: 1,
             },
           ]}
-          onAttachmentRemove={() => {}}
-          onAttachmentUpload={() => {}}
-          onClose={() => {}}
-          onConfirmToolDraft={() => {}}
-          onDraftChange={() => {}}
-          onMemberChange={() => {}}
-          onSend={() => {}}
-          selectedMemberId=""
-          toolCards={[]}
         />
       </PreferencesProvider>,
     );
@@ -267,12 +233,7 @@ describe("ChatOverlay", () => {
     view.rerender(
       <PreferencesProvider>
         <ChatOverlay
-          attachments={[]}
-          draft=""
-          error={null}
-          isBusy={false}
-          isUploading={false}
-          memberOptions={[]}
+          {...defaultOverlayProps}
           messages={[
             {
               id: "assistant-1",
@@ -281,15 +242,6 @@ describe("ChatOverlay", () => {
               sortKey: 1,
             },
           ]}
-          onAttachmentRemove={() => {}}
-          onAttachmentUpload={() => {}}
-          onClose={() => {}}
-          onConfirmToolDraft={() => {}}
-          onDraftChange={() => {}}
-          onMemberChange={() => {}}
-          onSend={() => {}}
-          selectedMemberId=""
-          toolCards={[]}
         />
       </PreferencesProvider>,
     );
@@ -304,12 +256,7 @@ describe("ChatOverlay", () => {
     view.rerender(
       <PreferencesProvider>
         <ChatOverlay
-          attachments={[]}
-          draft=""
-          error={null}
-          isBusy={false}
-          isUploading={false}
-          memberOptions={[]}
+          {...defaultOverlayProps}
           messages={[
             {
               id: "assistant-1",
@@ -318,15 +265,6 @@ describe("ChatOverlay", () => {
               sortKey: 1,
             },
           ]}
-          onAttachmentRemove={() => {}}
-          onAttachmentUpload={() => {}}
-          onClose={() => {}}
-          onConfirmToolDraft={() => {}}
-          onDraftChange={() => {}}
-          onMemberChange={() => {}}
-          onSend={() => {}}
-          selectedMemberId=""
-          toolCards={[]}
         />
       </PreferencesProvider>,
     );

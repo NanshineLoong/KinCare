@@ -91,6 +91,8 @@ export default function App() {
   const [chatDraft, setChatDraft] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatToolCards, setChatToolCards] = useState<ChatToolCard[]>([]);
+  const [confirmedToolIds, setConfirmedToolIds] = useState<Set<string>>(new Set());
+  const [dismissedToolIds, setDismissedToolIds] = useState<Set<string>>(new Set());
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatBusy, setIsChatBusy] = useState(false);
   const [selectedChatMemberId, setSelectedChatMemberId] = useState("");
@@ -163,6 +165,8 @@ export default function App() {
     clearChatAttachments();
     setChatMessages([]);
     setChatToolCards([]);
+    setConfirmedToolIds(new Set());
+    setDismissedToolIds(new Set());
     setChatError(null);
     setIsChatBusy(false);
     setChatSession(null);
@@ -479,23 +483,37 @@ export default function App() {
         return;
       }
       const assistantMessageId = nextId("assistant");
-      const assistantSortKey = nextTimelineSortKey();
+      let assistantSortKey: number | null = null;
       let assistantMessageCreated = false;
       let assistantContent = "";
+      let thinkingContent = "";
 
-      const syncAssistantMessage = (contentValue: string) => {
-        if (!contentValue || !isActiveRun()) {
+      const syncAssistantMessage = (patch: { content?: string; thinking?: string }) => {
+        if (!isActiveRun()) {
           return;
         }
+        if (patch.content !== undefined) {
+          assistantContent = patch.content;
+        }
+        if (patch.thinking !== undefined) {
+          thinkingContent = patch.thinking;
+        }
         if (!assistantMessageCreated) {
+          if (!assistantContent && thinkingContent === "") {
+            return;
+          }
           assistantMessageCreated = true;
+          if (assistantSortKey === null) {
+            assistantSortKey = nextTimelineSortKey();
+          }
           setChatMessages((current) => [
             ...current,
             {
               id: assistantMessageId,
               role: "assistant",
-              content: contentValue,
-              sortKey: assistantSortKey,
+              content: assistantContent,
+              thinking: thinkingContent || undefined,
+              sortKey: assistantSortKey as number,
             },
           ]);
           return;
@@ -503,7 +521,11 @@ export default function App() {
         setChatMessages((current) =>
           current.map((message) =>
             message.id === assistantMessageId
-              ? { ...message, content: contentValue }
+              ? {
+                  ...message,
+                  content: assistantContent,
+                  thinking: thinkingContent || message.thinking,
+                }
               : message,
           ),
         );
@@ -530,15 +552,18 @@ export default function App() {
           return;
         }
 
+        if (event.event === "message.thinking") {
+          syncAssistantMessage({ thinking: thinkingContent + event.data.content });
+          return;
+        }
+
         if (event.event === "message.delta") {
-          assistantContent += event.data.content;
-          syncAssistantMessage(assistantContent);
+          syncAssistantMessage({ content: assistantContent + event.data.content });
           return;
         }
 
         if (event.event === "message.completed") {
-          assistantContent = event.data.content || assistantContent;
-          syncAssistantMessage(assistantContent);
+          syncAssistantMessage({ content: event.data.content || assistantContent });
           return;
         }
 
@@ -594,9 +619,7 @@ export default function App() {
         edits: {},
       });
 
-      setChatToolCards((current) =>
-        current.filter((item) => item.id !== toolCard.id),
-      );
+      setConfirmedToolIds((current) => new Set(current).add(toolCard.id));
       if (result.assistant_message) {
         setChatMessages((current) => [
           ...current,
@@ -616,6 +639,10 @@ export default function App() {
     } finally {
       setIsChatBusy(false);
     }
+  }
+
+  function handleDismissToolCard(toolCardId: string) {
+    setDismissedToolIds((current) => new Set(current).add(toolCardId));
   }
 
   async function handleAttachmentUpload(file: File) {
@@ -782,6 +809,8 @@ export default function App() {
       {session && isChatOpen && (
         <ChatOverlay
           attachments={chatAttachments}
+          confirmedToolIds={confirmedToolIds}
+          dismissedToolIds={dismissedToolIds}
           draft={chatDraft}
           error={chatError}
           isBusy={isChatBusy}
@@ -795,6 +824,7 @@ export default function App() {
           onAttachmentUpload={handleAttachmentUpload}
           onClose={() => setIsChatOpen(false)}
           onConfirmToolDraft={handleConfirmToolDraft}
+          onDismissToolCard={handleDismissToolCard}
           onDraftChange={setChatDraft}
           onMemberChange={handleChatMemberChange}
           onSend={handleSendChatMessage}

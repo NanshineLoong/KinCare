@@ -67,6 +67,7 @@ build/
 .vscode/
 .cursor/
 .codex/
+.claude/settings.local.json
 .worktrees/
 *.swp
 *.swo

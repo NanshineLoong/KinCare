@@ -109,6 +109,7 @@ export type ChatStreamEvent =
   | { event: "tool.suggest"; data: ChatToolResult }
   | { event: "tool.error"; data: { tool_name: string; error: string } }
   | { event: "message.delta"; data: { content: string } }
+  | { event: "message.thinking"; data: { content: string } }
   | { event: "message.completed"; data: { content: string } };
 
 export type ChatMessageRead = {

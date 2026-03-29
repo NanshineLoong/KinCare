@@ -14,6 +14,7 @@ export type ChatMessage = {
   id: string;
   role: "assistant" | "system" | "user";
   content: string;
+  thinking?: string;
   sortKey: number;
 };
 
@@ -32,6 +33,8 @@ const AUTO_SCROLL_BOTTOM_THRESHOLD = 48;
 
 type ChatOverlayProps = {
   attachments: ComposerAttachment[];
+  confirmedToolIds: Set<string>;
+  dismissedToolIds: Set<string>;
   draft: string;
   error: string | null;
   isBusy: boolean;
@@ -42,6 +45,7 @@ type ChatOverlayProps = {
   onAttachmentUpload: (file: File) => void;
   onClose: () => void;
   onConfirmToolDraft: (toolCard: ChatToolCard) => void;
+  onDismissToolCard: (toolCardId: string) => void;
   onDraftChange: (value: string) => void;
   onMemberChange: (memberId: string) => void;
   onSend: () => void;
@@ -53,43 +57,67 @@ function countDraftItems(draft: HealthRecordDraft): number {
   return draft.actions.length;
 }
 
-function actionLabel(action: HealthRecordAction): string {
-  if (action.action === "create") {
-    return "新增";
-  }
-  if (action.action === "update") {
-    return "更新";
-  }
-  return "删除";
+function ActionLabel({ action }: { action: HealthRecordAction }) {
+  const { t } = usePreferences();
+  if (action.action === "create") return <>{t("chatActionCreate")}</>;
+  if (action.action === "update") return <>{t("chatActionUpdate")}</>;
+  return <>{t("chatActionDelete")}</>;
 }
 
-function actionSummary(action: HealthRecordAction): string {
+function ActionSummary({ action }: { action: HealthRecordAction }) {
+  const { t } = usePreferences();
   const payload = action.payload ?? {};
 
   if (action.resource === "observations") {
-    const metric = payload.display_name ?? "指标记录";
+    const metric = payload.display_name ?? t("chatResourceObservation");
     const value =
       payload.value != null
         ? ` ${payload.value}${payload.unit ?? ""}`
         : payload.value_string
           ? ` ${payload.value_string}${payload.unit ?? ""}`
           : "";
-    return `${metric}${value}`;
+    return <>{`${metric}${value}`}</>;
   }
 
   if (action.resource === "conditions") {
-    return payload.display_name ? `${payload.display_name}${payload.clinical_status ? ` · ${payload.clinical_status}` : ""}` : "健康状况";
+    return (
+      <>
+        {payload.display_name
+          ? `${payload.display_name}${payload.clinical_status ? ` · ${payload.clinical_status}` : ""}`
+          : t("chatResourceCondition")}
+      </>
+    );
   }
 
   if (action.resource === "medications") {
-    return payload.name ? `${payload.name}${payload.dosage_description ? ` ${payload.dosage_description}` : ""}` : "用药记录";
+    return (
+      <>
+        {payload.name
+          ? `${payload.name}${payload.dosage_description ? ` ${payload.dosage_description}` : ""}`
+          : t("chatResourceMedication")}
+      </>
+    );
   }
 
-  return payload.type ? `${payload.type}${payload.facility ? ` · ${payload.facility}` : ""}` : "就诊记录";
+  return (
+    <>
+      {payload.type
+        ? `${payload.type}${payload.facility ? ` · ${payload.facility}` : ""}`
+        : t("chatResourceEncounter")}
+    </>
+  );
+}
+
+/** Returns true if the content looks like a raw technical error (Python repr / JSON array). */
+function isRawTechnicalContent(content: string): boolean {
+  const trimmed = content.trimStart();
+  return trimmed.startsWith("[{") || trimmed.startsWith("{'") || trimmed.startsWith('[{"');
 }
 
 export function ChatOverlay({
   attachments,
+  confirmedToolIds,
+  dismissedToolIds,
   draft,
   error,
   isBusy,
@@ -100,6 +128,7 @@ export function ChatOverlay({
   onAttachmentUpload,
   onClose,
   onConfirmToolDraft,
+  onDismissToolCard,
   onDraftChange,
   onMemberChange,
   onSend,
@@ -110,7 +139,6 @@ export function ChatOverlay({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
-  const [dismissedToolIds, setDismissedToolIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     panelRef.current?.focus();
@@ -143,7 +171,9 @@ export function ChatOverlay({
     event.target.value = "";
   }
 
-  const visibleToolCards = toolCards.filter((toolCard) => !dismissedToolIds.has(toolCard.id));
+  const visibleToolCards = toolCards.filter(
+    (toolCard) => !dismissedToolIds.has(toolCard.id),
+  );
 
   const chronologicalItems = [
     ...messages.map((message) => ({
@@ -206,114 +236,57 @@ export function ChatOverlay({
           tabIndex={-1}
         >
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
-          {chronologicalItems.map((item) => {
-            if (item.type === "tool") {
-              const toolCard = item.payload as ChatToolCard;
-              const toolDraft = toolCard.result.draft;
-              const hasDraftItems = toolDraft && countDraftItems(toolDraft) > 0;
-              const itemCount = toolDraft ? countDraftItems(toolDraft) : 0;
+            {chronologicalItems.map((item) => {
+              if (item.type === "tool") {
+                const toolCard = item.payload as ChatToolCard;
+                const isConfirmed = confirmedToolIds.has(toolCard.id);
 
-              return (
-                <div className="flex max-w-[85%] items-start gap-4" key={toolCard.id}>
-                  <div className="min-w-0 flex-1 rounded-[2rem] rounded-tl-none border border-white/40 bg-[rgba(235,242,247,0.45)] p-0 shadow-sm backdrop-blur-lg">
-                    <div className="p-6">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6D8295]">
-                        {toolCard.result.requires_confirmation
-                          ? t("chatOverlayDraft")
-                          : t("chatOverlayAnalysis")}
-                      </p>
-                      <p className="text-[16px] leading-relaxed text-[#2D2926]">{toolCard.result.content}</p>
-                      {toolCard.result.suggestion_summary ? (
-                        <p className="mt-3 text-sm text-[#5E768C]">{toolCard.result.suggestion_summary}</p>
-                      ) : null}
+                // Draft card (requires user action)
+                if (toolCard.result.requires_confirmation) {
+                  return (
+                    <DraftCard
+                      key={toolCard.id}
+                      isConfirmed={isConfirmed}
+                      onConfirm={() => onConfirmToolDraft(toolCard)}
+                      onDismiss={() => onDismissToolCard(toolCard.id)}
+                      toolCard={toolCard}
+                    />
+                  );
+                }
+
+                // Analysis / suggest card — collapsible inline summary
+                return (
+                  <AnalysisSummary key={toolCard.id} toolCard={toolCard} />
+                );
+              }
+
+              const message = item.payload as ChatMessage;
+              if (message.role === "system") {
+                return (
+                  <div className="flex justify-center" key={message.id}>
+                    <div className="rounded-full bg-[#F5F0EA] px-4 py-2 text-xs font-semibold text-[#6D8295]">
+                      {message.content}
                     </div>
-                    {toolDraft ? (
-                      <div className="rounded-b-[2rem] border-t border-[#F2EDE7] bg-white/90 p-5 shadow-sm">
-                        {hasDraftItems ? (
-                          <div className="mb-4 space-y-2">
-                            {toolDraft.actions.map((action, index) => (
-                              <label
-                                className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#F2EDE7]/50"
-                                key={`${action.action}-${action.resource}-${action.record_id ?? index}`}
-                              >
-                                <input checked className="h-4 w-4 rounded border-[#E7DDD1]" readOnly type="checkbox" />
-                                <span className="text-sm text-[#2D2926]">
-                                  <span className="mr-1 text-[#6D8295]">{actionLabel(action)} ·</span>
-                                  <span>{actionSummary(action)}</span>
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        ) : null}
-                        <div className="flex flex-wrap items-center gap-3">
-                          <button
-                            className="rounded-full px-4 py-2 text-sm font-medium text-[#4A443F] transition hover:bg-[#F2EDE7]/70"
-                            onClick={() => setDismissedToolIds((current) => new Set(current).add(toolCard.id))}
-                            type="button"
-                          >
-                            忽略
-                          </button>
-                          {toolCard.result.requires_confirmation ? (
-                            <button
-                              className="rounded-full bg-[#2D2926] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#161412]"
-                              onClick={() => onConfirmToolDraft(toolCard)}
-                              type="button"
-                            >
-                              确认保存
-                            </button>
-                          ) : null}
-                        </div>
-                        {hasDraftItems ? (
-                          <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#D8E5EF] px-6 py-3">
-                            <span aria-hidden className="material-symbols-outlined text-[18px] text-[#4A6076]">
-                              lightbulb
-                            </span>
-                            <span className="text-sm text-[#2D2926]">发现 {itemCount} 条待处理档案操作</span>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
                   </div>
-                </div>
-              );
-            }
+                );
+              }
 
-            const message = item.payload as ChatMessage;
-            if (message.role === "system") {
+              if (message.role === "assistant") {
+                return (
+                  <AssistantMessage key={message.id} message={message} isBusy={isBusy} />
+                );
+              }
+
               return (
-                <div className="flex justify-center" key={message.id}>
-                  <div className="rounded-full bg-[#F5F0EA] px-4 py-2 text-xs font-semibold text-[#6D8295]">
-                    {message.content}
+                <div className="flex justify-end" key={message.id}>
+                  <div className="max-w-[82%] rounded-[2rem] rounded-tr-none border border-white/50 bg-[rgba(255,255,255,0.95)] shadow-md p-6 backdrop-blur-lg">
+                    <p className="whitespace-pre-wrap text-[16px] leading-relaxed text-[#4A443F]">{message.content}</p>
                   </div>
                 </div>
               );
-            }
-            return message.role === "assistant" ? (
-              <div className="flex max-w-[85%] items-start gap-4" key={message.id}>
-                <div className="rounded-[2rem] rounded-tl-none bg-transparent p-4">
-                  <MarkdownContent
-                    className="text-[16px] leading-relaxed text-[#2D2926]"
-                    content={message.content}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-end" key={message.id}>
-                <div className="max-w-[82%] rounded-[2rem] rounded-tr-none border border-white/50 bg-[rgba(255,255,255,0.95)] shadow-md p-6 backdrop-blur-lg">
-                  <p className="whitespace-pre-wrap text-[16px] leading-relaxed text-[#4A443F]">{message.content}</p>
-                </div>
-              </div>
-            );
-          })}
+            })}
 
-          {isBusy ? (
-            <div className="flex justify-center py-4">
-              <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/30 px-4 py-1.5 backdrop-blur-md">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-[#4A6076]" />
-                <span className="text-sm text-[#2D2926]">正在识别健康记录项…</span>
-              </div>
-            </div>
-          ) : null}
+            {isBusy ? <TypingIndicator /> : null}
           </div>
         </div>
       </div>
@@ -334,6 +307,190 @@ export function ChatOverlay({
             selectedMemberId={selectedMemberId}
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function TypingIndicator() {
+  return (
+    <div className="flex max-w-[85%] items-start gap-4">
+      <div className="rounded-[2rem] rounded-tl-none bg-transparent p-4">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 animate-bounce rounded-full bg-[#4A6076] [animation-delay:-0.3s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-[#4A6076] [animation-delay:-0.15s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-[#4A6076]" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssistantMessage({
+  message,
+  isBusy,
+}: {
+  message: ChatMessage;
+  isBusy: boolean;
+}) {
+  const { t } = usePreferences();
+  const isLastMessage = true; // used for thinking pulse — simplified: always pulse if busy + has thinking
+  const showThinkingPulse = isBusy && !message.content && message.thinking !== undefined;
+
+  return (
+    <div className="flex max-w-[85%] items-start gap-4" key={message.id}>
+      <div className="min-w-0 flex-1 rounded-[2rem] rounded-tl-none bg-transparent p-4">
+        {message.thinking !== undefined ? (
+          <details className="mb-3 group">
+            <summary className={`flex cursor-pointer list-none items-center gap-1.5 text-xs text-[#6D8295] select-none ${showThinkingPulse ? "animate-pulse" : ""}`}>
+              <span className="material-symbols-outlined text-[14px] transition-transform group-open:rotate-90">
+                chevron_right
+              </span>
+              <span className="font-medium tracking-wide">{t("chatOverlayThinking")}</span>
+            </summary>
+            {message.thinking ? (
+              <div className="mt-2 rounded-xl bg-[#F5F0EA]/60 px-4 py-3">
+                <p className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[#6D8295]">
+                  {message.thinking}
+                </p>
+              </div>
+            ) : null}
+          </details>
+        ) : null}
+        {message.content ? (
+          <MarkdownContent
+            className="text-[16px] leading-relaxed text-[#2D2926]"
+            content={message.content}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AnalysisSummary({ toolCard }: { toolCard: ChatToolCard }) {
+  const { t } = usePreferences();
+  const rawContent = toolCard.result.content ?? "";
+  const displayContent = isRawTechnicalContent(rawContent)
+    ? t("chatErrorProcessing")
+    : rawContent;
+
+  return (
+    <div className="flex max-w-[85%] items-start gap-4">
+      <div className="min-w-0 flex-1 p-4">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs text-[#6D8295] select-none">
+            <span className="material-symbols-outlined text-[14px] transition-transform group-open:rotate-90">
+              chevron_right
+            </span>
+            <span className="material-symbols-outlined text-[14px]">analytics</span>
+            <span className="font-medium tracking-wide">{t("chatOverlayAnalysisSummary")}</span>
+          </summary>
+          {displayContent ? (
+            <div className="mt-2 rounded-xl bg-[#F5F0EA]/60 px-4 py-3">
+              <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#6D8295]">
+                {displayContent}
+              </p>
+            </div>
+          ) : null}
+        </details>
+      </div>
+    </div>
+  );
+}
+
+function DraftCard({
+  isConfirmed,
+  onConfirm,
+  onDismiss,
+  toolCard,
+}: {
+  isConfirmed: boolean;
+  onConfirm: () => void;
+  onDismiss: () => void;
+  toolCard: ChatToolCard;
+}) {
+  const { t } = usePreferences();
+  const toolDraft = toolCard.result.draft;
+  const hasDraftItems = toolDraft && countDraftItems(toolDraft) > 0;
+  const itemCount = toolDraft ? countDraftItems(toolDraft) : 0;
+
+  return (
+    <div className={`flex max-w-[85%] items-start gap-4 ${isConfirmed ? "opacity-60" : ""}`}>
+      <div className="min-w-0 flex-1 rounded-[2rem] rounded-tl-none border border-white/40 bg-[rgba(235,242,247,0.45)] p-0 shadow-sm backdrop-blur-lg">
+        <div className="p-6">
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6D8295]">
+              {isConfirmed ? t("chatDraftConfirmed") : t("chatOverlayDraft")}
+            </p>
+            {isConfirmed ? (
+              <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+            ) : null}
+          </div>
+          <p className="text-[16px] leading-relaxed text-[#2D2926]">{toolCard.result.content}</p>
+          {toolCard.result.suggestion_summary ? (
+            <p className="mt-3 text-sm text-[#5E768C]">{toolCard.result.suggestion_summary}</p>
+          ) : null}
+        </div>
+        {toolDraft ? (
+          <div className="rounded-b-[2rem] border-t border-[#F2EDE7] bg-white/90 p-5 shadow-sm">
+            {hasDraftItems ? (
+              <div className="mb-4 space-y-2">
+                {toolDraft.actions.map((action, index) => (
+                  <div
+                    className="flex items-center gap-3 rounded-lg px-3 py-2"
+                    key={`${action.action}-${action.resource}-${action.record_id ?? index}`}
+                  >
+                    <input
+                      checked
+                      className="h-4 w-4 rounded border-[#E7DDD1]"
+                      readOnly
+                      type="checkbox"
+                    />
+                    <span className="text-sm text-[#2D2926]">
+                      <span className="mr-1 text-[#6D8295]">
+                        <ActionLabel action={action} /> ·
+                      </span>
+                      <ActionSummary action={action} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {!isConfirmed ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  className="rounded-full px-4 py-2 text-sm font-medium text-[#4A443F] transition hover:bg-[#F2EDE7]/70"
+                  onClick={onDismiss}
+                  type="button"
+                >
+                  {t("chatOverlayDismiss")}
+                </button>
+                <button
+                  className="rounded-full bg-[#2D2926] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#161412]"
+                  onClick={onConfirm}
+                  type="button"
+                >
+                  {t("chatOverlayConfirm")}
+                </button>
+              </div>
+            ) : null}
+            {hasDraftItems && !isConfirmed ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#D8E5EF] px-6 py-3">
+                <span aria-hidden className="material-symbols-outlined text-[18px] text-[#4A6076]">
+                  lightbulb
+                </span>
+                <span className="text-sm text-[#2D2926]">
+                  {t("chatOverlayPendingCount", { count: itemCount })}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
