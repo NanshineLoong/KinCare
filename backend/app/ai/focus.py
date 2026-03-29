@@ -65,6 +65,12 @@ def resolve_chat_focus(
         elif previous_member_id is not None and previous_member_id in visible_member_map:
             resolved_member_id = previous_member_id
             resolution_source = "carried"
+        elif (
+            current_user.member_id is not None
+            and current_user.member_id in visible_member_map
+        ):
+            resolved_member_id = current_user.member_id
+            resolution_source = "self"
         else:
             resolved_member_id = None
             resolution_source = "unresolved"

@@ -783,6 +783,44 @@ def test_chat_auto_resolves_focus_member_from_message_text_and_persists_switch_m
     assert sessions_response.json()[0]["member_id"] == grandpa["id"]
 
 
+def test_chat_auto_resolves_focus_to_self_when_no_member_mentioned(client: TestClient) -> None:
+    """When no member name appears in the message and no previous member is set,
+    focus should resolve to the current user's own member (resolution_source='self')."""
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+
+    user = register_user(client, email="self@example.com", password="Secret123!", name="张小明")
+    user_member_id = user["member"]["id"]
+
+    session_id = create_session(
+        client,
+        token=user["tokens"]["access_token"],
+        member_id=None,
+        page_context="home",
+    )
+
+    async def scripted_model(messages: list[Any], info: Any) -> Any:
+        del messages, info
+        return ModelResponse(parts=[TextPart("我来帮您查一下。")])
+
+    with override_agent_model(client, function=scripted_model):
+        events = stream_chat_message(
+            client,
+            token=user["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=None,
+            member_selection_mode="auto",
+            page_context="home",
+            content="你好，我有点感冒",
+        )
+
+    assert events[0]["event"] == "session.started"
+    assert events[0]["data"]["resolution_source"] == "self"
+    assert events[0]["data"]["member_id"] == user_member_id
+    assert events[0]["data"]["focus_changed"] is True
+
+
 def test_chat_auto_resolves_focus_member_from_attachment_excerpt(client: TestClient) -> None:
     admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
     grandma = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
