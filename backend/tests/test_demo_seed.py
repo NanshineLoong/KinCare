@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from app.cli.seed_demo import main as seed_demo_main
 from app.core.database import Database
 from app.core.security import verify_password
 from app.services import repository
@@ -154,3 +155,26 @@ def test_seed_demo_family_replaces_existing_family_data_and_preserves_system_con
             "value": "en",
             "updated_at": "2026-03-20T09:00:00+08:00",
         }
+
+
+def test_seed_demo_cli_main_seeds_database_and_prints_summary(
+    monkeypatch,
+    tmp_path,
+    capsys,
+) -> None:
+    database_path = tmp_path / "kincare.db"
+    monkeypatch.setenv("KINCARE_DB_PATH", str(database_path))
+    monkeypatch.setenv("KINCARE_SKIP_DOTENV", "1")
+
+    result = seed_demo_main()
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert f"Seeded demo family into: {database_path}" in captured.out
+    assert "Family space: Carter Family" in captured.out
+    assert "daniel_demo (admin) -> Daniel Carter" in captured.out
+
+    with sqlite3.connect(database_path) as connection:
+        total = connection.execute("SELECT COUNT(*) FROM family_space").fetchone()[0]
+
+    assert total == 1

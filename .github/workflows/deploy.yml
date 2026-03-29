@@ -22,6 +22,8 @@ permissions:
 env:
   REGISTRY: ghcr.io
   DEPLOY_PATH: /opt/kincare
+  DEMO_RESEED_HOUR: "3"
+  DEMO_RESEED_MINUTE: "30"
 
 jobs:
   prepare:
@@ -131,4 +133,16 @@ jobs:
             printf '%s\n' '$GHCR_TOKEN' | docker login '${{ env.REGISTRY }}' -u '$GHCR_USERNAME' --password-stdin
             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api web
             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api web
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'set -euo pipefail' \
+              'cd '\''${{ env.DEPLOY_PATH }}'\''' \
+              'docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T api python -m app.cli.seed_demo' \
+              > reseed_demo.sh
+            chmod 755 reseed_demo.sh
+            ./reseed_demo.sh
+            (
+              crontab -l 2>/dev/null | grep -F -v '${{ env.DEPLOY_PATH }}/reseed_demo.sh'
+              printf '%s %s * * * %s/reseed_demo.sh >> %s/demo-seed.log 2>&1\n' '${{ env.DEMO_RESEED_MINUTE }}' '${{ env.DEMO_RESEED_HOUR }}' '${{ env.DEPLOY_PATH }}' '${{ env.DEPLOY_PATH }}'
+            ) | crontab -
           "
