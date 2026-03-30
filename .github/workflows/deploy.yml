@@ -136,6 +136,9 @@ jobs:
             printf '%s\n' '$GHCR_TOKEN' | docker login '${{ env.REGISTRY }}' -u '$GHCR_USERNAME' --password-stdin
             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api web
             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$DEPLOY_TAG' docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api web
+            docker container prune -f
+            docker image prune -af
+            docker builder prune -af
           "
 
   seed:
