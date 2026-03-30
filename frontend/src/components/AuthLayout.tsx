@@ -104,7 +104,7 @@ export function AuthLayout({
   const { t } = usePreferences();
   return (
     <div
-      className="relative flex h-svh max-h-svh min-h-0 w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-warm-cream text-warm-gray"
+      className="relative flex min-h-svh w-full max-w-full flex-col overflow-x-hidden bg-warm-cream text-warm-gray"
       data-testid="auth-page"
     >
       <div className="pointer-events-none absolute inset-0 opacity-40">
@@ -113,20 +113,20 @@ export function AuthLayout({
       </div>
 
       <header className="relative z-10 shrink-0 border-b border-gentle-blue/80 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1400px] items-center px-6 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-[1400px] items-center px-6 py-2 sm:px-8">
           <div className="flex min-w-0 shrink-0 items-center">
             <img
               alt="KinCare"
-              className="h-14 w-auto object-contain sm:h-16"
+              className="h-10 w-auto object-contain sm:h-11"
               src="/KinCare.svg"
             />
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-hidden px-3 py-3 sm:px-6 sm:py-6">
+      <main className="relative z-10 flex w-full min-w-0 flex-1 items-center justify-center px-3 py-6 sm:px-6 sm:py-8">
         <div
-          className="flex max-h-[calc(100svh-11rem)] w-full max-w-[min(30rem,100%)] min-w-0 flex-col overflow-hidden rounded-xl border border-gentle-blue bg-white shadow-apple min-[900px]:max-h-[720px]"
+          className="w-full max-w-[min(30rem,100%)] min-w-0 rounded-xl border border-gentle-blue bg-white shadow-apple"
           data-testid="auth-card"
         >
           <div
@@ -143,7 +143,7 @@ export function AuthLayout({
             <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-3 sm:px-8 sm:pb-7 sm:pt-4">
+          <div className="flex flex-col px-5 pb-5 pt-3 sm:px-8 sm:pb-7 sm:pt-4">
             <div className="mb-4 sm:mb-6">
               <h1 className="text-[clamp(1.625rem,2vw+1rem,1.875rem)] font-bold tracking-tight text-warm-gray">
                 {title}
@@ -151,7 +151,7 @@ export function AuthLayout({
               <p className="mt-1.5 text-sm text-warm-gray/80 sm:mt-2">{description}</p>
             </div>
 
-            <form className="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5" onSubmit={onSubmit}>
+            <form className="flex flex-col gap-4 sm:gap-5" onSubmit={onSubmit}>
               {children}
 
               {extra}
@@ -182,7 +182,7 @@ export function AuthLayout({
         </div>
       </main>
 
-      <footer className="relative z-10 shrink-0 px-4 pb-3 pt-1 text-center text-xs text-warm-gray/60 sm:pb-4">
+      <footer className="relative z-10 px-4 pb-4 pt-1 text-center text-xs text-warm-gray/60 sm:pb-5">
         {t("authFooter")}
       </footer>
     </div>
