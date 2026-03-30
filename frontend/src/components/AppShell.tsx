@@ -7,6 +7,7 @@ import { MaterialIcon } from "./MaterialIcon";
 import { usePreferences, type TranslationKey } from "../preferences";
 
 type AppShellProps = {
+  historyRefreshToken?: number;
   onSignOut: () => void;
   session: AuthSession;
   onOpenSettings?: () => void;
@@ -68,6 +69,7 @@ function formatRelativeTime(
 }
 
 export function AppShell({
+  historyRefreshToken = 0,
   onSignOut,
   session,
   onOpenSettings,
@@ -109,28 +111,38 @@ export function AppShell({
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [userMenuOpen, historyOpen]);
 
+  async function loadHistorySessions() {
+    setIsLoadingSessions(true);
+    try {
+      const data = await listChatSessions(session, { limit: 15 });
+      setSessions(
+        [...data].sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() -
+            new Date(a.updated_at).getTime(),
+        ),
+      );
+    } catch {
+      setSessions([]);
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }
+
   async function handleToggleHistory() {
     const next = !historyOpen;
     setHistoryOpen(next);
-    if (next && sessions.length === 0) {
-      setIsLoadingSessions(true);
-      try {
-        const data = await listChatSessions(session, { limit: 15 });
-        // Sort by updated_at descending
-        setSessions(
-          [...data].sort(
-            (a, b) =>
-              new Date(b.updated_at).getTime() -
-              new Date(a.updated_at).getTime(),
-          ),
-        );
-      } catch {
-        // Non-critical — keep empty list
-      } finally {
-        setIsLoadingSessions(false);
-      }
+    if (next) {
+      await loadHistorySessions();
     }
   }
+
+  useEffect(() => {
+    if (!historyOpen) {
+      return;
+    }
+    void loadHistorySessions();
+  }, [historyRefreshToken]);
 
   function handleRestoreSession(item: ChatSessionListItem) {
     setHistoryOpen(false);

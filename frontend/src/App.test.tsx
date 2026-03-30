@@ -1628,6 +1628,238 @@ describe("App", () => {
     expect(within(dialog).getByText("已切换咨询人到管理员")).toBeInTheDocument();
   });
 
+  it("restores thinking, analysis cards, and resolved draft cards from history", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions") {
+        return jsonResponse([
+          {
+            id: "chat-1",
+            member_id: "member-2",
+            title: "张妈妈最近情况",
+            summary: "包含分析与草稿",
+            updated_at: "2026-03-15T08:30:00+08:00",
+          },
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions/chat-1/messages") {
+        return jsonResponse([
+          {
+            id: "msg-1",
+            role: "assistant",
+            content: "张妈妈目前整体平稳。",
+            thinking: "先对比近期血压、睡眠和提醒，再决定是否需要录入。",
+            metadata: {
+              resolved_member_id: "member-2",
+              member_name: "张妈妈",
+              previous_member_id: null,
+              previous_member_name: null,
+              resolution_source: "explicit",
+              focus_changed: false,
+            },
+            created_at: "2026-03-15T08:10:00+08:00",
+          },
+          {
+            id: "msg-2",
+            role: "tool",
+            content: "识别到一条可以补录的心率建议。",
+            event_type: "tool.suggest",
+            metadata: {
+              tool_name: "suggest_record_update",
+              suggestion_summary: "建议补录一条心率记录。",
+              draft: {
+                summary: "建议保存心率",
+                actions: [],
+              },
+            },
+            created_at: "2026-03-15T08:10:02+08:00",
+          },
+          {
+            id: "msg-3",
+            role: "tool",
+            content: "已生成待确认草稿。",
+            event_type: "tool.draft",
+            resolution_status: "confirmed",
+            metadata: {
+              tool_name: "draft_health_record_actions",
+              tool_call_id: "tool-1",
+              requires_confirmation: true,
+              draft: {
+                summary: "记录心率",
+                actions: [
+                  {
+                    action: "create",
+                    resource: "observations",
+                    target_member_id: "member-2",
+                    payload: {
+                      category: "body-vitals",
+                      code: "heart-rate",
+                      display_name: "心率",
+                      value: 72,
+                      unit: "bpm",
+                      effective_at: "2026-03-15T08:00:00+08:00",
+                    },
+                  },
+                ],
+              },
+            },
+            created_at: "2026-03-15T08:10:04+08:00",
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("option", { name: /张妈妈最近情况/ }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    expect(await within(dialog).findByText("正在思考")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("先对比近期血压、睡眠和提醒，再决定是否需要录入。"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("分析摘要")).toBeInTheDocument();
+    expect(within(dialog).getByText("识别到一条可以补录的心率建议。")).toBeInTheDocument();
+    expect(within(dialog).getByText("已保存")).toBeInTheDocument();
+    expect(within(dialog).getByText("心率 72bpm")).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", { name: "确认保存" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("refreshes session history ordering after continuing a restored session", async () => {
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify(createSessionPayload()),
+    );
+
+    let historyFetchCount = 0;
+
+    fetchMock.mockImplementation(async (input, init) => {
+      const pathname = requestPath(input);
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && pathname === "/api/members") {
+        return jsonResponse(createMembers());
+      }
+      if (method === "GET" && pathname === "/api/dashboard") {
+        return jsonResponse(createDashboard());
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions") {
+        historyFetchCount += 1;
+        if (historyFetchCount === 1) {
+          return jsonResponse([
+            {
+              id: "chat-2",
+              member_id: null,
+              title: "更新较新的会话",
+              summary: "排在前面",
+              updated_at: "2026-03-15T09:00:00+08:00",
+            },
+            {
+              id: "chat-1",
+              member_id: "member-2",
+              title: "需要继续的会话",
+              summary: "排在后面",
+              updated_at: "2026-03-15T08:30:00+08:00",
+            },
+          ]);
+        }
+        return jsonResponse([
+          {
+            id: "chat-1",
+            member_id: "member-2",
+            title: "需要继续的会话",
+            summary: "已经顶到前面",
+            updated_at: "2026-03-15T09:05:00+08:00",
+          },
+          {
+            id: "chat-2",
+            member_id: null,
+            title: "更新较新的会话",
+            summary: "现在排第二",
+            updated_at: "2026-03-15T09:00:00+08:00",
+          },
+        ]);
+      }
+      if (method === "GET" && pathname === "/api/chat/sessions/chat-1/messages") {
+        return jsonResponse([
+          {
+            id: "msg-1",
+            role: "assistant",
+            content: "这是之前的上下文。",
+            metadata: {
+              resolved_member_id: "member-2",
+              member_name: "张妈妈",
+              previous_member_id: null,
+              previous_member_name: null,
+              resolution_source: "explicit",
+              focus_changed: false,
+            },
+            created_at: "2026-03-15T08:10:00+08:00",
+          },
+        ]);
+      }
+      if (method === "POST" && pathname === "/api/chat/sessions/chat-1/messages") {
+        return sseResponse([
+          {
+            event: "session.started",
+            data: {
+              session_id: "chat-1",
+              member_id: "member-2",
+              member_name: "张妈妈",
+              previous_member_id: "member-2",
+              previous_member_name: "张妈妈",
+              focus_changed: false,
+              resolution_source: "explicit",
+            },
+          },
+          {
+            event: "message.completed",
+            data: { content: "这是继续后的回复。" },
+          },
+        ]);
+      }
+
+      throw new Error(`Unhandled request: ${method} ${pathname}`);
+    });
+
+    renderApp("/app");
+
+    fireEvent.click(await screen.findByRole("button", { name: "历史会话" }));
+    fireEvent.click(await screen.findByRole("option", { name: /需要继续的会话/ }));
+    const dialog = await screen.findByRole("dialog", { name: "AI 健康助手" });
+
+    fireEvent.change(within(dialog).getByLabelText("对话输入框"), {
+      target: { value: "继续跟进张妈妈今天的情况" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /发送/ }));
+
+    expect(await within(dialog).findByText("这是继续后的回复。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "历史会话" }));
+    const historyList = await screen.findByRole("listbox");
+    const options = within(historyList).getAllByRole("option");
+    expect(options[0]).toHaveTextContent("需要继续的会话");
+    expect(historyFetchCount).toBe(2);
+  });
+
   it("starts a fresh chat when sending from the homepage after the first overlay conversation", async () => {
     window.localStorage.setItem(
       sessionStorageKey,

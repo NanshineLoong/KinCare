@@ -232,6 +232,21 @@ def create_message(
     }
 
 
+def update_message_metadata(
+    connection: sqlite3.Connection,
+    message_id: str,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    connection.execute(
+        "UPDATE chat_message SET metadata = ? WHERE id = ?",
+        (_serialize_json(metadata), message_id),
+    )
+    row = connection.execute("SELECT * FROM chat_message WHERE id = ?", (message_id,)).fetchone()
+    if row is None:
+        raise KeyError(message_id)
+    return message_from_row(row)
+
+
 def list_messages_for_session(connection: sqlite3.Connection, session_id: str) -> list[dict[str, Any]]:
     rows = connection.execute(
         """

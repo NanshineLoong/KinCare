@@ -69,6 +69,10 @@ function describeChatTransportError(error: unknown) {
   return "AI chat failed. Please try again later.";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export default function App() {
   const { t, language, setLanguage } = usePreferences();
   const activeChatRunIdRef = useRef(0);
@@ -91,8 +95,7 @@ export default function App() {
   const [chatDraft, setChatDraft] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatToolCards, setChatToolCards] = useState<ChatToolCard[]>([]);
-  const [confirmedToolIds, setConfirmedToolIds] = useState<Set<string>>(new Set());
-  const [dismissedToolIds, setDismissedToolIds] = useState<Set<string>>(new Set());
+  const [chatHistoryRefreshToken, setChatHistoryRefreshToken] = useState(0);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isChatBusy, setIsChatBusy] = useState(false);
   const [selectedChatMemberId, setSelectedChatMemberId] = useState("");
@@ -165,8 +168,6 @@ export default function App() {
     clearChatAttachments();
     setChatMessages([]);
     setChatToolCards([]);
-    setConfirmedToolIds(new Set());
-    setDismissedToolIds(new Set());
     setChatError(null);
     setIsChatBusy(false);
     setChatSession(null);
@@ -247,6 +248,7 @@ export default function App() {
 
   function buildRestoredTimeline(messages: ChatMessageRead[]) {
     const restoredMessages: ChatMessage[] = [];
+    const restoredToolCards: ChatToolCard[] = [];
     let sortKey = 0;
     let latestFocus: {
       member_id?: string | null;
@@ -285,7 +287,42 @@ export default function App() {
           id: message.id,
           role: message.role,
           content: message.content,
+          thinking: message.thinking ?? undefined,
           sortKey,
+        });
+      } else if (
+        message.role === "tool" &&
+        (
+          message.event_type === "tool.result" ||
+          message.event_type === "tool.draft" ||
+          message.event_type === "tool.suggest"
+        )
+      ) {
+        sortKey += 1;
+        restoredToolCards.push({
+          id: message.id,
+          sortKey,
+          resolutionStatus:
+            message.resolution_status ??
+            (message.event_type === "tool.draft" ? "pending" : undefined),
+          result: {
+            tool_name:
+              typeof metadata.tool_name === "string" ? metadata.tool_name : "unknown",
+            content: message.content,
+            requires_confirmation: metadata.requires_confirmation === true,
+            tool_call_id:
+              typeof metadata.tool_call_id === "string" ? metadata.tool_call_id : null,
+            draft: isRecord(metadata.draft)
+              ? (metadata.draft as ChatToolCard["result"]["draft"])
+              : null,
+            suggestion_summary:
+              typeof metadata.suggestion_summary === "string"
+                ? metadata.suggestion_summary
+                : undefined,
+            meta: isRecord(metadata.meta)
+              ? (metadata.meta as Record<string, unknown>)
+              : undefined,
+          },
         });
       }
 
@@ -297,6 +334,7 @@ export default function App() {
     timelineSequenceRef.current = sortKey;
     return {
       messages: restoredMessages,
+      toolCards: restoredToolCards,
       latestFocus,
     };
   }
@@ -577,6 +615,10 @@ export default function App() {
             {
               id: nextId("tool"),
               result: event.data,
+              resolutionStatus:
+                event.event === "tool.draft" && event.data.requires_confirmation
+                  ? "pending"
+                  : undefined,
               sortKey: nextTimelineSortKey(),
             },
           ]);
@@ -587,6 +629,9 @@ export default function App() {
           setChatError(event.data.error);
         }
       });
+      if (isActiveRun()) {
+        setChatHistoryRefreshToken((current) => current + 1);
+      }
     } catch (error) {
       if (!isActiveRun()) {
         return;
@@ -619,7 +664,16 @@ export default function App() {
         edits: {},
       });
 
-      setConfirmedToolIds((current) => new Set(current).add(toolCard.id));
+      setChatToolCards((current) =>
+        current.map((item) =>
+          item.id === toolCard.id
+            ? {
+                ...item,
+                resolutionStatus: "confirmed",
+              }
+            : item,
+        ),
+      );
       if (result.assistant_message) {
         setChatMessages((current) => [
           ...current,
@@ -632,6 +686,7 @@ export default function App() {
         ]);
       }
       setDashboardRefreshToken((current) => current + 1);
+      setChatHistoryRefreshToken((current) => current + 1);
     } catch (error) {
       setChatError(
         error instanceof Error ? error.message : "Failed to confirm the draft. Please try again later.",
@@ -660,7 +715,16 @@ export default function App() {
         edits: {},
       });
 
-      setDismissedToolIds((current) => new Set(current).add(toolCard.id));
+      setChatToolCards((current) =>
+        current.map((item) =>
+          item.id === toolCard.id
+            ? {
+                ...item,
+                resolutionStatus: "dismissed",
+              }
+            : item,
+        ),
+      );
       if (result.assistant_message) {
         setChatMessages((current) => [
           ...current,
@@ -672,6 +736,7 @@ export default function App() {
           },
         ]);
       }
+      setChatHistoryRefreshToken((current) => current + 1);
     } catch (error) {
       setChatError(
         error instanceof Error ? error.message : "Failed to dismiss the draft. Please try again later.",
@@ -720,6 +785,7 @@ export default function App() {
       if (restoringSessionIdRef.current !== sessionId) return;
       const restored = buildRestoredTimeline(messages);
       setChatMessages(restored.messages);
+      setChatToolCards(restored.toolCards);
       if (restored.latestFocus) {
         syncResolvedFocus(restored.latestFocus, { restoreSelection: true });
       }
@@ -784,6 +850,7 @@ export default function App() {
           element={
             session ? (
               <AppShell
+                historyRefreshToken={chatHistoryRefreshToken}
                 onOpenSettings={() => setIsSettingsOpen(true)}
                 onRestoreChatSession={handleRestoreChatSession}
                 onSignOut={handleSignOut}
@@ -845,8 +912,6 @@ export default function App() {
       {session && isChatOpen && (
         <ChatOverlay
           attachments={chatAttachments}
-          confirmedToolIds={confirmedToolIds}
-          dismissedToolIds={dismissedToolIds}
           draft={chatDraft}
           error={chatError}
           isBusy={isChatBusy}

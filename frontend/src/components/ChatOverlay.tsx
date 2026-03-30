@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "
 
 import type {
   ChatToolResult,
+  DraftResolutionStatus,
   HealthRecordAction,
   HealthRecordDraft,
 } from "../api/chat";
@@ -21,6 +22,7 @@ export type ChatMessage = {
 export type ChatToolCard = {
   id: string;
   result: ChatToolResult;
+  resolutionStatus?: DraftResolutionStatus;
   sortKey: number;
 };
 
@@ -33,8 +35,6 @@ const AUTO_SCROLL_BOTTOM_THRESHOLD = 48;
 
 type ChatOverlayProps = {
   attachments: ComposerAttachment[];
-  confirmedToolIds: Set<string>;
-  dismissedToolIds: Set<string>;
   draft: string;
   error: string | null;
   isBusy: boolean;
@@ -116,8 +116,6 @@ function isRawTechnicalContent(content: string): boolean {
 
 export function ChatOverlay({
   attachments,
-  confirmedToolIds,
-  dismissedToolIds,
   draft,
   error,
   isBusy,
@@ -235,16 +233,12 @@ export function ChatOverlay({
             {chronologicalItems.map((item) => {
               if (item.type === "tool") {
                 const toolCard = item.payload as ChatToolCard;
-                const isConfirmed = confirmedToolIds.has(toolCard.id);
-                const isDismissed = dismissedToolIds.has(toolCard.id);
 
                 // Draft card (requires user action)
                 if (toolCard.result.requires_confirmation) {
                   return (
                     <DraftCard
                       key={toolCard.id}
-                      isConfirmed={isConfirmed}
-                      isDismissed={isDismissed}
                       onConfirm={() => onConfirmToolDraft(toolCard)}
                       onDismiss={() => onDismissToolCard(toolCard)}
                       toolCard={toolCard}
@@ -402,14 +396,10 @@ function AnalysisSummary({ toolCard }: { toolCard: ChatToolCard }) {
 }
 
 function DraftCard({
-  isConfirmed,
-  isDismissed,
   onConfirm,
   onDismiss,
   toolCard,
 }: {
-  isConfirmed: boolean;
-  isDismissed: boolean;
   onConfirm: () => void;
   onDismiss: () => void;
   toolCard: ChatToolCard;
@@ -418,6 +408,8 @@ function DraftCard({
   const toolDraft = toolCard.result.draft;
   const hasDraftItems = toolDraft && countDraftItems(toolDraft) > 0;
   const itemCount = toolDraft ? countDraftItems(toolDraft) : 0;
+  const isConfirmed = toolCard.resolutionStatus === "confirmed";
+  const isDismissed = toolCard.resolutionStatus === "dismissed";
   const isResolved = isConfirmed || isDismissed;
 
   return (

@@ -10,8 +10,6 @@ vi.mock("./ChatInput", () => ({
 
 const defaultOverlayProps = {
   attachments: [] as never[],
-  confirmedToolIds: new Set<string>(),
-  dismissedToolIds: new Set<string>(),
   draft: "",
   error: null,
   isBusy: false,

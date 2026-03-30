@@ -32,12 +32,20 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 def _public_chat_message(message: dict[str, Any]) -> dict[str, Any]:
     metadata = dict(message.get("metadata") or {})
+    thinking = metadata.pop("thinking", None)
+    resolution_status = metadata.pop("resolution_status", None)
     metadata.pop("message_history", None)
     return {
         "id": message["id"],
         "role": message["role"],
         "content": message["content"],
         "event_type": message.get("event_type"),
+        "thinking": thinking if isinstance(thinking, str) else None,
+        "resolution_status": (
+            resolution_status
+            if resolution_status in {"pending", "confirmed", "dismissed"}
+            else None
+        ),
         "metadata": metadata or None,
         "created_at": message["created_at"],
     }

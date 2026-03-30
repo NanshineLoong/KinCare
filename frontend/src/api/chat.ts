@@ -90,6 +90,8 @@ export type ChatToolResult = {
   meta?: Record<string, unknown>;
 };
 
+export type DraftResolutionStatus = "pending" | "confirmed" | "dismissed";
+
 export type ChatStreamEvent =
   | {
       event: "session.started";
@@ -117,6 +119,8 @@ export type ChatMessageRead = {
   role: string;
   content: string;
   event_type?: string | null;
+  thinking?: string | null;
+  resolution_status?: DraftResolutionStatus | null;
   metadata?: Record<string, unknown> | null;
   created_at: string;
 };

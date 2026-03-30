@@ -284,6 +284,16 @@ def stream_chat_message(
         return parse_sse_events(response)
 
 
+def session_updated_at(client: TestClient, *, token: str, session_id: str) -> str:
+    response = client.get(
+        "/api/chat/sessions",
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    return next(item["updated_at"] for item in payload if item["id"] == session_id)
+
+
 def override_agent_model(client: TestClient, *, function: Any, stream_function: Any | None = None) -> Any:
     function_models = importlib.import_module("pydantic_ai.models.function")
     messages_module = importlib.import_module("pydantic_ai.messages")
@@ -724,6 +734,59 @@ def test_chat_session_messages_endpoint_returns_owned_history_without_internal_t
     assert payload[1]["event_type"] == "tool.result"
     assert payload[2]["content"] == "奶奶最近血压稳定，早餐后服药提醒保持即可。"
     assert "message_history" not in (payload[2]["metadata"] or {})
+
+
+def test_chat_session_messages_endpoint_exposes_visible_thinking_and_draft_resolution_state(
+    client: TestClient,
+) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    chat_sessions = importlib.import_module("app.services.chat_sessions")
+
+    with client.app.state.database.connection() as connection:
+        chat_sessions.create_message(
+            connection,
+            session_id=session_id,
+            role="assistant",
+            content="奶奶今天整体情况稳定。",
+            metadata={
+                "thinking": "先对比血压、睡眠和提醒，再给出结论。",
+                "message_history": [{"internal": True}],
+            },
+        )
+        chat_sessions.create_message(
+            connection,
+            session_id=session_id,
+            role="tool",
+            content="已生成待确认草稿。",
+            event_type="tool.draft",
+            metadata={
+                "tool_name": "draft_health_record_actions",
+                "tool_call_id": "tool-1",
+                "requires_confirmation": True,
+                "draft": {"summary": "", "actions": []},
+                "resolution_status": "dismissed",
+            },
+        )
+
+    response = client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload[0]["thinking"] == "先对比血压、睡眠和提醒，再给出结论。"
+    assert "message_history" not in (payload[0]["metadata"] or {})
+    assert payload[1]["event_type"] == "tool.draft"
+    assert payload[1]["resolution_status"] == "dismissed"
 
 
 def test_chat_auto_resolves_focus_member_from_message_text_and_persists_switch_metadata(client: TestClient) -> None:
@@ -1243,6 +1306,11 @@ def test_chat_confirm_draft_writes_records_and_returns_assistant_message(client:
         )
         draft_event = next(item for item in events if item["event"] == "tool.draft")
         tool_call_id = draft_event["data"]["tool_call_id"]
+        updated_at_before_confirm = session_updated_at(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+        )
 
         confirm_response = client.post(
             f"/api/chat/{session_id}/confirm-draft",
@@ -1261,6 +1329,12 @@ def test_chat_confirm_draft_writes_records_and_returns_assistant_message(client:
         "encounters": 0,
     }
     assert "已" in confirm_response.json()["assistant_message"]
+    updated_at_after_confirm = session_updated_at(
+        client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+    )
+    assert datetime.fromisoformat(updated_at_after_confirm) > datetime.fromisoformat(updated_at_before_confirm)
 
     observations_response = client.get(
         f"/api/members/{managed_member['id']}/observations",
@@ -1268,6 +1342,121 @@ def test_chat_confirm_draft_writes_records_and_returns_assistant_message(client:
     )
     assert observations_response.status_code == 200, observations_response.text
     assert observations_response.json()[0]["source"] == "ai-extract"
+
+    messages_response = client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert messages_response.status_code == 200, messages_response.text
+    messages_payload = messages_response.json()
+    draft_message = next(
+        item
+        for item in messages_payload
+        if item["role"] == "tool" and item["event_type"] == "tool.draft"
+    )
+    assert draft_message["resolution_status"] == "confirmed"
+
+
+def test_chat_dismiss_draft_marks_resolution_state_and_updates_session_timestamp(client: TestClient) -> None:
+    admin = register_user(client, email="owner@example.com", password="Secret123!", name="管理员")
+    managed_member = create_managed_member(client, admin["tokens"]["access_token"], "奶奶")
+    session_id = create_session(
+        client,
+        token=admin["tokens"]["access_token"],
+        member_id=managed_member["id"],
+        page_context="home",
+    )
+
+    messages_module = importlib.import_module("pydantic_ai.messages")
+    ModelResponse = messages_module.ModelResponse
+    TextPart = messages_module.TextPart
+    ToolCallPart = messages_module.ToolCallPart
+
+    async def draft_model(messages: list[Any], info: Any) -> Any:
+        del info
+        latest_part = messages[-1].parts[-1]
+        if getattr(latest_part, "part_kind", None) == "tool-return":
+            return ModelResponse(parts=[TextPart("已忽略这次草稿。")])
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    "draft_health_record_actions",
+                    {
+                        "summary": "待确认的心率记录",
+                        "actions": [
+                            {
+                                "action": "create",
+                                "resource": "observations",
+                                "target_member_id": managed_member["id"],
+                                "payload": {
+                                    "category": "body-vitals",
+                                    "code": "heart-rate",
+                                    "display_name": "心率",
+                                    "value": 71.0,
+                                    "unit": "bpm",
+                                    "effective_at": "2026-03-12T08:00:00+08:00",
+                                },
+                            }
+                        ],
+                    },
+                )
+            ]
+        )
+
+    with override_agent_model(client, function=draft_model):
+        events = stream_chat_message(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+            member_id=managed_member["id"],
+            page_context="home",
+            content="先生成一条草稿，但这次不要保存",
+        )
+        draft_event = next(item for item in events if item["event"] == "tool.draft")
+        tool_call_id = draft_event["data"]["tool_call_id"]
+        updated_at_before_dismiss = session_updated_at(
+            client,
+            token=admin["tokens"]["access_token"],
+            session_id=session_id,
+        )
+
+        dismiss_response = client.post(
+            f"/api/chat/{session_id}/confirm-draft",
+            headers=auth_headers(admin["tokens"]["access_token"]),
+            json={
+                "approvals": {tool_call_id: False},
+                "edits": {},
+            },
+        )
+
+    assert dismiss_response.status_code == 200, dismiss_response.text
+    assert dismiss_response.json()["assistant_message"] == "已忽略这次草稿。"
+    updated_at_after_dismiss = session_updated_at(
+        client,
+        token=admin["tokens"]["access_token"],
+        session_id=session_id,
+    )
+    assert datetime.fromisoformat(updated_at_after_dismiss) > datetime.fromisoformat(updated_at_before_dismiss)
+
+    messages_response = client.get(
+        f"/api/chat/sessions/{session_id}/messages",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert messages_response.status_code == 200, messages_response.text
+    messages_payload = messages_response.json()
+    draft_message = next(
+        item
+        for item in messages_payload
+        if item["role"] == "tool" and item["event_type"] == "tool.draft"
+    )
+    assert draft_message["resolution_status"] == "dismissed"
+
+    observations_response = client.get(
+        f"/api/members/{managed_member['id']}/observations",
+        headers=auth_headers(admin["tokens"]["access_token"]),
+    )
+    assert observations_response.status_code == 200, observations_response.text
+    assert observations_response.json() == []
 
 
 def test_chat_analysis_emits_suggestion_without_writing_records(client: TestClient) -> None:

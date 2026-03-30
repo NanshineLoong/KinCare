@@ -72,6 +72,8 @@ class ChatMessageRead(BaseModel):
     role: str
     content: str
     event_type: str | None = None
+    thinking: str | None = None
+    resolution_status: Literal["pending", "confirmed", "dismissed"] | None = None
     metadata: dict[str, Any] | None = None
     created_at: str
 

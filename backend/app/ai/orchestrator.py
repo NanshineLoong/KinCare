@@ -30,6 +30,7 @@ from app.core.database import Database
 from app.core.dependencies import CurrentUser
 from app.schemas.health import HealthRecordDraft
 from app.services import chat_sessions
+from app.services.repository import now_iso
 from app.services.health_records import ensure_member_access
 
 
@@ -178,6 +179,7 @@ class ChatOrchestrator:
         )
         usage_limits = UsageLimits(request_limit=self._request_limit)
         yielded_delta = False
+        thinking_content = ""
 
         yield StreamEvent(
             "session.started",
@@ -219,6 +221,7 @@ class ChatOrchestrator:
                                 async for event in request_stream:
                                     thinking_delta = _stream_thinking_from_model_event(event)
                                     if thinking_delta:
+                                        thinking_content += thinking_delta
                                         yield StreamEvent("message.thinking", {"content": thinking_delta})
                                         continue
                                     delta = _stream_text_from_model_event(event)
@@ -246,11 +249,25 @@ class ChatOrchestrator:
 
                 result = run.result
         except UsageLimitExceeded as error:
+            self._persist_visible_assistant_turn(
+                session_id=session_id,
+                content="",
+                focus_metadata=focus_metadata,
+                member_id=focus.member_id,
+                thinking=thinking_content,
+            )
             error_event = StreamEvent("tool.error", {"tool_name": "agent", "error": str(error)})
             self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
             yield error_event
             return
         except UnexpectedModelBehavior as error:
+            self._persist_visible_assistant_turn(
+                session_id=session_id,
+                content="",
+                focus_metadata=focus_metadata,
+                member_id=focus.member_id,
+                thinking=thinking_content,
+            )
             error_event = self._model_behavior_error_event(error)
             self._persist_tool_message(session_id, error_event, extra_metadata=focus_metadata)
             yield error_event
@@ -258,6 +275,14 @@ class ChatOrchestrator:
 
         history_payload = self._serialize_history(result.all_messages_json())
         if isinstance(result.output, DeferredToolRequests):
+            self._persist_visible_assistant_turn(
+                session_id=session_id,
+                content="",
+                focus_metadata=focus_metadata,
+                member_id=focus.member_id,
+                thinking=thinking_content,
+                message_history=history_payload,
+            )
             draft_event = self._deferred_draft_event(result.output)
             self._persist_tool_message(
                 session_id,
@@ -274,18 +299,14 @@ class ChatOrchestrator:
         if assistant_text and not yielded_delta:
             yield StreamEvent("message.delta", {"content": assistant_text})
 
-        with self._database.connection() as connection:
-            chat_sessions.create_message(
-                connection,
-                session_id=session_id,
-                role="assistant",
-                content=assistant_text,
-                metadata={
-                    **focus_metadata,
-                    "member_id": focus.member_id,
-                    "message_history": history_payload,
-                },
-            )
+        self._persist_visible_assistant_turn(
+            session_id=session_id,
+            content=assistant_text,
+            focus_metadata=focus_metadata,
+            member_id=focus.member_id,
+            thinking=thinking_content,
+            message_history=history_payload,
+        )
         yield StreamEvent("message.completed", {"content": assistant_text})
 
     async def confirm_draft(
@@ -385,6 +406,12 @@ class ChatOrchestrator:
             }
 
         history_payload = self._serialize_history(result.all_messages_json())
+        resolution_status = self._draft_resolution_status(pending_message, approvals)
+        if resolution_status is not None:
+            self._mark_draft_message_resolved(
+                pending_message,
+                resolution_status=resolution_status,
+            )
         if isinstance(result.output, DeferredToolRequests):
             draft_event = self._deferred_draft_event(result.output)
             self._persist_tool_message(
@@ -436,8 +463,42 @@ class ChatOrchestrator:
         for message in reversed(messages):
             if message["role"] != "tool" or message.get("event_type") != "tool.draft":
                 continue
+            metadata = message.get("metadata") or {}
+            if metadata.get("resolution_status") in {"confirmed", "dismissed"}:
+                continue
             return message
         return None
+
+    def _persist_visible_assistant_turn(
+        self,
+        *,
+        session_id: str,
+        content: str,
+        focus_metadata: dict[str, Any],
+        member_id: str | None,
+        thinking: str,
+        message_history: list[dict[str, Any]] | None = None,
+    ) -> None:
+        if not content and not thinking:
+            return
+
+        metadata = {
+            **focus_metadata,
+            "member_id": member_id,
+        }
+        if thinking:
+            metadata["thinking"] = thinking
+        if message_history is not None:
+            metadata["message_history"] = message_history
+
+        with self._database.connection() as connection:
+            chat_sessions.create_message(
+                connection,
+                session_id=session_id,
+                role="assistant",
+                content=content,
+                metadata=metadata,
+            )
 
     def _focus_metadata(self, focus: ResolvedChatFocus) -> dict[str, Any]:
         return {
@@ -497,6 +558,38 @@ class ChatOrchestrator:
                 metadata=metadata,
             )
 
+    def _draft_resolution_status(
+        self,
+        pending_message: dict[str, Any],
+        approvals: dict[str, bool],
+    ) -> str | None:
+        metadata = pending_message.get("metadata") or {}
+        tool_call_id = metadata.get("tool_call_id")
+        if not isinstance(tool_call_id, str):
+            return None
+        approved = approvals.get(tool_call_id)
+        if approved is True:
+            return "confirmed"
+        if approved is False:
+            return "dismissed"
+        return None
+
+    def _mark_draft_message_resolved(
+        self,
+        message: dict[str, Any],
+        *,
+        resolution_status: str,
+    ) -> None:
+        metadata = dict(message.get("metadata") or {})
+        metadata["resolution_status"] = resolution_status
+        metadata["resolved_at"] = now_iso()
+        with self._database.connection() as connection:
+            chat_sessions.update_message_metadata(
+                connection,
+                message["id"],
+                metadata,
+            )
+
     def _tool_result_event(self, event: FunctionToolResultEvent) -> StreamEvent:
         tool_name = getattr(event.result, "tool_name", "unknown")
         payload = {"tool_name": tool_name}
@@ -535,6 +628,7 @@ class ChatOrchestrator:
                 "tool_name": call.tool_name,
                 "tool_call_id": call.tool_call_id,
                 "requires_confirmation": True,
+                "resolution_status": "pending",
                 "draft": draft,
                 "content": "已生成待确认草稿。",
             },

@@ -63,12 +63,12 @@ async def build_system_prompt(ctx: RunContext[AIDeps]) -> str:
         visible_member_lines = ["Members accessible to the current user:"]
         for member in ctx.deps.visible_members:
             visible_member_lines.append(
-                f"- {member['name']} (permission={member['permission_level']})"
+                f"- {member['name']} (id={member['id']}, permission={member['permission_level']})"
             )
         parts.append("\n".join(visible_member_lines))
     if ctx.deps.focus_member_id:
         parts.append(
-            f"Current focus member: {ctx.deps.focus_member_name or ctx.deps.focus_member_id}"
+            f"Current focus member: {ctx.deps.focus_member_name or ctx.deps.focus_member_id} (id={ctx.deps.focus_member_id})"
         )
         parts.append(f"Focus resolution source: {ctx.deps.focus_resolution_source}")
         if ctx.deps.focus_changed:
