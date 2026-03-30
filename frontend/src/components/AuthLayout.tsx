@@ -104,7 +104,7 @@ export function AuthLayout({
   const { t } = usePreferences();
   return (
     <div
-      className="relative flex min-h-svh w-full max-w-full flex-col overflow-x-hidden bg-warm-cream text-warm-gray"
+      className="relative flex min-h-svh w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-warm-cream text-warm-gray"
       data-testid="auth-page"
     >
       <div className="pointer-events-none absolute inset-0 opacity-40">
@@ -126,7 +126,7 @@ export function AuthLayout({
 
       <main className="relative z-10 flex w-full min-w-0 flex-1 items-center justify-center px-3 py-6 sm:px-6 sm:py-8">
         <div
-          className="w-full max-w-[min(30rem,100%)] min-w-0 rounded-xl border border-gentle-blue bg-white shadow-apple"
+          className="w-full max-w-[min(30rem,100%)] min-w-0 max-h-[calc(100svh-11rem)] min-[900px]:max-h-[720px] rounded-xl border border-gentle-blue bg-white shadow-apple"
           data-testid="auth-card"
         >
           <div
