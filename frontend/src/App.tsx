@@ -641,8 +641,44 @@ export default function App() {
     }
   }
 
-  function handleDismissToolCard(toolCardId: string) {
-    setDismissedToolIds((current) => new Set(current).add(toolCardId));
+  async function handleDismissToolDraft(toolCard: ChatToolCard) {
+    if (
+      !session ||
+      !chatSession ||
+      !toolCard.result.tool_call_id ||
+      !toolCard.result.draft
+    ) {
+      return;
+    }
+
+    setIsChatBusy(true);
+    setChatError(null);
+
+    try {
+      const result = await confirmChatDraft(session, chatSession.id, {
+        approvals: { [toolCard.result.tool_call_id]: false },
+        edits: {},
+      });
+
+      setDismissedToolIds((current) => new Set(current).add(toolCard.id));
+      if (result.assistant_message) {
+        setChatMessages((current) => [
+          ...current,
+          {
+            id: nextId("assistant"),
+            role: "assistant",
+            content: result.assistant_message,
+            sortKey: nextTimelineSortKey(),
+          },
+        ]);
+      }
+    } catch (error) {
+      setChatError(
+        error instanceof Error ? error.message : "Failed to dismiss the draft. Please try again later.",
+      );
+    } finally {
+      setIsChatBusy(false);
+    }
   }
 
   async function handleAttachmentUpload(file: File) {
@@ -824,7 +860,7 @@ export default function App() {
           onAttachmentUpload={handleAttachmentUpload}
           onClose={() => setIsChatOpen(false)}
           onConfirmToolDraft={handleConfirmToolDraft}
-          onDismissToolCard={handleDismissToolCard}
+          onDismissToolCard={handleDismissToolDraft}
           onDraftChange={setChatDraft}
           onMemberChange={handleChatMemberChange}
           onSend={handleSendChatMessage}

@@ -153,4 +153,18 @@ describe("auth pages", () => {
     expect(hero).toHaveAttribute("loading", "eager");
     expect(container.querySelector(".material-symbols-outlined")).toBeNull();
   });
+
+  it("keeps the auth page non-scrollable while constraining card height responsively", () => {
+    const onAuthenticated = vi.fn();
+    renderWithProviders(<LoginPage onAuthenticated={onAuthenticated} />);
+
+    const authPage = screen.getByTestId("auth-page");
+    const authCard = screen.getByTestId("auth-card");
+    const authHero = screen.getByTestId("auth-hero");
+
+    expect(authPage.className).toContain("overflow-y-hidden");
+    expect(authCard.className).toContain("max-h-[calc(100svh-11rem)]");
+    expect(authCard.className).toContain("min-[900px]:max-h-[720px]");
+    expect(authHero.className).toContain("h-[clamp(7rem,18vh,12rem)]");
+  });
 });

@@ -103,7 +103,10 @@ export function AuthLayout({
 }: AuthLayoutProps) {
   const { t } = usePreferences();
   return (
-    <div className="relative flex h-svh max-h-svh min-h-0 w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-warm-cream text-warm-gray">
+    <div
+      className="relative flex h-svh max-h-svh min-h-0 w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-warm-cream text-warm-gray"
+      data-testid="auth-page"
+    >
       <div className="pointer-events-none absolute inset-0 opacity-40">
         <div className="absolute -left-8 top-0 h-72 w-72 rounded-full bg-soft-sage blur-[120px]" />
         <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-gentle-blue blur-[140px]" />
@@ -121,10 +124,14 @@ export function AuthLayout({
         </div>
       </header>
 
-      <main className="relative z-10 flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-hidden px-4 py-4 sm:px-6 sm:py-6">
-        <div className="w-full max-w-[480px] min-w-0 overflow-hidden rounded-xl border border-gentle-blue bg-white shadow-apple">
+      <main className="relative z-10 flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-hidden px-3 py-3 sm:px-6 sm:py-6">
+        <div
+          className="flex max-h-[calc(100svh-11rem)] w-full max-w-[min(30rem,100%)] min-w-0 flex-col overflow-hidden rounded-xl border border-gentle-blue bg-white shadow-apple min-[900px]:max-h-[720px]"
+          data-testid="auth-card"
+        >
           <div
-            className="relative h-36 w-full shrink-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(232,240,230,0.95),_rgba(252,249,245,0.9)_60%,_rgba(255,255,255,1)_100%)] sm:h-44 md:h-48"
+            className="relative h-[clamp(7rem,18vh,12rem)] w-full shrink-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(232,240,230,0.95),_rgba(252,249,245,0.9)_60%,_rgba(255,255,255,1)_100%)] sm:h-[clamp(8rem,20vh,13rem)]"
+            data-testid="auth-hero"
           >
             <img
               alt={t("authCardHeroAlt")}
@@ -136,13 +143,15 @@ export function AuthLayout({
             <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
           </div>
 
-          <div className="px-6 pb-6 pt-3 sm:px-8 sm:pb-8 sm:pt-4">
-            <div className="mb-6 sm:mb-8">
-              <h1 className="text-2xl font-bold tracking-tight text-warm-gray sm:text-3xl">{title}</h1>
-              <p className="mt-2 text-sm text-warm-gray/80">{description}</p>
+          <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-3 sm:px-8 sm:pb-7 sm:pt-4">
+            <div className="mb-4 sm:mb-6">
+              <h1 className="text-[clamp(1.625rem,2vw+1rem,1.875rem)] font-bold tracking-tight text-warm-gray">
+                {title}
+              </h1>
+              <p className="mt-1.5 text-sm text-warm-gray/80 sm:mt-2">{description}</p>
             </div>
 
-            <form className="space-y-5" onSubmit={onSubmit}>
+            <form className="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5" onSubmit={onSubmit}>
               {children}
 
               {extra}
@@ -154,7 +163,7 @@ export function AuthLayout({
               ) : null}
 
               <button
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-apple-blue px-4 py-4 text-base font-bold text-white shadow-lg shadow-apple-blue/20 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-apple-blue px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-apple-blue/20 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:py-4"
                 disabled={isSubmitting}
                 type="submit"
               >
@@ -163,7 +172,7 @@ export function AuthLayout({
               </button>
             </form>
 
-            <div className="mt-6 text-center text-sm text-warm-gray/80 sm:mt-8">
+            <div className="mt-5 text-center text-sm text-warm-gray/80 sm:mt-6">
               <span>{alternateLabel}</span>
               <Link className="ml-2 font-bold text-apple-blue hover:underline" to={alternateHref}>
                 {alternateAction}

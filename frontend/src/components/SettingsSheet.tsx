@@ -1019,9 +1019,10 @@ function MemberPermissionRow({
 }
 
 function EnvConfiguredBadge() {
+  const { t } = usePreferences();
   return (
     <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
-      来自环境变量
+      {t("settingsAiEnvConfiguredBadge")}
     </span>
   );
 }
@@ -2069,7 +2070,7 @@ export function SettingsSheet({
                           {chatBaseUrlSource === "env" && !chatBaseUrl && <EnvConfiguredBadge />}
                         </div>
                         {chatBaseUrlSource === "env" && chatBaseUrl && (
-                          <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                          <p className="mt-1 text-xs text-amber-600">{t("settingsAiDbPersistHint")}</p>
                         )}
                         <input
                           aria-label={t("settingsAiChatBaseUrl")}
@@ -2089,7 +2090,7 @@ export function SettingsSheet({
                           {chatApiKeySource === "env" && !chatApiKey && <EnvConfiguredBadge />}
                         </div>
                         {chatApiKeySource === "env" && chatApiKey && (
-                          <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                          <p className="mt-1 text-xs text-amber-600">{t("settingsAiDbPersistHint")}</p>
                         )}
                         <input
                           aria-label={t("settingsAiChatApiKey")}
@@ -2110,7 +2111,7 @@ export function SettingsSheet({
                         {chatModelSource === "env" && !chatModel && <EnvConfiguredBadge />}
                       </div>
                       {chatModelSource === "env" && chatModel && (
-                        <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                        <p className="mt-1 text-xs text-amber-600">{t("settingsAiDbPersistHint")}</p>
                       )}
                       <input
                         aria-label={t("settingsAiChatModel")}
@@ -2237,7 +2238,7 @@ export function SettingsSheet({
                                 {sttApiKeySource === "env" && !sttApiKey && <EnvConfiguredBadge />}
                               </div>
                               {sttApiKeySource === "env" && sttApiKey && (
-                                <p className="mt-1 text-xs text-amber-600">填写后将保存至数据库</p>
+                                <p className="mt-1 text-xs text-amber-600">{t("settingsAiDbPersistHint")}</p>
                               )}
                               <input
                                 aria-label={t("settingsAiTranscriptionApiKey")}

@@ -45,7 +45,7 @@ type ChatOverlayProps = {
   onAttachmentUpload: (file: File) => void;
   onClose: () => void;
   onConfirmToolDraft: (toolCard: ChatToolCard) => void;
-  onDismissToolCard: (toolCardId: string) => void;
+  onDismissToolCard: (toolCard: ChatToolCard) => void;
   onDraftChange: (value: string) => void;
   onMemberChange: (memberId: string) => void;
   onSend: () => void;
@@ -171,17 +171,13 @@ export function ChatOverlay({
     event.target.value = "";
   }
 
-  const visibleToolCards = toolCards.filter(
-    (toolCard) => !dismissedToolIds.has(toolCard.id),
-  );
-
   const chronologicalItems = [
     ...messages.map((message) => ({
       type: "message" as const,
       sortKey: message.sortKey,
       payload: message,
     })),
-    ...visibleToolCards.map((toolCard) => ({
+    ...toolCards.map((toolCard) => ({
       type: "tool" as const,
       sortKey: toolCard.sortKey,
       payload: toolCard,
@@ -240,6 +236,7 @@ export function ChatOverlay({
               if (item.type === "tool") {
                 const toolCard = item.payload as ChatToolCard;
                 const isConfirmed = confirmedToolIds.has(toolCard.id);
+                const isDismissed = dismissedToolIds.has(toolCard.id);
 
                 // Draft card (requires user action)
                 if (toolCard.result.requires_confirmation) {
@@ -247,8 +244,9 @@ export function ChatOverlay({
                     <DraftCard
                       key={toolCard.id}
                       isConfirmed={isConfirmed}
+                      isDismissed={isDismissed}
                       onConfirm={() => onConfirmToolDraft(toolCard)}
-                      onDismiss={() => onDismissToolCard(toolCard.id)}
+                      onDismiss={() => onDismissToolCard(toolCard)}
                       toolCard={toolCard}
                     />
                   );
@@ -405,11 +403,13 @@ function AnalysisSummary({ toolCard }: { toolCard: ChatToolCard }) {
 
 function DraftCard({
   isConfirmed,
+  isDismissed,
   onConfirm,
   onDismiss,
   toolCard,
 }: {
   isConfirmed: boolean;
+  isDismissed: boolean;
   onConfirm: () => void;
   onDismiss: () => void;
   toolCard: ChatToolCard;
@@ -418,17 +418,25 @@ function DraftCard({
   const toolDraft = toolCard.result.draft;
   const hasDraftItems = toolDraft && countDraftItems(toolDraft) > 0;
   const itemCount = toolDraft ? countDraftItems(toolDraft) : 0;
+  const isResolved = isConfirmed || isDismissed;
 
   return (
-    <div className={`flex max-w-[85%] items-start gap-4 ${isConfirmed ? "opacity-60" : ""}`}>
+    <div className={`flex max-w-[85%] items-start gap-4 ${isResolved ? "opacity-60" : ""}`}>
       <div className="min-w-0 flex-1 rounded-[2rem] rounded-tl-none border border-white/40 bg-[rgba(235,242,247,0.45)] p-0 shadow-sm backdrop-blur-lg">
         <div className="p-6">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6D8295]">
-              {isConfirmed ? t("chatDraftConfirmed") : t("chatOverlayDraft")}
+              {isConfirmed
+                ? t("chatDraftConfirmed")
+                : isDismissed
+                  ? t("chatDraftDismissed")
+                  : t("chatOverlayDraft")}
             </p>
             {isConfirmed ? (
               <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+            ) : null}
+            {isDismissed ? (
+              <span className="material-symbols-outlined text-[16px] text-[#6D8295]">block</span>
             ) : null}
           </div>
           <p className="text-[16px] leading-relaxed text-[#2D2926]">{toolCard.result.content}</p>
@@ -461,7 +469,7 @@ function DraftCard({
                 ))}
               </div>
             ) : null}
-            {!isConfirmed ? (
+            {!isResolved ? (
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   className="rounded-full px-4 py-2 text-sm font-medium text-[#4A443F] transition hover:bg-[#F2EDE7]/70"
@@ -479,7 +487,7 @@ function DraftCard({
                 </button>
               </div>
             ) : null}
-            {hasDraftItems && !isConfirmed ? (
+            {hasDraftItems && !isResolved ? (
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-[#D8E5EF] px-6 py-3">
                 <span aria-hidden className="material-symbols-outlined text-[18px] text-[#4A6076]">
                   lightbulb
