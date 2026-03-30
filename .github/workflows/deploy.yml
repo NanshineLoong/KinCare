@@ -10,6 +10,11 @@ on:
         description: Existing image tag to deploy. Leave empty to build and deploy the current ref.
         required: false
         type: string
+      seed_demo_data:
+        description: Reset the remote SQLite data and recreate the demo family after deploy.
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-${{ github.workflow }}-${{ github.ref }}
@@ -136,6 +141,6 @@ jobs:
   seed:
     name: Seed Demo Data After Deploy
     needs: deploy
-    if: needs.deploy.result == 'success'
+    if: needs.deploy.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.seed_demo_data
     uses: ./.github/workflows/seed.yml
     secrets: inherit

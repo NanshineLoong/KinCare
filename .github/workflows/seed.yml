@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '0 19 * * *'   # daily 03:00 CST = 19:00 UTC
   workflow_dispatch:
+    inputs:
+      confirm_reset:
+        description: Reset the remote SQLite data and recreate the demo family.
+        required: true
+        default: false
+        type: boolean
   workflow_call:
 
 env:
@@ -13,6 +19,7 @@ jobs:
   seed:
     name: Seed Demo Data
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_call' || inputs.confirm_reset
     steps:
       - name: Install SSH key
         shell: bash
@@ -40,5 +47,7 @@ jobs:
                 exec -T api echo ok && break || sleep 5
             done
             docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-              exec -T api python scripts/seed_demo_data.py
+              exec -T api test -f /app/scripts/seed_demo_data.py
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              exec -T api python /app/scripts/seed_demo_data.py
           "
